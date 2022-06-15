@@ -1,0 +1,82 @@
+# migrate_pages ____________________________________________________
+# long sys_migrate_pages(pid_t pid, unsigned long maxnode,
+#		const unsigned long __user *old_nodes,
+#		const unsigned long __user *new_nodes)
+
+@define _SYSCALL_MIGRATE_PAGES_NAME
+%(
+	name = "migrate_pages"
+%)
+
+@define _SYSCALL_MIGRATE_PAGES_ARGSTR
+%(
+	argstr = sprintf("%d, %u, %p, %p", pid, maxnode, old_nodes, new_nodes)
+%)
+
+probe syscall.migrate_pages = dw_syscall.migrate_pages !,
+                              nd_syscall.migrate_pages ? {}
+probe syscall.migrate_pages.return = dw_syscall.migrate_pages.return !,
+                                     nd_syscall.migrate_pages.return ? {}
+
+# dw_migrate_pages _____________________________________________________
+
+probe dw_syscall.migrate_pages = __syscall.migrate_pages ?,
+                              kernel.function("compat_sys_migrate_pages").call ?
+{
+	@_SYSCALL_MIGRATE_PAGES_NAME
+	pid = __int32($pid)
+	old_nodes = $old_nodes
+	new_nodes = $new_nodes
+	maxnode = @__compat_ulong($maxnode)
+	@_SYSCALL_MIGRATE_PAGES_ARGSTR
+}
+probe __syscall.migrate_pages = kernel.function("sys_migrate_pages").call
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}
+probe dw_syscall.migrate_pages.return = __syscall.migrate_pages.return ?,
+                                     kernel.function("compat_sys_migrate_pages").return ?
+{
+	@_SYSCALL_MIGRATE_PAGES_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.migrate_pages.return = kernel.function("sys_migrate_pages").return
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}
+
+# nd_migrate_pages _____________________________________________________
+
+probe nd_syscall.migrate_pages = __nd_syscall.migrate_pages ?,
+                                 kprobe.function("compat_sys_migrate_pages") ?
+{
+	@_SYSCALL_MIGRATE_PAGES_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	maxnode = ulong_arg(2)
+	old_nodes = pointer_arg(3)
+	new_nodes = pointer_arg(4)
+	@_SYSCALL_MIGRATE_PAGES_ARGSTR
+}
+probe __nd_syscall.migrate_pages = kprobe.function("sys_migrate_pages")
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}
+probe nd_syscall.migrate_pages.return = __nd_syscall.migrate_pages.return ?,
+                                        kprobe.function("compat_sys_migrate_pages").return ?
+{
+	@_SYSCALL_MIGRATE_PAGES_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.migrate_pages.return = kprobe.function("sys_migrate_pages").return
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}

@@ -1,0 +1,1093 @@
+// python 3 tapset
+// Copyright (C) 2016 Red Hat Inc.
+//
+// This file is part of systemtap, and is free software.  You can
+// redistribute it and/or modify it under the terms of the GNU General
+// Public License (GPL); either version 2, or (at your option) any
+// later version.
+
+// Here we store to address of 'PyObject_GenericGetAttr', which we use
+// down in Py3Object_GetAttr().
+private global Py3Object_GenericGetAttr_addr = 0
+
+%{
+/*
+ * Defines borrowed from object.h.
+ */
+ 
+/* These flags are used to determine if a type is a subclass. */
+#define Py3_TPFLAGS_LONG_SUBCLASS        (1L<<24)
+#define Py3_TPFLAGS_LIST_SUBCLASS        (1L<<25)
+#define Py3_TPFLAGS_TUPLE_SUBCLASS       (1L<<26)
+#define Py3_TPFLAGS_BYTES_SUBCLASS       (1L<<27)
+#define Py3_TPFLAGS_UNICODE_SUBCLASS     (1L<<28)
+#define Py3_TPFLAGS_DICT_SUBCLASS        (1L<<29)
+#define Py3_TPFLAGS_BASE_EXC_SUBCLASS    (1L<<30)
+#define Py3_TPFLAGS_TYPE_SUBCLASS        (1L<<31)
+
+/*
+ * Defines borrowed from code.h.
+ */
+
+/* Masks for co_flags above */
+#define Py3_CO_OPTIMIZED	0x0001
+#define Py3_CO_NEWLOCALS	0x0002
+#define Py3_CO_VARARGS		0x0004
+#define Py3_CO_VARKEYWORDS	0x0008
+#define Py3_CO_NESTED		0x0010
+#define Py3_CO_GENERATOR	0x0020
+/* The Py3_CO_NOFREE flag is set if there are no free or cell variables.
+   This information is redundant, but it allows a single flag test
+   to determine whether there is any extra work to be done when the
+   call frame it setup.
+*/
+#define Py3_CO_NOFREE       0x0040
+
+/*
+ * Defines borrowed from longintrepr.h
+ */
+#define Py3Long_SHIFT_SMALL	15
+#define Py3Long_SHIFT_BIG	30
+
+%}
+
+#
+# Macros to cast to various python 3 types
+#
+
+###########################################
+#
+# FIXME: We've got a couple of problems with @cast() here.
+#
+# 1) The first thing in the @cast module list is 'python3'. On some
+#    systems, the python3 executable is just named
+#    'python'. Systemtap's configure script finds the right name for
+#    the python 3 executable, but that information doesn't make it
+#    here. This file may need to be generated at systemtap build time
+#    (i.e. have a 'python3.stp.in' tapset file that gets turned into
+#    'python3.stp').
+#
+# 2) Because @cast module paths doesn't support wildcards (see
+#    PR20394), we have to list 64-bit and 32-bit versions of the
+#    python 3.4, 3.5, and 3.6 versions of the shared library.
+#
+###########################################
+
+@define Py3ModuleList %(
+    "python3:/usr/lib64/libpython3.6.so:/usr/lib64/libpython3.6m.so:/usr/lib64/libpython3.5m.so:/usr/lib64/libpython3.4m.so:/usr/lib/libpython3.6.so:/usr/lib/libpython3.6m.so:/usr/lib/libpython3.5m.so:/usr/lib/libpython3.4m.so"
+%)
+
+@define Py3Object(object) %(
+    @cast(@object, "PyObject", @Py3ModuleList)
+%)
+@define Py3VarObject(object) %(
+    @cast(@object, "PyVarObject", @Py3ModuleList)
+%)
+@define Py3LongObject(object) %(
+    @cast(@object, "PyLongObject", @Py3ModuleList)
+%)
+@define Py3BytesObject(object) %(
+    @cast(@object, "PyBytesObject", @Py3ModuleList)
+%)
+@define Py3UnicodeObject(object) %(
+    @cast(@object, "PyUnicodeObject", @Py3ModuleList)
+%)
+@define Py3TypeObject(object) %(
+    @cast(@object, "PyTypeObject", @Py3ModuleList)
+%)
+@define Py3TupleObject(object) %(
+    @cast(@object, "PyTupleObject", @Py3ModuleList)
+%)
+@define Py3ListObject(object) %(
+    @cast(@object, "PyListObject", @Py3ModuleList)
+%)
+@define Py3SetObject(object) %(
+    @cast(@object, "PySetObject", @Py3ModuleList)
+%)
+@define Py3DictObject(object) %(
+    @cast(@object, "PyDictObject", @Py3ModuleList)
+%)
+@define Py3DictEntry(object) %(
+    @cast(@object, "PyDictEntry", @Py3ModuleList)
+%)
+@define Py3DictKeysObject(object) %(
+    @cast(@object, "PyDictKeysObject", @Py3ModuleList)
+%)
+@define Py3DictKeyEntry(object) %(
+    @cast(@object, "PyDictKeyEntry", @Py3ModuleList)
+%)
+@define Py3FrameObject(object) %(
+    @cast(@object, "PyFrameObject", @Py3ModuleList)
+%)
+@define Py3CodeObject(object) %(
+    @cast(@object, "PyCodeObject", @Py3ModuleList)
+%)
+
+@define Py3ASCIIObject(object) %(
+    @cast(@object, "PyASCIIObject", @Py3ModuleList)
+%)
+@define Py3ASCIIObject_Sizeof %(
+    @cast_module_sizeof(@Py3ModuleList, "PyASCIIObject")
+%)
+
+@define Py3CompactUnicodeObject(object) %(
+    @cast(@object, "PyCompactUnicodeObject", @Py3ModuleList)
+%)
+@define Py3CompactUnicodeObject_Sizeof %(
+    @cast_module_sizeof(@Py3ModuleList, "PyCompactUnicodeObject")
+%)
+
+#
+# Systemtap macros based on C macros in object.h.
+#
+
+@define Py3_REFCNT(object) %(
+    @Py3Object(@object)->ob_refcnt
+%)
+@define Py3_TYPE(object) %(
+    @Py3Object(@object)->ob_type
+%)
+@define Py3_SIZE(object) %(
+    @Py3VarObject(@object)->ob_size
+%)
+
+@define Py3Type_HasFeature(t, f) %(
+    ((@t->tp_flags & (@f)) != 0)
+%)
+@define Py3Type_FastSubclass(t, f) %(
+    @Py3Type_HasFeature(@t, @f)
+%)
+
+#
+# Systemtap macros based on C macros in bytesobject.h.
+#
+
+@define Py3Bytes_Check(op) %(
+    @Py3Type_FastSubclass(@Py3_TYPE(@op), %{ Py3_TPFLAGS_BYTES_SUBCLASS %})
+%)
+
+#
+# Systemtap macros based on C macros in unicodeobject.h.
+#
+
+@define Py3Unicode_Check(op) %(
+    @Py3Type_FastSubclass(@Py3_TYPE(@op), %{ Py3_TPFLAGS_UNICODE_SUBCLASS %})
+%)
+
+/* Returns the length of the unicode string. */
+@define Py3Unicode_GET_LENGTH(op) %(
+    ((@Py3Unicode_Check(@op) && @Py3Unicode_IS_READY(@op))
+     ? @Py3ASCIIObject(@op)->length : 0)
+%)
+
+@define Py3Unicode_IS_READY(op) %(
+    @Py3ASCIIObject(@op)->state->ready
+%)
+
+@define Py3Unicode_IS_ASCII(op) %(
+    (@Py3Unicode_Check(@op) && @Py3Unicode_IS_READY(@op)
+     && @Py3ASCIIObject(@op)->state->ascii)
+%)
+
+/* Return true if the string is compact or 0 if not.
+   No type checks or Ready calls are performed. */
+@define Py3Unicode_IS_COMPACT(op) %(
+    (@Py3ASCIIObject(@op)->state->compact)
+%)
+
+/* Return a void pointer to the raw unicode buffer. */
+@define _Py3Unicode_COMPACT_DATA(op) %(
+    (@Py3Unicode_IS_ASCII(@op)
+     ? (@op + @Py3ASCIIObject_Sizeof)
+     : (@op + @Py3CompactUnicodeObject_Sizeof))
+%)
+@define _Py3Unicode_NONCOMPACT_DATA(op) %(
+    (@Py3UnicodeObject(@op)->data->any)
+%)
+@define Py3Unicode_DATA(op) %(
+    (@Py3Unicode_IS_COMPACT(@op) ? @_Py3Unicode_COMPACT_DATA(@op)
+     : @_Py3Unicode_NONCOMPACT_DATA(@op))
+%)
+
+#
+# Systemtap macros based on C macros in longobject.h.
+#
+
+@define Py3Long_Check(op) %(
+    @Py3Type_FastSubclass(@Py3_TYPE(@op), %{ Py3_TPFLAGS_LONG_SUBCLASS %})
+%)
+
+#
+# Systemtap macros based on C macros in dictobject.h.
+#
+
+@define Py3Dict_Check(op) %(
+    @Py3Type_FastSubclass(@Py3_TYPE(@op), %{ Py3_TPFLAGS_DICT_SUBCLASS %})
+%)
+
+#
+# Systemtap macros based on C macros in tupleobject.h.
+#
+
+@define Py3Tuple_Check(op) %(
+    @Py3Type_FastSubclass(@Py3_TYPE(@op), %{ Py3_TPFLAGS_TUPLE_SUBCLASS %})
+%)
+
+#
+# Systemtap macros based on C macros in listobject.h.
+#
+
+@define Py3List_Check(op) %(
+    @Py3Type_FastSubclass(@Py3_TYPE(@op), %{ Py3_TPFLAGS_LIST_SUBCLASS %})
+%)
+
+#
+# Systemtap functions based on C functions in longobject.c.
+#
+
+%{
+/* Checking for overflow in PyLong_AsLong is a PITA since C doesn't define
+ * anything about what happens when a signed integer operation overflows,
+ * and some compilers think they're doing you a favor by being "clever"
+ * then.  The bit pattern for the largest positive signed long is
+ * (unsigned long)LONG_MAX, and for the smallest negative signed long
+ * it is abs(LONG_MIN), which we could write -(unsigned long)LONG_MIN.
+ * However, some other compilers warn about applying unary minus to an
+ * unsigned operand.  Hence the weird "0-".
+ */
+
+#define PY3_LLONG_MIN		(-__LONG_LONG_MAX__ - 1L)
+#define PY3_ABS_LLONG_MIN	(0-(unsigned long long)PY3_LLONG_MIN)
+%}
+
+/* Get a C long int from an int object or any object that has an __int__
+ * method.
+ *
+ * On overflow, return -1 and throw an error.
+ */
+
+/*
+ * The Py3Long_AsLongLong() function below is actually based on
+ * PyLong_AsLong(). Python's PyLong_AsLongLong() converts the PyLong
+ * to a Bytes object. This method is simpler.
+ *
+ * On 32-bit platforms, the default for PYLONG_BITS_IN_DIGIT is 15. On
+ * 64-bit platforms, the default for PYLONG_BITS_IN_DIGIT is 30. We're
+ * going to assume that to be true, even though it can be configured
+ * differently.
+ *
+ * Since we can be on a 64-bit kernel but probing a 32-bit python 3
+ * executable, we have to handle both cases at the same time.
+ */
+
+private function Py3Long_AsLongLongAndOverflow_Small:long(v:long)
+{
+    res = -1
+    i = @Py3_SIZE(v)
+    if (i == -1) {
+	/* We're using 'x & 0xffff' instead of '(short)x' */
+	res = -(@Py3LongObject(v)->ob_digit[0] & 0xffff)
+    }
+    else if (i == 0) {
+	res = 0
+    }
+    else if (i == 1) {
+	res = @Py3LongObject(v)->ob_digit[0]
+    }
+    else {
+	sign = 1
+	x = 0
+	if (i < 0) {
+	    sign = -1
+	    i = -(i)
+	}
+	while (--i >= 0) {
+	    prev = x
+	    x = ((x << %{ Py3Long_SHIFT_SMALL %})
+		 | @Py3LongObject(v)->ob_digit[i])
+	    if ((x >> %{ Py3Long_SHIFT_SMALL %}) != prev) {
+		error("Python int too large")
+		return res
+	    }
+	}
+	/* Haven't lost any bits, but casting to long requires extra
+	 * care (see comment above).
+	 */
+        if (x <= %{ __LONG_LONG_MAX__ %}) {
+            res = x * sign
+        }
+        else if (sign < 0 && x == %{ PY3_ABS_LLONG_MIN %}) {
+            res = %{ PY3_LLONG_MIN %}
+        }
+        else {
+	    error("Python int too large")
+            /* res is already set to -1 */
+	}
+    }
+    return res
+}
+
+private function Py3Long_AsLongLongAndOverflow_Big:long(v:long)
+{
+    res = -1
+    i = @Py3_SIZE(v)
+    if (i == -1) {
+	/* We're using 'x & 0xffffffff' instead of '(int32_t)x' */
+	res = -(@Py3LongObject(v)->ob_digit[0] & 0xffffffff)
+    }
+    else if (i == 0) {
+	res = 0
+    }
+    else if (i == 1) {
+	res = @Py3LongObject(v)->ob_digit[0]
+    }
+    else {
+	sign = 1
+	x = 0
+	if (i < 0) {
+	    sign = -1
+	    i = -(i)
+	}
+	while (--i >= 0) {
+	    prev = x
+	    x = ((x << %{ Py3Long_SHIFT_BIG %})
+		 | @Py3LongObject(v)->ob_digit[i])
+	    if ((x >> %{ Py3Long_SHIFT_BIG %}) != prev) {
+		error("Python int too large")
+		return res
+	    }
+	}
+	/* Haven't lost any bits, but casting to long requires extra
+	 * care (see comment above).
+	 */
+        if (x <= %{ __LONG_LONG_MAX__ %}) {
+            res = x * sign
+        }
+        else if (sign < 0 && x == %{ PY3_ABS_LLONG_MIN %}) {
+            res = %{ PY3_LLONG_MIN %}
+        }
+        else {
+	    error("Python int too large")
+            /* res is already set to -1 */
+	}
+    }
+    return res
+}
+
+private function Py3Long_AsLongLong:long(v:long)
+{
+    if (! @Py3Long_Check(v)) {    
+	error(sprintf("Py3Long_AsLong called on %s object at %p",
+	      python3_get_typename(v), v))
+	return -1
+    }
+
+%( CONFIG_64BIT == "y" %?
+%( CONFIG_COMPAT == "y" %?
+    if (@__compat_task) {
+    	return Py3Long_AsLongLongAndOverflow_Small(v)
+    }
+%)
+    return Py3Long_AsLongLongAndOverflow_Big(v)
+%:
+    return Py3Long_AsLongLongAndOverflow_Small(v)
+%)
+}
+
+#
+# Systemtap functions based on C functions in bytesobject.c.
+#
+
+private function Py3Bytes_Size:long(object:long)
+{
+    if (! @Py3Bytes_Check(object)) {
+	# NB: python code returns string_getsize(), creating a new
+	# string representation of the object, then returning the
+	# length of the new string. We can't create new objects here,
+	# so we'll just quit.
+	warn(sprintf("Py3Bytes_Size called on non-bytes object address 0x%p\n",
+		     object))
+	return 0
+    }
+    return @Py3_SIZE(object)
+}
+
+#
+# Systemtap functions based on C functions in unicodeobject.c.
+#
+
+private function Py3Unicode_AsASCIIString:string(object:long)
+{
+    if (!@Py3Unicode_Check(object)) {
+	# NB: python returns value of string_getbuffer() here
+	# (basically getting a string representation of any
+	# object). We can't create new objects here, so we'll
+	# just quit.
+	warn(sprintf("Py3Unicode_AsASCIIString called on non-string address 0x%p\n",
+		     object))
+	return ""
+    }
+    if (@Py3Unicode_IS_ASCII(object)) {
+        try {
+	    return user_string_n(@Py3Unicode_DATA(object),
+				 @Py3Unicode_GET_LENGTH(object))
+	} catch {
+	    warn(sprintf("Py3Unicode_AsASCIIString failed on address 0x%p\n",
+			 object))
+	}
+	return ""
+    }
+    try {
+	return text_str(user_string_n(@Py3Unicode_DATA(object),
+				      @Py3Unicode_GET_LENGTH(object)))
+    } catch {
+	warn(sprintf("Py3Unicode_AsASCIIString failed(2) on address 0x%p\n",
+		     @Py3Unicode_DATA(object)))
+    }
+    return ""
+}
+
+#
+# Systemtap functions based on C functions in codeobject.c.
+#
+
+private function Py3Code_Addr2Line:long(code:long, addrq:long)
+{
+    /*
+     * co_lnotab is used to compute the line number from a bytecode
+     * index, addrq. See the file Objects/lnotab_notes.txt in the
+     * python source for the details of the lnotab representation.
+     *
+     * We can't treat co_lnotab as a "real" null terminated string,
+     * since co_lnotab can have embedded null characters. So, we'll
+     * grab it character by character.
+     */
+    size = Py3Bytes_Size(@Py3CodeObject(code)->co_lnotab) / 2
+    co_lnotab_sval = @Py3BytesObject(@Py3CodeObject(code)->co_lnotab)->ob_sval
+    line = @Py3CodeObject(code)->co_firstlineno
+    addr = 0
+    p = 0
+    while (--size >= 0) {
+    	addr += user_char(co_lnotab_sval + p++)
+	if (addr > addrq)
+	    break
+	    
+	line += user_char(co_lnotab_sval + p++)
+    }
+    return line
+}
+
+#
+# Systemtap functions based on C functions in frameobject.c.
+#
+
+private function Py3Frame_GetLineNumber:long(frame:long)
+{
+    if (@Py3FrameObject(frame)->f_trace)
+	return @Py3FrameObject(frame)->f_lineno
+    else
+	return Py3Code_Addr2Line(@Py3FrameObject(frame)->f_code,
+				 @Py3FrameObject(frame)->f_lasti)
+}
+
+#
+# Systemtap functions based on C functions in tupleobject.c.
+#
+
+private function Py3Tuple_GetItem:long(op:long, i:long)
+{
+    if (!@Py3Tuple_Check(op)) {
+	error(sprintf("Py3Tuple_GetItem called on %s object at %p",
+		      python3_get_typename(op), op))
+	return 0
+    }
+    if (i < 0 || i >= @Py3_SIZE(op)) {
+        error(sprintf("tuple index %d out of range (%d)", i, @Py3_SIZE(op)))
+        return 0
+    }
+    return @Py3TupleObject(op)->ob_item[i]
+}
+
+private function Py3Tuple_Repr:string(object:long)
+{
+    if (!@Py3Tuple_Check(object)) {
+	error(sprintf("Py3Tuple_Repr called on %s object at %p",
+		      python3_get_typename(object), object))
+	return ""
+    }
+    n = @Py3_SIZE(object)
+    if (n == 0)
+	return "()"
+
+    retstr = "("
+    first = 1
+    for (i = 0; i < n; i++) {
+	if (! first)
+	    retstr .= " "
+	first = 0
+	retstr .= Py3Object_Repr(Py3Tuple_GetItem(object, i))
+    }
+    retstr .= ")"
+    return retstr
+}
+
+#
+# Systemtap functions based on C functions in listobject.c.
+#
+
+private function Py3List_GetItem:long(op:long, i:long)
+{
+    if (!@Py3List_Check(op)) {
+	error(sprintf("Py3List_GetItem called on %s object at %p",
+		      python3_get_typename(op), op))
+        return 0
+    }
+    if (i < 0 || i >= @Py3_SIZE(op)) {
+        error(sprintf("tuple index %d out of range (%d)", i, @Py3_SIZE(op)))
+        return 0
+    }
+    return @Py3ListObject(op)->ob_item[i]
+}
+
+private function Py3List_Repr:string(object:long)
+{
+    if (!@Py3List_Check(object)) {
+	error(sprintf("Py3List_Repr called on %s object at %p",
+		      python3_get_typename(object), object))
+	return ""
+    }
+    n = @Py3_SIZE(object)
+    if (n == 0)
+	return "[]"
+
+    retstr = "["
+    first = 1
+    for (i = 0; i < n; i++) {
+	if (! first)
+	    retstr .= " "
+	first = 0
+	retstr .= Py3Object_Repr(Py3List_GetItem(object, i))
+    }
+    retstr .= "]"
+    return retstr
+}
+
+#
+# Systemtap functions based on C functions in dictobject.c.
+#
+
+@define DK_SIZE(dk) %(
+    @Py3DictKeysObject(@dk)->dk_size
+%)
+@define DK_IXSIZE(dk) %(
+    %( CONFIG_64BIT == "y" %?
+	%( CONFIG_COMPAT == "y" %?
+	    (@__compat_task
+	     ? (@DK_SIZE(@dk) <= 0xff ? 1 : (@DK_SIZE(@dk) <= 0xffff ? 2 : 4))
+	     : (@DK_SIZE(@dk) <= 0xff ?
+		1 : (@DK_SIZE(@dk) <= 0xffff ?
+		2 : (@DK_SIZE(@dk) <= 0xffffffff ? 4 : 8))))
+	%:
+	    (@DK_SIZE(@dk) <= 0xff ?
+	     1 : (@DK_SIZE(@dk) <= 0xffff ?
+	     2 : (@DK_SIZE(@dk) <= 0xffffffff ? 4 : 8)))
+	%)
+    %:
+	(@DK_SIZE(@dk) <= 0xff ? 1 : (@DK_SIZE(@dk) <= 0xffff ? 2 : 4))
+    %)
+%)
+
+@define DK_ENTRIES(dk) %(
+     (@choose_defined(@Py3DictKeysObject(@dk)->dk_entries,
+      (&@Py3DictKeyEntry(&@Py3DictKeysObject(@dk)->dk_indices->as_1[@DK_SIZE(@dk) * @DK_IXSIZE(@dk)]))))
+%)
+
+private function Py3Dict_GetItem:long(op:long, key:string)
+{
+    if (!@Py3Dict_Check(op)) {
+	error(sprintf("Py3Dict_GetItem called on %s object at %p",
+		      python3_get_typename(op), @__pointer(op)))
+        return 0
+    }
+    // We'd like to hash 'key' here, but we can't (easily). Python
+    // randomizes its hash function at python process startup. So,
+    // instead of hashing the key and then searching for that hash in
+    // the dictionary, we'll do a linear search of the dictionary for
+    // the key.
+
+    // In python 3, each DictObject can be in one of two forms.
+    //
+    // Either:
+    //   A combined table:
+    //     ma_values == NULL, dk_refcnt == 1.
+    //     Values are stored in the me_value field of the PyDictKeysObject.
+    // Or:
+    //   A split table:
+    //     ma_values != NULL, dk_refcnt >= 1
+    //     Values are stored in the ma_values array.
+    //     Only string (unicode) keys are allowed.
+
+    // If we've got a split table...
+    if (@Py3DictObject(op)->ma_values != 0) {
+        n = @DK_SIZE(@Py3DictObject(op)->ma_keys)
+	for (i = 0; i < n; i++) {
+	    entry_ptr = &@DK_ENTRIES(@Py3DictObject(op)->ma_keys)[i]
+	    if (entry_ptr->me_key == 0
+		|| ! @Py3Unicode_Check(entry_ptr->me_key))
+		continue
+	    if (Py3Unicode_AsASCIIString(entry_ptr->me_key) == key)
+		return @Py3DictObject(op)->ma_values[i]
+	}
+    }
+    // If we've got a combined table...
+    else {
+	n = @choose_defined(@Py3DictObject(op)->ma_keys->dk_nentries,
+			    @DK_SIZE(@Py3DictObject(op)->ma_keys))
+	for (i = 0; i < n; i++) {
+	    entry_ptr = &@DK_ENTRIES(@Py3DictObject(op)->ma_keys)[i]
+	    if (entry_ptr->me_key == 0 || entry_ptr->me_value == 0
+		|| ! @Py3Unicode_Check(entry_ptr->me_key))
+		continue
+	    if (Py3Unicode_AsASCIIString(entry_ptr->me_key) == key)
+		return entry_ptr->me_value
+	}
+    }
+    return 0
+}
+
+# This function isn't really based on a function in dictobject.c, but
+# it is based on Py3Dict_GetItem().
+private function Py3Dict_GetItem_FromLong:long(op:long, key:long)
+{
+    if (!@Py3Dict_Check(op)) {
+	error(sprintf("Py3Dict_GetItem called on %s object at %p",
+		      python3_get_typename(op), @__pointer(op)))
+        return 0
+    }
+
+    // See Py3Dict_GetItem() for details on dicts.
+
+    // If we've got a split table...
+    if (@Py3DictObject(op)->ma_values != 0) {
+        n = @Py3DictObject(op)->ma_used
+	for (i = 0; i < n; i++) {
+	    entry_ptr = &@DK_ENTRIES(@Py3DictObject(op)->ma_keys)[i]
+	    if (entry_ptr->me_key == 0
+		|| ! @Py3Long_Check(entry_ptr->me_key))
+		continue
+	    if (Py3Long_AsLongLong(entry_ptr->me_key) == key)
+		return @Py3DictObject(op)->ma_values[i]
+	}
+    }
+    // If we've got a combined table...
+    else {
+	n = @choose_defined(@Py3DictObject(op)->ma_keys->dk_nentries,
+			    @DK_SIZE(@Py3DictObject(op)->ma_keys))
+	for (i = 0; i < n; i++) {
+	    entry_ptr = &@DK_ENTRIES(@Py3DictObject(op)->ma_keys)[i]
+	    if (entry_ptr->me_key == 0 || entry_ptr->me_value == 0
+		|| ! @Py3Long_Check(entry_ptr->me_key))
+		continue
+	    if (Py3Long_AsLongLong(entry_ptr->me_key) == key)
+		return entry_ptr->me_value
+	}
+    }
+    return 0
+}
+
+private function Py3Dict_Repr:string(object:long)
+{
+    if (!@Py3Dict_Check(object)) {
+	error(sprintf("Py3Dict_Repr called on %s object at %p",
+		      python3_get_typename(object), @__pointer(object)))
+	return ""
+    }
+
+    // If we've got a split table...
+    if (@Py3DictObject(object)->ma_values != 0) {
+        n = @Py3DictObject(object)->ma_used
+	if (n == 0)
+	    return "{}"
+
+	retstr = "{"
+	first = 1
+	for (i = 0; i < n; i++) {
+	    entry_ptr = &@DK_ENTRIES(@Py3DictObject(object)->ma_keys)[i]
+	    if (entry_ptr->me_key == 0)
+		continue
+
+	    if (! first)
+		retstr .= " "
+	    first = 0
+	    retstr .= Py3Object_Repr(entry_ptr->me_key)
+	    retstr .= ":"
+	    retstr .= Py3Object_Repr(@Py3DictObject(object)->ma_values[i])
+	}
+	retstr .= "}"
+    }
+    // If we've got a combined table...
+    else {
+	n = @choose_defined(@Py3DictObject(object)->ma_keys->dk_nentries,
+			    @DK_SIZE(@Py3DictObject(object)->ma_keys))
+	if (n == 0)
+	    return "{}"
+
+	retstr = "{"
+	first = 1
+	for (i = 0; i < n; i++) {
+	    entry_ptr = &@DK_ENTRIES(@Py3DictObject(object)->ma_keys)[i]
+	    if (entry_ptr->me_key == 0 || entry_ptr->me_value == 0)
+		continue
+
+	    if (! first)
+		retstr .= " "
+	    first = 0
+	    retstr .= Py3Object_Repr(entry_ptr->me_key)
+	    retstr .= ":"
+	    retstr .= Py3Object_Repr(entry_ptr->me_value)
+	}
+	retstr .= "}"
+    }
+    return retstr
+}
+
+#
+# Systemtap functions based on C functions in object.c.
+#
+
+function Py3Object_Repr:string(object:long)
+{
+    if (object == 0)
+	return "<NULL>"
+    if (@Py3Unicode_Check(object))
+	return sprintf("\"%s\"", Py3Unicode_AsASCIIString(object))
+    if (@Py3Long_Check(object))
+    	return sprintf("%#x", Py3Long_AsLongLong(object))
+    if (@Py3Tuple_Check(object))
+	return Py3Tuple_Repr(object)
+    if (@Py3List_Check(object))
+	return Py3List_Repr(object)
+    if (@Py3Dict_Check(object))
+	return Py3Dict_Repr(object)
+    return sprintf("<%s object at %p>", python3_get_typename(object),
+		   @__pointer(object))
+}
+
+# This function isn't really based on a function in object.c, but
+# it is based on Py3Object_Repr().
+private function Py3Object_Repr:string(object:long, index:long)
+{
+    if (object == 0)
+	return "<NULL>"
+    if (@Py3Unicode_Check(object))
+	return sprintf("\"%c\"", stringat(Py3Unicode_AsASCIIString(object),
+					  index))
+    if (@Py3Tuple_Check(object))
+	return Py3Object_Repr(Py3Tuple_GetItem(object, index))
+    if (@Py3List_Check(object))
+	return Py3Object_Repr(Py3List_GetItem(object, index))
+    if (@Py3Dict_Check(object))
+	return Py3Object_Repr(Py3Dict_GetItem_FromLong(object, index))
+
+    error(sprintf("TypeError: '%s' object cannot be indexed",
+	  python3_get_typename(object)))
+    return ""
+}
+
+# This function isn't really based on a function in object.c, but
+# it is based on Py3Object_Repr().
+private function Py3Object_GetItem:string(object:long, index:long)
+{
+    if (object == 0) {
+	error("TypeError: None object cannot be indexed")
+	return 0
+    }
+    if (@Py3Tuple_Check(object))
+	return Py3Tuple_GetItem(object, index)
+    if (@Py3List_Check(object))
+	return Py3List_GetItem(object, index)
+    if (@Py3Dict_Check(object))
+	return Py3Dict_GetItem_FromLong(object, index)
+
+    error(sprintf("TypeError: '%s' object cannot be indexed",
+	  python3_get_typename(object)))
+    return 0
+}
+
+private function Py3Object_GenericGetAttrWithDict:long(obj:long, name:string,
+						       dict:long)
+{
+    tp = @Py3_TYPE(obj)
+    if (tp->tp_dict == 0) {
+	printf("Py3Object_GenericGetAttr: no tp_dict\n")
+	return 0
+    }
+
+    if (dict == 0) {
+	dictoffset = tp->tp_dictoffset
+	if (dictoffset != 0) {
+	    if (dictoffset < 0) {
+		error("yikes")
+	    }
+	    dict = user_long(obj + dictoffset);
+	}
+    }
+    if (dict != 0) {
+	res = Py3Dict_GetItem(dict, name)
+	if (res != 0)
+	    return res
+    }
+    return 0
+}
+
+@define Py3Object_GenericGetAttr(obj, name) %(
+    Py3Object_GenericGetAttrWithDict(@obj, @name, 0)
+%)
+
+function Py3Object_GetAttr:long(object:long, attr:string)
+{
+    if (object == 0) {
+	error("The None object has no attributes")
+	return 0
+    }
+
+    if (@Py3_TYPE(object)->tp_getattro == 0) {
+	error(sprintf("The %s object has no attributes",
+		      python3_get_typename(object)))
+	return 0
+    }
+
+    // Python 3 is quite different than python 2 when it comes to
+    // attributes. Classes are no longer their own type anymore, so we
+    // can't really check to see if something is a class.
+    //
+    // The python 3.6m source uses PyObject_GenericGetAttr() for most
+    // objects that support attributes. Now we need to figure out if
+    // that's the function we've got. If so, we know how to handle
+    // this object.
+    if (Py3Object_GenericGetAttr_addr != @Py3_TYPE(object)->tp_getattro) {
+	error(sprintf("Systemtap doesn't know how to get attributes from %s objects",
+		      python3_get_typename(object)))
+	return 0
+    }
+
+    res = @Py3Object_GenericGetAttr(object, attr)
+    if (res != 0)
+       return res
+
+    error(sprintf("The %s object has no attribute '%s'",
+		  python3_get_typename(object), attr))
+
+    return 0
+}
+
+#
+# Systemtap support functions for python 3.
+#
+
+/*
+ * python3_print_backtrace - Print python backtrace
+ *
+ * Description: This function is equivalent to
+ * print(python3_sprint_backtrace(frame)), except that deeper stack
+ * tracing may be supported. 
+ *
+ * Note that users should call 'python_print_backtrace()', and the
+ * translator will call the appropriate python 2 or python 3 function
+ * with the correct argument.
+ */
+function python3_print_backtrace:long(frame:long)
+{
+    printf("Traceback (most recent call first):\n")
+    while (frame != 0) {
+	lineno = Py3Frame_GetLineNumber(frame)
+	code = @Py3FrameObject(frame)->f_code
+	filename = Py3Unicode_AsASCIIString(code->co_filename)
+	name = Py3Unicode_AsASCIIString(code->co_name)
+
+	# Quit when we make it back to the HelperSDT module.
+	if (isinstr(filename, "/HelperSDT/"))
+	    break
+
+	printf("  File \"%s\", line %d, in %s\n", filename, lineno, name)
+	# NB: We'd like to print the source line here as python does,
+	# but we can't. Python opens up the file and finds the
+	# appropriate line, but we can't really do that when we're in
+	# the kernel.
+
+	frame = @Py3FrameObject(frame)->f_back
+    }
+}
+
+/*
+ * python3_sprint_backtrace - Get python backtrace
+ * 
+ * Description: This function returns a string containing a python
+ * backtrace.  Output may be truncated as per maximum string length
+ * (MAXSTRINGLEN).
+ *
+ * Note that users should call 'python_sprint_backtrace()', and the
+ * translator will call the appropriate python 2 or python 3 function
+ * with the correct argument.
+ */
+function python3_sprint_backtrace:string(frame:long)
+{
+    retstr = "Traceback (most recent call first):\n"
+    while (frame != 0) {
+	lineno = Py3Frame_GetLineNumber(frame)
+	code = @Py3FrameObject(frame)->f_code
+	filename = Py3Unicode_AsASCIIString(code->co_filename)
+	name = Py3Unicode_AsASCIIString(code->co_name)
+
+	# Quit when we make it back to the HelperSDT module.
+	if (isinstr(filename, "/HelperSDT/"))
+	    break
+
+	retstr .= sprintf("  File \"%s\", line %d, in %s\n", filename,
+			  lineno, name)
+
+	frame = @Py3FrameObject(frame)->f_back
+    }
+    return retstr
+}
+
+
+/*
+ * python3_get_typename - Get python object type name
+ *
+ * Description: This function returns a string describing the type of
+ * a python object.
+ */
+private function python3_get_typename:string(obj:long)
+{
+    if (obj == 0)
+	return ""
+    return user_string(@Py3_TYPE(obj)->tp_name)
+}
+
+/*
+ * python3_initiatlize - Initialize python tapset
+ *
+ * Description: This function gets values from the HelperSDT module.
+ *
+ * Note that users shouldn't call this directly. The translator will
+ * generate code that calls this function with the correct arguments.
+ */
+function python3_initialize:long(arg1:long)
+{
+    Py3Object_GenericGetAttr_addr = arg1
+}
+
+/*
+ * python3_get_locals - Get python local variables
+ *
+ * Description: This function returns a list of python local variables
+ * from a frame.
+ *
+ * frame: python frame object pointer
+ * flags: 0: function parameters only ($$parms), 1: locals only
+ * ($$locals), 2: all local vars, parameters and locals ($$vars)
+ *
+ * Note that users shouldn't call this directly, they should refer to
+ * '$$parms', '$$locals', and '$$vars' in a python probe and the
+ * translator will generate code that calls this function with the
+ * correct arguments.
+ */
+function python3_get_locals:string(frame:long, flags:long)
+{
+    code = @Py3FrameObject(frame)->f_code
+	
+    # flags == 2: get all variables
+    if (flags == 2) {		
+	i = 0
+	n = code->co_nlocals
+    }
+    else {
+	n = code->co_argcount + code->co_kwonlyargcount
+	if (code->co_flags & %{ Py3_CO_VARARGS %})
+	    n++
+	if (code->co_flags & %{ Py3_CO_VARKEYWORDS %})
+	    n++
+
+	# flags == 0 (parms only): 0 to n (argcount)
+	if (flags == 0)
+	    i = 0
+	# flags == 1 (locals only): n (argcount) to max
+	else if (flags == 1) {
+	    i = n
+	    n = code->co_nlocals
+	}
+    }
+    if (i < 0 || i > n) {
+        error(sprintf("python3_get_locals: invalid indicies (%d-%d)", i, n))
+        return ""
+    }
+	    
+    # Each element in co_varnames is a tuple of strings. The values
+    # are in f_localsplus.
+    p = code->co_varnames
+    localsplus = @Py3FrameObject(frame)->f_localsplus
+    first = 1
+    for (; i < n; i++) {
+	if (! first)
+	    retstr .= " "
+	first = 0
+	key_obj = Py3Tuple_GetItem(p, i)
+	value_obj = user_long(localsplus + (i * %{ sizeof(intptr_t) %}))
+	retstr .= sprintf("%s=%s", Py3Unicode_AsASCIIString(key_obj),
+			  Py3Object_Repr(value_obj))
+    }
+    return retstr
+}
+
+function python3_get_var_obj:long(frame:long, var:string)
+{
+    f_code = @Py3FrameObject(frame)->f_code
+    n = f_code->co_nlocals
+	    
+    # Each element in co_varnames is a tuple of strings. The values
+    # are in f_localsplus.
+    p = f_code->co_varnames
+    localsplus = @Py3FrameObject(frame)->f_localsplus
+    for (i = 0; i < n; i++) {
+	key_obj = Py3Tuple_GetItem(p, i)
+	if (var == Py3Unicode_AsASCIIString(key_obj)) {
+	    return user_long(localsplus + (i * %{ sizeof(intptr_t) %}))
+	}
+    }
+
+    # If we can't find it in the locals, we look in the globals.
+    f_globals = @Py3FrameObject(frame)->f_globals
+    value_obj = Py3Dict_GetItem(f_globals, var)
+    if (value_obj == 0) {
+        error(sprintf("Python variable '%s' cannot be found", var))
+	return 0
+    }
+    return value_obj
+}
+
+function python3_get_var_obj:long(frame:long, var:string, index:long)
+{
+    f_code = @Py3FrameObject(frame)->f_code
+    n = @Py3CodeObject(f_code)->co_nlocals
+	    
+    # Each element in co_varnames is a tuple of strings. The values
+    # are in f_localsplus.
+    p = @Py3CodeObject(f_code)->co_varnames
+    localsplus = @Py3FrameObject(frame)->f_localsplus
+    for (i = 0; i < n; i++) {
+	key_obj = Py3Tuple_GetItem(p, i)
+	if (var == Py3Unicode_AsASCIIString(key_obj)) {
+	    return user_long(localsplus + (i * %{ sizeof(intptr_t) %}))
+	}
+    }
+
+    # If we can't find it in the locals, we look in the globals.
+    f_globals = @Py3FrameObject(frame)->f_globals
+    value_obj = Py3Dict_GetItem(f_globals, var)
+    if (value_obj == 0) {
+	error(sprintf("Python variable '%s' cannot be found", var))
+	return 0
+    }
+    return value_obj
+}

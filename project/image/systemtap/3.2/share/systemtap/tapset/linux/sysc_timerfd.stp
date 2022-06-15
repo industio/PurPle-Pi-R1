@@ -1,0 +1,62 @@
+# timerfd ______________________________________________
+#
+# Note that timerfd() only existed between kernels 2.6.22 and 2.6.25
+# and was replaced by timerfd_create(), timerfd_gettime(),
+# and timerfd_settime().
+#
+# long sys_timerfd(int ufd, int clockid, int flags,
+#	    const struct itimerspec __user *utmr)
+# long compat_sys_timerfd(int ufd, int clockid, int flags,
+#  	   const struct compat_itimerspec __user *utmr)
+#
+
+@define _SYSCALL_TIMERFD_NAME
+%(
+	name = "timerfd"
+%)
+
+@define _SYSCALL_TIMERFD_ARGSTR
+%(
+	argstr = sprintf("%d, %d, 0x%x", ufd, clockid, flags)
+%)
+
+probe syscall.timerfd = dw_syscall.timerfd !, nd_syscall.timerfd ? {}
+probe syscall.timerfd.return = dw_syscall.timerfd.return !,
+                               nd_syscall.timerfd.return ? {}
+
+# dw_timerfd _____________________________________________________
+
+probe dw_syscall.timerfd = kernel.function("sys_timerfd").call ?,
+                        kernel.function("compat_sys_timerfd").call ?
+{
+	@_SYSCALL_TIMERFD_NAME
+	ufd = $ufd
+	clockid = @__pointer($clockid)
+	flags = $flags
+	@_SYSCALL_TIMERFD_ARGSTR
+}
+probe dw_syscall.timerfd.return = kernel.function("sys_timerfd").return ?,
+                               kernel.function("compat_sys_timerfd").return ?
+{
+	@_SYSCALL_TIMERFD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_timerfd _____________________________________________________
+
+probe nd_syscall.timerfd = kprobe.function("sys_timerfd") ?,
+                           kprobe.function("compat_sys_timerfd") ?
+{
+	@_SYSCALL_TIMERFD_NAME
+	asmlinkage()
+	ufd = int_arg(1)
+	clockid = int_arg(2)
+	flags = int_arg(3)
+	@_SYSCALL_TIMERFD_ARGSTR
+}
+probe nd_syscall.timerfd.return = kprobe.function("sys_timerfd").return ?,
+                                  kprobe.function("compat_sys_timerfd").return ?
+{
+	@_SYSCALL_TIMERFD_NAME
+	retstr = returnstr(1)
+}

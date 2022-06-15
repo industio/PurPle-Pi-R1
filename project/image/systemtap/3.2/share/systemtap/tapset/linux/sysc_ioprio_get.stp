@@ -1,0 +1,50 @@
+# ioprio_get _________________________________________________
+# long sys_ioprio_get(int which, int who)
+#
+
+@define _SYSCALL_IOPRIO_GET_NAME
+%(
+	name = "ioprio_get"
+%)
+
+@define _SYSCALL_IOPRIO_GET_ARGSTR
+%(
+	argstr = sprintf("%s, %d", which_str, who)
+%)
+
+probe syscall.ioprio_get = dw_syscall.ioprio_get !, nd_syscall.ioprio_get ? {}
+probe syscall.ioprio_get.return = dw_syscall.ioprio_get.return !,
+                                  nd_syscall.ioprio_get.return ? {}
+
+# dw_ioprio_get _____________________________________________________
+
+probe dw_syscall.ioprio_get = kernel.function("sys_ioprio_get").call ?
+{
+	@_SYSCALL_IOPRIO_GET_NAME
+	which = __int32($which)
+	which_str = _stp_ioprio_which_str(__int32($which))
+	who = __int32($who)
+	@_SYSCALL_IOPRIO_GET_ARGSTR
+}
+probe dw_syscall.ioprio_get.return = kernel.function("sys_ioprio_get").return ?
+{
+	@_SYSCALL_IOPRIO_GET_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ioprio_get _____________________________________________________
+
+probe nd_syscall.ioprio_get = kprobe.function("sys_ioprio_get") ?
+{
+	@_SYSCALL_IOPRIO_GET_NAME
+	asmlinkage()
+	which = int_arg(1)
+	which_str = _stp_ioprio_which_str(which)
+	who = int_arg(2)
+	@_SYSCALL_IOPRIO_GET_ARGSTR
+}
+probe nd_syscall.ioprio_get.return = kprobe.function("sys_ioprio_get").return ?
+{
+	@_SYSCALL_IOPRIO_GET_NAME
+	retstr = returnstr(1)
+}

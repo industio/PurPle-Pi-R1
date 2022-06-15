@@ -1,0 +1,56 @@
+# setpriority ________________________________________________
+#
+# asmlinkage long
+# sys_setpriority(int which,
+#		     int who,
+#		     int niceval)
+#
+
+@define _SYSCALL_SETPRIORITY_NAME
+%(
+	name = "setpriority"
+%)
+
+@define _SYSCALL_SETPRIORITY_ARGSTR
+%(
+	argstr = sprintf("%s, %d, %d", which_str, who, prio)
+%)
+
+probe syscall.setpriority = dw_syscall.setpriority !, nd_syscall.setpriority ? {}
+probe syscall.setpriority.return = dw_syscall.setpriority.return !,
+                                   nd_syscall.setpriority.return ? {}
+
+# dw_setpriority _____________________________________________________
+
+probe dw_syscall.setpriority = kernel.function("sys_setpriority").call
+{
+	@_SYSCALL_SETPRIORITY_NAME
+	which = __int32($which)
+	which_str = _priority_which_str(__int32($which))
+	who = __int32($who)
+	prio = __int32($niceval)
+	@_SYSCALL_SETPRIORITY_ARGSTR
+}
+probe dw_syscall.setpriority.return = kernel.function("sys_setpriority").return
+{
+	@_SYSCALL_SETPRIORITY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setpriority _____________________________________________________
+
+probe nd_syscall.setpriority = kprobe.function("sys_setpriority") ?
+{
+	@_SYSCALL_SETPRIORITY_NAME
+	asmlinkage()
+	which = int_arg(1)
+	which_str = _priority_which_str(which)
+	who = int_arg(2)
+	prio = int_arg(3)
+	@_SYSCALL_SETPRIORITY_ARGSTR
+}
+probe nd_syscall.setpriority.return = kprobe.function("sys_setpriority").return ?
+{
+	@_SYSCALL_SETPRIORITY_NAME
+	retstr = returnstr(1)
+}

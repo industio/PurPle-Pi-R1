@@ -1,0 +1,67 @@
+# fchmodat ___________________________________________________
+# new function with 2.6.16
+# long sys_fchmodat(int dfd, const char __user *filename,
+#	mode_t mode)
+
+@define _SYSCALL_FCHMODAT_NAME
+%(
+	name = "fchmodat"
+%)
+
+@define _SYSCALL_FCHMODAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %#o", dirfd_str, pathname, mode)
+%)
+
+probe syscall.fchmodat = dw_syscall.fchmodat !, nd_syscall.fchmodat ? {}
+probe syscall.fchmodat.return = dw_syscall.fchmodat.return !, nd_syscall.fchmodat.return ? {}
+
+# dw_fchmodat _____________________________________________________
+
+probe dw_syscall.fchmodat = kernel.function("sys_fchmodat").call ?
+{
+	@__syscall_compat_gate(@const("__NR_fchmodat"),
+			       @const("__NR_compat_fchmodat"))
+	@_SYSCALL_FCHMODAT_NAME
+	dirfd = __int32($dfd)
+	dirfd_str = _dfd_str(__int32($dfd))
+	pathname = user_string_quoted($filename)
+%( arch == "i386" %?
+	# Why @cast() here? Even though the user passes an unsigned
+	# int (32-bits), some kernels (2.6.32-431.el6.i686) get an
+	# unsigned short (16-bits).
+	mode = @uint_cast(&$mode)
+%:
+	mode = __uint32($mode)
+%)
+	@_SYSCALL_FCHMODAT_ARGSTR
+}
+probe dw_syscall.fchmodat.return = kernel.function("sys_fchmodat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_fchmodat"),
+			       @const("__NR_compat_fchmodat"))
+	@_SYSCALL_FCHMODAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fchmodat _____________________________________________________
+
+probe nd_syscall.fchmodat = kprobe.function("sys_fchmodat") ?
+{
+	@__syscall_compat_gate(@const("__NR_fchmodat"),
+			       @const("__NR_compat_fchmodat"))
+	@_SYSCALL_FCHMODAT_NAME
+	asmlinkage()
+	dirfd = int_arg(1)
+	dirfd_str = _dfd_str(dirfd)
+	pathname = user_string_quoted(pointer_arg(2))
+	mode = uint_arg(3)
+	@_SYSCALL_FCHMODAT_ARGSTR
+}
+probe nd_syscall.fchmodat.return = kprobe.function("sys_fchmodat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_fchmodat"),
+			       @const("__NR_compat_fchmodat"))
+	@_SYSCALL_FCHMODAT_NAME
+	retstr = returnstr(1)
+}

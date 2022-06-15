@@ -1,0 +1,79 @@
+# nfsservctl _________________________________________________
+#
+# long sys_nfsservctl(int cmd, struct nfsctl_arg __user *arg, void __user *res)
+# long compat_sys_nfsservctl(int cmd, struct compat_nfsctl_arg __user *arg,
+#					union compat_nfsctl_res __user *res)
+#
+# nfsservctl was removed in kernel 3.0/2.6.40.
+%( kernel_v < "2.6.40" && CONFIG_NFSD == "[ym]" %?
+
+@define _SYSCALL_NFSSERVCTL_NAME
+%(
+	name = "nfsservctl"
+%)
+
+@define _SYSCALL_NFSSERVCTL_ARGSTR
+%(
+	argstr = sprintf("%s, %p, %p", cmd_str, argp_uaddr, resp_uaddr)
+%)
+
+probe syscall.nfsservctl = dw_syscall.nfsservctl !, nd_syscall.nfsservctl ? {}
+probe syscall.nfsservctl.return = dw_syscall.nfsservctl.return !,
+                                  nd_syscall.nfsservctl.return ? {}
+
+# dw_nfsservctl _____________________________________________________
+
+probe dw_syscall.nfsservctl = __syscall.nfsservctl ?,
+	kernel.function("compat_sys_nfsservctl").call ?
+{
+	@_SYSCALL_NFSSERVCTL_NAME
+	cmd = __int32($cmd)
+	cmd_str = _nfsctl_cmd_str(cmd)
+	argp_uaddr = @choose_defined($arg, $notused)
+	resp_uaddr = @choose_defined($res, $notused2)
+	@_SYSCALL_NFSSERVCTL_ARGSTR
+}
+probe __syscall.nfsservctl = kernel.function("sys_nfsservctl").call ?
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.nfsservctl.return = __syscall.nfsservctl.return ?,
+	kernel.function("compat_sys_nfsservctl").return ?
+{
+	@_SYSCALL_NFSSERVCTL_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.nfsservctl.return = kernel.function("sys_nfsservctl").return ?
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_nfsservctl _____________________________________________________
+
+probe nd_syscall.nfsservctl = __nd_syscall.nfsservctl ?,
+	kprobe.function("compat_sys_nfsservctl") ?
+{
+	@_SYSCALL_NFSSERVCTL_NAME
+	asmlinkage()
+	cmd = int_arg(1)
+	cmd_str = _nfsctl_cmd_str(cmd)
+	argp_uaddr = pointer_arg(2)
+	resp_uaddr = pointer_arg(3)
+	@_SYSCALL_NFSSERVCTL_ARGSTR
+}
+probe __nd_syscall.nfsservctl = kprobe.function("sys_nfsservctl") ?
+{
+	@__syscall_gate_compat_simple
+}
+probe nd_syscall.nfsservctl.return = __nd_syscall.nfsservctl.return ?,
+	kprobe.function("compat_sys_nfsservctl").return ?
+{
+	@_SYSCALL_NFSSERVCTL_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.nfsservctl.return =
+	kprobe.function("sys_nfsservctl").return ?
+{
+	@__syscall_gate_compat_simple
+}
+%)

@@ -1,0 +1,54 @@
+# bdflush ____________________________________________________
+# long sys_bdflush(int func, long data)
+
+@define _SYSCALL_BDFLUSH_NAME
+%(
+	name = "bdflush"
+%)
+
+@define _SYSCALL_BDFLUSH_ARGSTR
+%(
+	argstr = sprintf("%d, %s", func, data_str)
+%)
+
+probe syscall.bdflush = dw_syscall.bdflush !, nd_syscall.bdflush ? {}
+probe syscall.bdflush.return = dw_syscall.bdflush.return !, nd_syscall.bdflush.return ? {}
+
+# dw_bdflush _____________________________________________________
+
+probe dw_syscall.bdflush = kernel.function("sys_bdflush").call ?
+{
+	@_SYSCALL_BDFLUSH_NAME
+	func = $func
+	data = $data
+	if (($func >= 2) && ($func % 2 == 0))
+		data_str = sprintf("%p", $data)
+	else
+		data_str = sprintf("%d", $data)
+	@_SYSCALL_BDFLUSH_ARGSTR
+}
+probe dw_syscall.bdflush.return = kernel.function("sys_bdflush").return ?
+{
+	@_SYSCALL_BDFLUSH_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_bdflush _____________________________________________________
+
+probe nd_syscall.bdflush = kprobe.function("sys_bdflush") ?
+{
+	@_SYSCALL_BDFLUSH_NAME
+	asmlinkage()
+	func = int_arg(1)
+	data = long_arg(2)
+	if ((func >= 2) && (func % 2 == 0))
+		data_str = sprintf("%p", data)
+	else
+		data_str = sprintf("%d", data)
+	@_SYSCALL_BDFLUSH_ARGSTR
+}
+probe nd_syscall.bdflush.return = kprobe.function("sys_bdflush").return ?
+{
+	@_SYSCALL_BDFLUSH_NAME
+	retstr = returnstr(1)
+}

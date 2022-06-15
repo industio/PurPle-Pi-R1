@@ -1,0 +1,183 @@
+# semtimedop _________________________________________________
+#
+# long sys_semtimedop(int semid,
+#		    struct sembuf __user *tsops,
+#		    unsigned nsops,
+#		    const struct timespec __user *timeout)
+#
+
+@define _SYSCALL_SEMTIMEDOP_NAME
+%(
+	name = "semtimedop"
+%)
+
+@define _SYSCALL_SEMTIMEDOP_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u, %s", semid, sops_uaddr, nsops, timeout_str)
+%)
+
+probe syscall.semtimedop = dw_syscall.semtimedop !, nd_syscall.semtimedop ? {}
+probe syscall.semtimedop.return = dw_syscall.semtimedop.return !,
+                                  nd_syscall.semtimedop.return ? {}
+
+# dw_semtimedop _____________________________________________________
+
+probe dw_syscall.semtimedop = kernel.function("sys_semtimedop").call ?
+{
+	# Since semop() can be implemented via semtimedop(), we need
+	# to make sure this is a real semtimedop syscall (or a
+	# multiplexed one via ipc()).
+	@__syscall_gate2(@const("__NR_semtimedop"), @const("__NR_ipc"))
+	@_SYSCALL_SEMTIMEDOP_NAME
+	semid = __int32($semid)
+	sops_uaddr = $tsops
+	nsops = __uint32($nsops)
+	timeout_uaddr = $timeout
+	timeout_str = _struct_timespec_u(timeout_uaddr, 1)
+	@_SYSCALL_SEMTIMEDOP_ARGSTR
+}
+probe dw_syscall.semtimedop.return = kernel.function("sys_semtimedop").return ?
+{
+	@__syscall_gate2(@const("__NR_semtimedop"), @const("__NR_ipc"))
+	@_SYSCALL_SEMTIMEDOP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_semtimedop _____________________________________________________
+
+probe nd_syscall.semtimedop = kprobe.function("sys_semtimedop") ?
+{
+	@__syscall_gate2(@const("__NR_semtimedop"), @const("__NR_ipc"))
+	@_SYSCALL_SEMTIMEDOP_NAME
+	asmlinkage()
+	semid = int_arg(1)
+	sops_uaddr = pointer_arg(2)
+	nsops = uint_arg(3)
+	timeout_uaddr = pointer_arg(4)
+	timeout_str = _struct_timespec_u(timeout_uaddr, 1)
+	@_SYSCALL_SEMTIMEDOP_ARGSTR
+}
+probe nd_syscall.semtimedop.return = kprobe.function("sys_semtimedop").return ?
+{
+	@__syscall_gate2(@const("__NR_semtimedop"), @const("__NR_ipc"))
+	@_SYSCALL_SEMTIMEDOP_NAME
+	retstr = returnstr(1)
+}
+
+# compat_sys_semtimedop ________________________________________
+#
+# long compat_sys_semtimedop(int semid, struct sembuf __user *tsems,
+#		unsigned nsops, const struct compat_timespec __user *timeout)
+#
+
+probe syscall.compat_sys_semtimedop = dw_syscall.compat_sys_semtimedop !,
+	                              nd_syscall.compat_sys_semtimedop ? {}
+probe syscall.compat_sys_semtimedop.return = dw_syscall.compat_sys_semtimedop.return !,
+	                                     nd_syscall.compat_sys_semtimedop.return ? {}
+
+# dw_compat_sys_semtimedop _____________________________________________________
+
+probe dw_syscall.compat_sys_semtimedop = __syscall.compat_semtimedop ?,
+	__syscall.compat_ipc.semtimedop ?
+{
+	@_SYSCALL_SEMTIMEDOP_NAME
+	timeout_str = _struct_compat_timespec_u(timeout_uaddr, 1)
+	@_SYSCALL_SEMTIMEDOP_ARGSTR
+}
+probe __syscall.compat_semtimedop =
+	kernel.function("compat_sys_semtimedop").call ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+	semid = __int32($semid)
+	sops_uaddr = $tsems
+	nsops = __uint32($nsops)
+	timeout_uaddr = $timeout
+}
+probe __syscall.compat_ipc.semtimedop =
+	kernel.function("compat_sys_ipc").call ?,
+        kernel.function("sys32_ipc").call ?
+{
+        if ($call != @const("SEMTIMEDOP")) next;
+        semid = __int32($first)
+        sops_uaddr = $ptr
+        nsops = __uint32($second)
+        timeout_uaddr = @choose_defined($fifth, $third)
+}
+probe dw_syscall.compat_sys_semtimedop.return =
+	__syscall.compat_sys_semtimedop.return ?,
+	__syscall.compat_ipc.semtimedop.return ?
+{
+	@_SYSCALL_SEMTIMEDOP_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.compat_sys_semtimedop.return =
+	kernel.function("compat_sys_semtimedop").return ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+}
+probe __syscall.compat_ipc.semtimedop.return =
+	kernel.function("compat_sys_ipc").return ?,
+	kernel.function("sys32_ipc").return ?
+{
+	if (@entry($call) != @const("SEMTIMEDOP")) next;
+}
+
+# nd_compat_sys_semtimedop _____________________________________________________
+
+probe nd_syscall.compat_sys_semtimedop = __nd_syscall.compat_semtimedop ?,
+	__nd_syscall.compat_ipc.semtimedop ?
+{
+	@_SYSCALL_SEMTIMEDOP_NAME
+	timeout_str = _struct_compat_timespec_u(timeout_uaddr, 1)
+	@_SYSCALL_SEMTIMEDOP_ARGSTR
+}
+probe __nd_syscall.compat_semtimedop =
+	kprobe.function("compat_sys_semtimedop") ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+	semid = int_arg(1)
+	sops_uaddr = pointer_arg(2)
+	nsops = uint_arg(3)
+	timeout_uaddr = pointer_arg(4)
+}
+probe __nd_syscall.compat_ipc.semtimedop =
+	__nd_syscall.compat_ipc.semtimedop.sys_ipc ?,
+	__nd_syscall.compat_ipc.semtimedop.sys32_ipc ?
+{
+	if (int_arg(1) != @const("SEMTIMEDOP")) next;
+	semid = int_arg(2)
+        sops_uaddr = pointer_arg(5)
+        nsops = uint_arg(3)
+}
+probe __nd_syscall.compat_ipc.semtimedop.sys_ipc =
+	kprobe.function("compat_sys_ipc") ?
+{
+	timeout_uaddr = pointer_arg(6)
+}
+probe __nd_syscall.compat_ipc.semtimedop.sys32_ipc =
+        kprobe.function("sys32_ipc") ?
+{
+%( arch == "s390" %?
+	timeout_uaddr = pointer_arg(4)
+%:
+	timeout_uaddr = pointer_arg(6)
+%)
+}
+probe nd_syscall.compat_sys_semtimedop.return =
+	__nd_syscall.compat_sys_semtimedop.return ?,
+	__nd_syscall.compat_ipc.semtimedop.return ?
+{
+	@_SYSCALL_SEMTIMEDOP_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.compat_sys_semtimedop.return =
+	kprobe.function("compat_sys_semtimedop").return ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+}
+probe __nd_syscall.compat_ipc.semtimedop.return =
+	kprobe.function("compat_sys_ipc").return ?,
+	kprobe.function("sys32_ipc").return ?
+{
+	if (@entry(int_arg(1)) != @const("SEMTIMEDOP")) next;
+}

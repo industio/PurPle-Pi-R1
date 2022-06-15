@@ -1,0 +1,47 @@
+# link _______________________________________________________
+# long sys_link(const char __user * oldname,
+#          const char __user * newname)
+
+@define _SYSCALL_LINK_NAME
+%(
+	name = "link"
+%)
+
+@define _SYSCALL_LINK_ARGSTR
+%(
+	argstr = sprintf("%s, %s", oldpath, newpath)
+%)
+
+probe syscall.link = dw_syscall.link !, nd_syscall.link ? {}
+probe syscall.link.return = dw_syscall.link.return !, nd_syscall.link.return ? {}
+
+# dw_link _____________________________________________________
+
+probe dw_syscall.link = kernel.function("sys_link").call
+{
+	@_SYSCALL_LINK_NAME
+	oldpath = user_string_quoted($oldname)
+	newpath = user_string_quoted($newname)
+	@_SYSCALL_LINK_ARGSTR
+}
+probe dw_syscall.link.return = kernel.function("sys_link").return
+{
+	@_SYSCALL_LINK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_link _____________________________________________________
+
+probe nd_syscall.link = kprobe.function("sys_link") ?
+{
+	@_SYSCALL_LINK_NAME
+	asmlinkage()
+	oldpath = user_string_quoted(pointer_arg(1))
+	newpath = user_string_quoted(pointer_arg(2))
+	@_SYSCALL_LINK_ARGSTR
+}
+probe nd_syscall.link.return = kprobe.function("sys_link").return ?
+{
+	@_SYSCALL_LINK_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,51 @@
+# sysctl _____________________________________________________
+#
+# long sys_sysctl(struct __sysctl_args __user *args)
+#
+
+@define _SYSCALL_SYSCTL_NAME
+%(
+	name = "sysctl"
+%)
+
+@define _SYSCALL_SYSCTL_ARGSTR
+%(
+	argstr = sprintf("%p", args)
+%)
+
+probe syscall.sysctl = dw_syscall.sysctl !, nd_syscall.sysctl ? {}
+probe syscall.sysctl.return = dw_syscall.sysctl.return !,
+                              nd_syscall.sysctl.return ? {}
+
+# dw_sysctl _____________________________________________________
+
+probe dw_syscall.sysctl = kernel.function("compat_sys_sysctl").call ?,
+                          kernel.function("sys_sysctl").call ?
+{
+	@_SYSCALL_SYSCTL_NAME
+	args = $args
+	@_SYSCALL_SYSCTL_ARGSTR
+}
+probe dw_syscall.sysctl.return = kernel.function("compat_sys_sysctl").return ?,
+                                 kernel.function("sys_sysctl").return ?
+{
+	@_SYSCALL_SYSCTL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sysctl _____________________________________________________
+
+probe nd_syscall.sysctl = kprobe.function("compat_sys_sysctl") ?,
+                          kprobe.function("sys_sysctl") ?
+{
+	@_SYSCALL_SYSCTL_NAME
+	asmlinkage()
+	args = pointer_arg(1)
+	@_SYSCALL_SYSCTL_ARGSTR
+}
+probe nd_syscall.sysctl.return = kprobe.function("compat_sys_sysctl").return ?,
+                                 kprobe.function("sys_sysctl").return ?
+{
+	@_SYSCALL_SYSCTL_NAME
+	retstr = returnstr(1)
+}

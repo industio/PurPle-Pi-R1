@@ -1,0 +1,74 @@
+# uname ______________________________________________________
+#
+# int sys_uname(struct old_utsname __user *name)
+# long sys_newuname(struct new_utsname __user * name)
+# int sys_olduname(struct oldold_utsname __user * name)
+# int sys32_olduname(struct oldold_utsname __user * name)
+# long sys32_uname(struct old_utsname __user * name)
+#
+
+@define _SYSCALL_UNAME_NAME
+%(
+	name = "uname"
+%)
+
+@define _SYSCALL_UNAME_ARGSTR
+%(
+	argstr = sprintf("%p", name_uaddr)
+%)
+
+probe syscall.uname = dw_syscall.uname !, nd_syscall.uname ? {}
+probe syscall.uname.return = dw_syscall.uname.return !, nd_syscall.uname.return ? {}
+
+# dw_uname _____________________________________________________
+
+probe dw_syscall.uname = kernel.function("sys_uname").call ?,
+                      kernel.function("sys_olduname").call ?,
+                      kernel.function("sys32_olduname").call ?,
+                      kernel.function("sys32_uname").call ?,
+                      kernel.function("sys_newuname").call ?
+{
+	@_SYSCALL_UNAME_NAME
+	name_uaddr = $name
+	@_SYSCALL_UNAME_ARGSTR
+}
+
+probe dw_syscall.uname.return = kernel.function("sys_uname").return ?,
+                             kernel.function("sys_olduname").return ?,
+                             kernel.function("sys32_olduname").return ?,
+                             kernel.function("sys32_uname").return ?,
+                             kernel.function("sys_newuname").return ?
+{
+	@_SYSCALL_UNAME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_uname _____________________________________________________
+
+probe nd_syscall.uname = kprobe.function("sys_uname") ?,
+                         kprobe.function("sys_olduname") ?,
+                         kprobe.function("sys32_olduname") ?,
+                         kprobe.function("sys32_uname") ?,
+                         kprobe.function("sys_newuname") ?
+{
+	@_SYSCALL_UNAME_NAME
+	_func_name = ppfunc()
+	if (_func_name != "sys32_uname") {
+		if (_func_name == "sys_uname" || _func_name == "sys_olduname") {
+			%( arch != "powerpc" %? asmlinkage() %)
+		} else
+			asmlinkage()
+	}
+	name_uaddr = pointer_arg(1)
+	@_SYSCALL_UNAME_ARGSTR
+}
+
+probe nd_syscall.uname.return = kprobe.function("sys_uname").return ?,
+                                kprobe.function("sys_olduname").return ?,
+                                kprobe.function("sys32_olduname").return ?,
+                                kprobe.function("sys32_uname").return ?,
+                                kprobe.function("sys_newuname").return ?
+{
+	@_SYSCALL_UNAME_NAME
+	retstr = returnstr(1)
+}

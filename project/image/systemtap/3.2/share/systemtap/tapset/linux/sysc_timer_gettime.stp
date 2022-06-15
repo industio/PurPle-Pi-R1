@@ -1,0 +1,83 @@
+# timer_gettime ______________________________________________
+#
+# long sys_timer_gettime(timer_t timer_id,
+#			 struct itimerspec __user *setting)
+# long compat_sys_timer_gettime(timer_t timer_id,
+#			 struct itimerspec __user *setting)
+#
+
+@define _SYSCALL_TIMER_GETTIME_NAME
+%(
+	name = "timer_gettime"
+%)
+
+@define _SYSCALL_TIMER_GETTIME_ARGSTR
+%(
+	argstr = sprintf("%d, %p", timerid, value_uaddr)
+%)
+
+probe syscall.timer_gettime = dw_syscall.timer_gettime !,
+                              nd_syscall.timer_gettime ? {}
+probe syscall.timer_gettime.return = dw_syscall.timer_gettime.return !,
+                                     nd_syscall.timer_gettime.return ? {}
+
+# dw_timer_gettime _____________________________________________________
+
+probe dw_syscall.timer_gettime = __syscall.timer_gettime,
+                              kernel.function("compat_sys_timer_gettime").call ?
+{
+	@_SYSCALL_TIMER_GETTIME_NAME
+	timerid = __int32($timer_id)
+	value_uaddr = $setting
+	@_SYSCALL_TIMER_GETTIME_ARGSTR
+}
+probe __syscall.timer_gettime = kernel.function("sys_timer_gettime").call
+{
+	@__syscall_gate(@const("__NR_timer_gettime"))
+}
+probe dw_syscall.timer_gettime.return =
+        __syscall.timer_gettime.return,
+        kernel.function("compat_sys_timer_gettime").return ?
+{
+	@_SYSCALL_TIMER_GETTIME_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.timer_gettime.return = kernel.function("sys_timer_gettime").return
+{
+	@__syscall_gate(@const("__NR_timer_gettime"))
+}
+
+# nd_timer_gettime _____________________________________________________
+
+probe nd_syscall.timer_gettime = __nd_syscall.timer_gettime,
+	__nd_syscall.compat_timer_gettime ?
+{
+	@_SYSCALL_TIMER_GETTIME_NAME
+}
+
+probe __nd_syscall.timer_gettime = kprobe.function("sys_timer_gettime")
+{
+	@__syscall_gate(@const("__NR_timer_gettime"))
+	asmlinkage()
+	timerid = int_arg(1)
+	value_uaddr = pointer_arg(2)
+	@_SYSCALL_TIMER_GETTIME_ARGSTR
+}
+probe __nd_syscall.compat_timer_gettime = kprobe.function("compat_sys_timer_gettime") ?
+{
+	asmlinkage()
+	timerid = int_arg(1)
+	value_uaddr = pointer_arg(2)
+	@_SYSCALL_TIMER_GETTIME_ARGSTR
+}
+probe nd_syscall.timer_gettime.return =
+	__nd_syscall.timer_gettime.return,
+	kprobe.function("compat_sys_timer_gettime").return ?
+{
+	@_SYSCALL_TIMER_GETTIME_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.timer_gettime.return = kprobe.function("sys_timer_gettime").return
+{
+	@__syscall_gate(@const("__NR_timer_gettime"))
+}

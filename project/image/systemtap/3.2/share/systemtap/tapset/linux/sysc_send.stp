@@ -1,0 +1,130 @@
+# send _______________________________________________________
+#
+# long sys_send(int fd,
+#		void __user * buff,
+#		size_t len,
+#		unsigned flags)
+#
+
+@define _SYSCALL_SEND_NAME
+%(
+	name = "send"
+%)
+
+@define _SYSCALL_SEND_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %u, %s", s, buf, len, flags_str)
+%)
+
+probe syscall.send = dw_syscall.send !, nd_syscall.send ? {}
+probe syscall.send.return = dw_syscall.send.return !,
+                            nd_syscall.send.return ? {}
+
+# dw_send _____________________________________________________
+
+probe dw_syscall.send = __syscall.send ?, __syscall.socketcall.send ?,
+	__syscall.compat_socketcall.send ?
+{
+	@_SYSCALL_SEND_NAME
+	flags_str = _msg_flags_str(flags)
+	buf = user_buffer_quoted(buf_uaddr, len, syscall_string_trunc)
+	@_SYSCALL_SEND_ARGSTR
+}
+probe __syscall.send = kernel.function("sys_send").call ?
+{
+	@__syscall_gate(@const("__NR_send"))
+	s = __int32($fd)
+	buf_uaddr = $buff
+	len = __ulong($len)
+	flags = __uint32($flags)
+}
+probe __syscall.socketcall.send = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_SEND")) next;
+	s = __int32(user_ulong(&@ulong_cast($args)[0]))
+	buf_uaddr = user_ulong(&@ulong_cast($args)[1])
+	len = user_ulong(&@ulong_cast($args)[2])
+	flags = __uint32(user_ulong(&@ulong_cast($args)[3]))
+}
+probe __syscall.compat_socketcall.send =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_SEND")) next;
+	s = user_int(&@uint_cast($args)[0])
+	buf_uaddr = user_uint32(&@uint_cast($args)[1])
+	len = user_uint32(&@uint_cast($args)[2])
+	flags = user_uint32(&@uint_cast($args)[3])
+}
+probe dw_syscall.send.return = __syscall.send.return ?,
+	__syscall.socketcall.send.return ?
+{
+	@_SYSCALL_SEND_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.send.return = kernel.function("sys_send").return ?
+{
+	@__syscall_gate(@const("__NR_send"))
+}
+probe __syscall.socketcall.send.return =
+	kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_SEND")) next;
+}
+
+# nd_send _____________________________________________________
+
+probe nd_syscall.send = __nd_syscall.send ?, __nd_syscall.socketcall.send ?,
+	__nd_syscall.compat_socketcall.send ?
+{
+	@_SYSCALL_SEND_NAME
+	flags_str = _msg_flags_str(flags)
+	buf = user_buffer_quoted(buf_uaddr, len, syscall_string_trunc)
+	@_SYSCALL_SEND_ARGSTR
+}
+probe __nd_syscall.send = kprobe.function("sys_send") ?
+{
+	@__syscall_gate(@const("__NR_send"))
+	asmlinkage()
+	s = int_arg(1)
+	buf_uaddr = pointer_arg(2)
+	len = ulong_arg(3)
+	flags = uint_arg(4)
+}
+probe __nd_syscall.socketcall.send = kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_SEND")) next;
+	__args = &@ulong_cast(pointer_arg(2))
+	s = __int32(user_ulong(&@ulong_cast(__args)[0]))
+	buf_uaddr = user_ulong(&@ulong_cast(__args)[1])
+	len = user_ulong(&@ulong_cast(__args)[2])
+	flags = __uint32(user_ulong(&@ulong_cast(__args)[3]))
+}
+probe __nd_syscall.compat_socketcall.send =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_SEND")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	s = user_int(&@uint_cast(__args)[0])
+	buf_uaddr = user_uint32(&@uint_cast(__args)[1])
+	len = user_uint32(&@uint_cast(__args)[2])
+	flags = user_uint32(&@uint_cast(__args)[3])
+}
+probe nd_syscall.send.return = __nd_syscall.send.return ?,
+	__nd_syscall.socketcall.send.return ?
+{
+	@_SYSCALL_SEND_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.send.return = kprobe.function("sys_send").return ?
+{
+	@__syscall_gate(@const("__NR_send"))
+}
+probe __nd_syscall.socketcall.send.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_SEND")) next;
+}

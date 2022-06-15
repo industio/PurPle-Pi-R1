@@ -1,0 +1,51 @@
+# sigreturn __________________________________________________
+# int sys_sigreturn(unsigned long __unused)
+#
+
+@define _SYSCALL_SIGRETURN_NAME
+%(
+	name = "sigreturn"
+%)
+
+@define _SYSCALL_SIGRETURN_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.sigreturn = dw_syscall.sigreturn !, nd_syscall.sigreturn ? {}
+probe syscall.sigreturn.return = dw_syscall.sigreturn.return !,
+                                 nd_syscall.sigreturn.return ? {}
+
+# dw_sigreturn _____________________________________________________
+
+probe dw_syscall.sigreturn = kernel.function("sys_sigreturn").call ?,
+                          kernel.function("sys32_sigreturn").call ?
+{
+	@_SYSCALL_SIGRETURN_NAME
+	@_SYSCALL_SIGRETURN_ARGSTR
+}
+probe dw_syscall.sigreturn.return = kernel.function("sys_sigreturn").return ?,
+                                 kernel.function("sys32_sigreturn").return ?
+{
+	@_SYSCALL_SIGRETURN_NAME
+%( arch == "mips" && CONFIG_TRAD_SIGNALS == "y" %?
+	retstr = "void"
+%:
+	retstr = return_str(1, $return)
+%)
+}
+
+# nd_sigreturn _____________________________________________________
+
+probe nd_syscall.sigreturn = kprobe.function("sys_sigreturn") ?,
+                             kprobe.function("sys32_sigreturn") ?
+{
+	@_SYSCALL_SIGRETURN_NAME
+	@_SYSCALL_SIGRETURN_ARGSTR
+}
+probe nd_syscall.sigreturn.return = kprobe.function("sys_sigreturn").return ?,
+                                    kprobe.function("sys32_sigreturn").return ?
+{
+	@_SYSCALL_SIGRETURN_NAME
+	retstr = returnstr(1)
+}

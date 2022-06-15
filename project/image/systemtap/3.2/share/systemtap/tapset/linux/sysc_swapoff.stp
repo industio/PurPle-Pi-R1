@@ -1,0 +1,49 @@
+# swapoff ____________________________________________________
+#
+# asmlinkage long
+# sys_swapoff(const char __user * specialfile)
+#
+
+@define _SYSCALL_SWAPOFF_NAME
+%(
+	name = "swapoff"
+%)
+
+@define _SYSCALL_SWAPOFF_ARGSTR
+%(
+	argstr = path
+%)
+
+probe syscall.swapoff = dw_syscall.swapoff !, nd_syscall.swapoff ? {}
+probe syscall.swapoff.return = dw_syscall.swapoff.return !, nd_syscall.swapoff.return ? {}
+
+# dw_swapoff _____________________________________________________
+
+probe dw_syscall.swapoff = kernel.function("sys_swapoff").call ?
+{
+	@_SYSCALL_SWAPOFF_NAME
+	path_uaddr = $specialfile
+	path = user_string_quoted(path_uaddr)
+	@_SYSCALL_SWAPOFF_ARGSTR
+}
+probe dw_syscall.swapoff.return = kernel.function("sys_swapoff").return ?
+{
+	@_SYSCALL_SWAPOFF_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_swapoff _____________________________________________________
+
+probe nd_syscall.swapoff = kprobe.function("sys_swapoff") ?
+{
+	@_SYSCALL_SWAPOFF_NAME
+	asmlinkage()
+	path_uaddr = pointer_arg(1)
+	path = user_string_quoted(path_uaddr)
+	@_SYSCALL_SWAPOFF_ARGSTR
+}
+probe nd_syscall.swapoff.return = kprobe.function("sys_swapoff").return ?
+{
+	@_SYSCALL_SWAPOFF_NAME
+	retstr = returnstr(1)
+}

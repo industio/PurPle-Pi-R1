@@ -1,0 +1,58 @@
+# keyctl _____________________________________________________
+# long sys_keyctl(int option,
+#            unsigned long arg2,
+#            unsigned long arg3,
+#            unsigned long arg4,
+#            unsigned long arg5)
+# long compat_sys_keyctl(u32 option, u32 arg2, u32 arg3, u32 arg4, u32 arg5)
+#
+
+@define _SYSCALL_KEYCTL_NAME
+%(
+	name = "keyctl"
+%)
+
+probe syscall.keyctl = dw_syscall.keyctl !, nd_syscall.keyctl ? {}
+probe syscall.keyctl.return = dw_syscall.keyctl.return !, nd_syscall.keyctl.return ? {}
+
+# dw_keyctl _____________________________________________________
+
+probe dw_syscall.keyctl = kernel.function("compat_sys_keyctl").call ?,
+                       kernel.function("sys_keyctl").call ?
+{
+	@_SYSCALL_KEYCTL_NAME
+	option = __int32($option)
+	arg2 = @__compat_ulong($arg2)
+	arg3 = @__compat_ulong($arg3)
+	arg4 = @__compat_ulong($arg4)
+	arg5 = @__compat_ulong($arg5)
+	@__keyctl_argstr(option, arg2, arg3, arg4, arg5)
+}
+probe dw_syscall.keyctl.return = kernel.function("compat_sys_keyctl").return ?,
+                              kernel.function("sys_keyctl").return ?
+{
+	@_SYSCALL_KEYCTL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_keyctl _____________________________________________________
+
+probe nd_syscall.keyctl = kprobe.function("compat_sys_keyctl") ?,
+                          kprobe.function("sys_keyctl") ?
+{
+	@_SYSCALL_KEYCTL_NAME
+	asmlinkage()
+	option = int_arg(1)
+	arg2 = ulong_arg(2)
+	arg3 = ulong_arg(3)
+	arg4 = ulong_arg(4)
+	arg5 = ulong_arg(5)
+	@__keyctl_argstr(option, arg2, arg3, arg4, arg5)
+
+}
+probe nd_syscall.keyctl.return = kprobe.function("compat_sys_keyctl").return ?,
+                                 kprobe.function("sys_keyctl").return ?
+{
+	@_SYSCALL_KEYCTL_NAME
+	retstr = returnstr(1)
+}

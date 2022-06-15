@@ -1,0 +1,151 @@
+<Module>Audio</Module>
+<MagicNumber>BadBeef</MagicNumber>
+
+<AI>
+	<AiCfgFileUsed>1</AiCfgFileUsed>
+	<Gain>
+		<Chn0>
+			<GainCfgParamUsed>0</GainCfgParamUsed>
+			<FointGain>5</FointGain>
+			<RearGain>0</RearGain>
+		</Chn0>
+
+		<Chn1>
+			<GainCfgParamUsed>0</GainCfgParamUsed>
+			<FointGain>20</FointGain>
+			<RearGain>0</RearGain>
+		</Chn1>
+	</Gain>
+
+	<Aec>
+		<AecCfgParamUsed>1</AecCfgParamUsed>
+		<AecComfortNoiseEnable>1</AecComfortNoiseEnable>
+		<AecDelaySample>0</AecDelaySample>
+		<AecSupfreq>10,20,30,40,50,60</AecSupfreq>
+		<AecSupIntensity>10,10,10,10,10,10,10</AecSupIntensity>
+	</Aec>
+
+	<Hpf>
+		<HpfCfgParamUsed>0</HpfCfgParamUsed>
+		<HpfMode>1</HpfMode>
+		<HpfFreq>120</HpfFreq>
+	</Hpf>
+
+	<Anr>
+		<AnrCfgParamUsed>0</AnrCfgParamUsed>
+		<AnrMode>1</AnrMode>
+		<AnrIntensity>30</AnrIntensity>
+		<AnrSmoothLevel>8</AnrSmoothLevel>
+		<AnrSpeed>2</AnrSpeed>
+	</Anr>
+
+	<Agc>
+		<AgcCfgParamUsed>0</AgcCfgParamUsed>
+		<AgcMode>1</AgcMode>
+		<AgcNoiseGateDb>-40</AgcNoiseGateDb>
+		<AgcTargetLevelDb>0</AgcTargetLevelDb>
+		<AgcGainInit>0</AgcGainInit>
+		<AgcGainMax>10</AgcGainMax>
+		<AgcGainMin>10</AgcGainMin>
+		<AgcAttackTime>1</AgcAttackTime>
+		<AgcCompressionRatioInput>-70,-60,-50,-40,-30</AgcCompressionRatioInput>
+		<AgcCompressionRatioOutput>-70,-60,-50,-40,-30</AgcCompressionRatioOutput>
+		<AgcDropGainMax>60</AgcDropGainMax>
+		<AgcNoiseGateAttenuationDb>0</AgcNoiseGateAttenuationDb>
+		<AgcReleaseTime>10</AgcReleaseTime>
+	</Agc>
+
+	<Eq>
+		<EqCfgParamUsed>0</EqCfgParamUsed>
+		<EqMode>1</EqMode>
+		<EqGainDb>
+		0,0,0,1,1,1,2,2,2,3,3,3,
+		4,4,4,5,5,5,6,6,6,7,7,7,
+		8,8,8,9,9,9,10,10,10,-1,-1,-1,
+		-2,-2,-2,-3,-3,-3,-4,-4,-4,
+		-5,-5,-5,-6,-6,-6,-7,-7,-7,
+		-8,-8,-8,-9,-9,-9,0,0,0,
+		</EqGainDb>
+	</Eq>
+
+	<Aed>
+		<AedCfgParamUsed>0</AedCfgParamUsed>
+		<AedEnableNr>1</AedEnableNr>
+		<AedSensitivity>2</AedSensitivity>
+		<AedOperatingPoint>-5</AedOperatingPoint>
+		<AedVadThresholdDb>-40</AedVadThresholdDb>
+		<AedLsdThresholdDb>-15</AedLsdThresholdDb>
+	</Aed>
+
+	<Ssl>
+		<SslCfgParamUsed>0</SslCfgParamUsed>
+		<SslMicDistance>7</SslMicDistance>
+		<SslBfMode>0</SslBfMode>
+		<SslTemperature>25</SslTemperature>
+		<SslNoiseGateDbfs>-40</SslNoiseGateDbfs>
+		<SslDirectionFrameNum>300</SslDirectionFrameNum>
+	</Ssl>
+
+	<Bf>
+		<BfCfgParamUsed>0</BfCfgParamUsed>
+		<BfMicDistance>7</BfMicDistance>
+		<BfChanCnt>2</BfChanCnt>
+		<BfTemperature>25</BfTemperature>
+		<BfNoiseGateDbfs>-40</BfNoiseGateDbfs>
+		<BfNoiseSupressionMode>8</BfNoiseSupressionMode>
+		<BfNoiseEstimation>1</BfNoiseEstimation>
+		<BfOutputGain>0.7</BfOutputGain>
+	</Bf>
+
+</AI>
+
+<AO>
+	<AoCfgFileUsed>0</AoCfgFileUsed>
+	<Gain>
+		<GainCfgParamUsed>1</GainCfgParamUsed>
+		<DigitalGain>-20</DigitalGain>
+	</Gain>
+
+	<Hpf>
+		<HpfCfgParamUsed>1</HpfCfgParamUsed>
+		<HpfMode>1</HpfMode>
+		<HpfFreq>120</HpfFreq>
+	</Hpf>
+
+	<Anr>
+		<AnrCfgParamUsed>1</AnrCfgParamUsed>
+		<AnrMode>1</AnrMode>
+		<AnrIntensity>30</AnrIntensity>
+		<AnrSmoothLevel>8</AnrSmoothLevel>
+		<AnrSpeed>1</AnrSpeed>
+	</Anr>
+
+	<Agc>
+		<AgcCfgParamUsed>1</AgcCfgParamUsed>
+		<AgcMode>1</AgcMode>
+		<AgcNoiseGateDb>-50</AgcNoiseGateDb>
+		<AgcTargetLevelDb>0</AgcTargetLevelDb>
+		<AgcGainInit>1</AgcGainInit>
+		<AgcGainMax>10</AgcGainMax>
+		<AgcGainMin>10</AgcGainMin>
+		<AgcAttackTime>1</AgcAttackTime>
+		<AgcCompressionRatioInput>-70,-60,-50,-40,-30</AgcCompressionRatioInput>
+		<AgcCompressionRatioOutput>-70,-60,-50,-40,-30</AgcCompressionRatioOutput>
+		<AgcDropGainMax>60</AgcDropGainMax>
+		<AgcNoiseGateAttenuationDb>0</AgcNoiseGateAttenuationDb>
+		<AgcReleaseTime>10</AgcReleaseTime>
+	</Agc>
+
+	<Eq>
+		<EqCfgParamUsed>1</EqCfgParamUsed>
+		<EqMode>1</EqMode>
+		<EqGainDb>
+		0,0,0,1,1,1,2,2,2,3,3,3,
+		4,4,4,5,5,5,6,6,6,7,7,7,
+		8,8,8,9,9,9,10,10,10,-1,-1,-1,
+		-2,-2,-2,-3,-3,-3,-4,-4,-4,
+		-5,-5,-5,-6,-6,-6,-7,-7,-7,
+		-8,-8,-8,-9,-9,-9,0,0,0,
+		</EqGainDb>
+	</Eq>
+</AO>

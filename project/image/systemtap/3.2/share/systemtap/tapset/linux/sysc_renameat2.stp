@@ -1,0 +1,75 @@
+# renameat2 ___________________________________________________
+# SYSCALL_DEFINE5(renameat2, int, olddfd, const char __user *, oldname,
+#		int, newdfd, const char __user *, newname, unsigned int, flags)
+#
+# renameat2() was added to Linux in kernel 3.15.
+#
+
+@define _SYSCALL_RENAMEAT2_NAME
+%(
+	name = "renameat2"
+%)
+
+@define _SYSCALL_RENAMEAT2_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %s, %s", olddfd_str, oldname_str, newdfd_str, newname_str, flags_str)
+%)
+
+probe syscall.renameat2 = dw_syscall.renameat2 !, nd_syscall.renameat2 ? {}
+probe syscall.renameat2.return = dw_syscall.renameat2.return !,
+                                 nd_syscall.renameat2.return ? {}
+
+# dw_renameat2 _____________________________________________________
+
+probe dw_syscall.renameat2 = kernel.function("sys_renameat2").call ?
+{
+	@__syscall_compat_gate(@const("__NR_renameat2"),
+			       @const("__NR_compat_renameat2"))
+	@_SYSCALL_RENAMEAT2_NAME
+	olddfd = __int32($olddfd)
+	olddfd_str = _dfd_str(__int32($olddfd))
+	oldname = $oldname
+	oldname_str = user_string_quoted($oldname)
+	newdfd = __int32($newdfd)
+	newdfd_str = _dfd_str(__int32($newdfd))
+	newname = $newname
+	newname_str = user_string_quoted($newname)
+	flags = __uint32($flags)
+	flags_str = _renameat2_flags_str(flags)
+	@_SYSCALL_RENAMEAT2_ARGSTR
+}
+probe dw_syscall.renameat2.return = kernel.function("sys_renameat2").return ?
+{
+	@__syscall_compat_gate(@const("__NR_renameat2"),
+			       @const("__NR_compat_renameat2"))
+	@_SYSCALL_RENAMEAT2_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_renameat2 _____________________________________________________
+
+probe nd_syscall.renameat2 = kprobe.function("sys_renameat2") ?
+{
+	@__syscall_compat_gate(@const("__NR_renameat2"),
+			       @const("__NR_compat_renameat2"))
+	@_SYSCALL_RENAMEAT2_NAME
+	asmlinkage()
+	olddfd = int_arg(1)
+	olddfd_str = _dfd_str(olddfd)
+	oldname = pointer_arg(2)
+	oldname_str = user_string_quoted(oldname)
+	newdfd = int_arg(3)
+	newdfd_str = _dfd_str(newdfd)
+	newname = pointer_arg(4)
+	newname_str = user_string_quoted(newname)
+	flags = uint_arg(5)
+	flags_str = _renameat2_flags_str(flags)
+	@_SYSCALL_RENAMEAT2_ARGSTR
+}
+probe nd_syscall.renameat2.return = kprobe.function("sys_renameat2").return ?
+{
+	@__syscall_compat_gate(@const("__NR_renameat2"),
+			       @const("__NR_compat_renameat2"))
+	@_SYSCALL_RENAMEAT2_NAME
+	retstr = returnstr(1)
+}

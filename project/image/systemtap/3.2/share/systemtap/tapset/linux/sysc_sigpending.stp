@@ -1,0 +1,68 @@
+# sigpending _________________________________________________
+# SYSCALL_DEFINE1(sigpending, old_sigset_t __user *, set)
+# COMPAT_SYSCALL_DEFINE1(sigpending, compat_old_sigset_t __user *, set)
+#
+
+@define _SYSCALL_SIGPENDING_NAME
+%(
+	name = "sigpending"
+%)
+
+@define _SYSCALL_SIGPENDING_ARGSTR
+%(
+	argstr = sprintf("%p", set)
+%)
+
+probe syscall.sigpending = dw_syscall.sigpending !, nd_syscall.sigpending ? {}
+probe syscall.sigpending.return = dw_syscall.sigpending.return !,
+                                  nd_syscall.sigpending.return ? {}
+
+# dw_sigpending _____________________________________________________
+
+probe dw_syscall.sigpending = __syscall.sigpending ?,
+	kernel.function("compat_sys_sigpending").call ?
+{
+	@_SYSCALL_SIGPENDING_NAME
+	set = @choose_defined($set, $set32)
+	@_SYSCALL_SIGPENDING_ARGSTR
+}
+probe __syscall.sigpending = kernel.function("sys_sigpending").call ?
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.sigpending.return = __syscall.sigpending.return ?,
+	kernel.function("compat_sys_sigpending").return ?
+{
+	@_SYSCALL_SIGPENDING_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.sigpending.return = kernel.function("sys_sigpending").return ?
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_sigpending _____________________________________________________
+
+probe nd_syscall.sigpending = __nd_syscall.sigpending ?,
+	kprobe.function("compat_sys_sigpending") ?
+{
+	@_SYSCALL_SIGPENDING_NAME
+	asmlinkage()
+	set = pointer_arg(1)
+	@_SYSCALL_SIGPENDING_ARGSTR
+}
+probe __nd_syscall.sigpending = kprobe.function("sys_sigpending") ?
+{
+	@__syscall_gate_compat_simple
+}
+probe nd_syscall.sigpending.return = __nd_syscall.sigpending.return ?,
+	kprobe.function("compat_sys_sigpending").return ?
+{
+	@_SYSCALL_SIGPENDING_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.sigpending.return =
+	kprobe.function("sys_sigpending").return ?
+{
+	@__syscall_gate_compat_simple
+}

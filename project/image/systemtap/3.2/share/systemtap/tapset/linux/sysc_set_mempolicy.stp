@@ -1,0 +1,87 @@
+# set_mempolicy ______________________________________________
+# long sys_set_mempolicy(int mode,
+#	unsigned long __user *nmask,
+#	unsigned long maxnode)
+#
+
+@define _SYSCALL_SET_MEMPOLICY_NAME
+%(
+	name = "set_mempolicy"
+%)
+
+@define _SYSCALL_SET_MEMPOLICY_ARGSTR
+%(
+	argstr = sprintf("%s, %p, %u", mode_str, nmask_uaddr, maxnode)
+%)
+
+probe syscall.set_mempolicy = dw_syscall.set_mempolicy !,
+                              nd_syscall.set_mempolicy ? {}
+probe syscall.set_mempolicy.return = dw_syscall.set_mempolicy.return !,
+                                     nd_syscall.set_mempolicy.return ? {}
+
+# dw_set_mempolicy _____________________________________________________
+
+probe dw_syscall.set_mempolicy = __syscall.set_mempolicy ?,
+	kernel.function("compat_sys_set_mempolicy").call ?
+{
+	@_SYSCALL_SET_MEMPOLICY_NAME
+	mode = __int32($mode)
+	mode_str = _mempolicy_mode_str(__int32($mode))
+	nmask_uaddr = $nmask
+	maxnode = $maxnode
+	@_SYSCALL_SET_MEMPOLICY_ARGSTR
+}
+probe __syscall.set_mempolicy = kernel.function("sys_set_mempolicy") ?
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}
+probe dw_syscall.set_mempolicy.return = __syscall.set_mempolicy.return ?,
+	kernel.function("compat_sys_set_mempolicy").return ?
+{
+	@_SYSCALL_SET_MEMPOLICY_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.set_mempolicy.return =
+	kernel.function("sys_set_mempolicy").return ?
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}
+
+# nd_set_mempolicy _____________________________________________________
+
+probe nd_syscall.set_mempolicy = __nd_syscall.set_mempolicy ?,
+	kprobe.function("compat_sys_set_mempolicy") ?
+{
+	@_SYSCALL_SET_MEMPOLICY_NAME
+	asmlinkage()
+	mode = int_arg(1)
+	mode_str = _mempolicy_mode_str(mode)
+	nmask_uaddr = pointer_arg(2)
+	maxnode = ulong_arg(3)
+	@_SYSCALL_SET_MEMPOLICY_ARGSTR
+}
+probe __nd_syscall.set_mempolicy = kprobe.function("sys_set_mempolicy") ?
+{
+%( arch == "powerpc" %?
+	asmlinkage()
+	@__syscall_gate_compat_simple
+%)
+}
+probe nd_syscall.set_mempolicy.return = __nd_syscall.set_mempolicy.return ?,
+	kprobe.function("compat_sys_set_mempolicy").return ?
+{
+	@_SYSCALL_SET_MEMPOLICY_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.set_mempolicy.return =
+	kprobe.function("sys_set_mempolicy").return ?
+{
+%( arch == "powerpc" %?
+	asmlinkage()
+	@__syscall_gate_compat_simple
+%)
+}

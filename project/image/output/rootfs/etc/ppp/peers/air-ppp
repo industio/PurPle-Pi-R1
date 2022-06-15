@@ -1,0 +1,18 @@
+debug
+nodetach
+dump
+/dev/ttyUSB1
+115200
+nolock
+nocrtscts
+modem
+hide-password
+novj
+novjccomp
+ipcp-accept-local
+ipcp-accept-remote
+noipdefault
+usepeerdns
+noccp
+connect 'chat -s -v -f /etc/ppp/peers/air-chat-connect'
+disconnect 'chat -s -v -f /etc/ppp/peers/air-chat-disconnect'

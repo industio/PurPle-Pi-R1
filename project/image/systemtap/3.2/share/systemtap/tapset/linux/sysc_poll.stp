@@ -1,0 +1,50 @@
+# poll _______________________________________________________
+#
+# long sys_poll(struct pollfd __user * ufds, unsigned int nfds, int timeout)
+#
+
+@define _SYSCALL_POLL_NAME
+%(
+	name = "poll"
+%)
+
+@define _SYSCALL_POLL_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %d", ufds_uaddr, nfds, timeout)
+%)
+
+probe syscall.poll = dw_syscall.poll !, nd_syscall.poll ? {}
+probe syscall.poll.return = dw_syscall.poll.return !, nd_syscall.poll.return ? {}
+
+# dw_poll _____________________________________________________
+
+probe dw_syscall.poll = kernel.function("sys_poll").call
+{
+	@_SYSCALL_POLL_NAME
+	ufds_uaddr = $ufds
+	nfds = __uint32($nfds)
+	timeout = __int32(@choose_defined($timeout_msecs, $timeout))
+	@_SYSCALL_POLL_ARGSTR
+}
+probe dw_syscall.poll.return = kernel.function("sys_poll").return
+{
+	@_SYSCALL_POLL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_poll _____________________________________________________
+
+probe nd_syscall.poll = kprobe.function("sys_poll") ?
+{
+	@_SYSCALL_POLL_NAME
+	asmlinkage()
+	ufds_uaddr = pointer_arg(1)
+	nfds = uint_arg(2)
+	timeout = int_arg(3)
+	@_SYSCALL_POLL_ARGSTR
+}
+probe nd_syscall.poll.return = kprobe.function("sys_poll").return ?
+{
+	@_SYSCALL_POLL_NAME
+	retstr = returnstr(1)
+}

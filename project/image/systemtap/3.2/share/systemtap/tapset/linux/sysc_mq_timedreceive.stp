@@ -1,0 +1,101 @@
+# mq_timedreceive ____________________________________________
+# ssize_t sys_mq_timedreceive(mqd_t mqdes,
+#                     char __user *u_msg_ptr,
+#                     size_t msg_len,
+#                     unsigned int __user *u_msg_prio,
+#                     const struct timespec __user *u_abs_timeout)
+# ssize_t compat_sys_mq_timedreceive(mqd_t mqdes,
+#			char __user *u_msg_ptr,
+#			size_t msg_len, unsigned int __user *u_msg_prio,
+#			const struct compat_timespec __user *u_abs_timeout)
+#
+
+@define _SYSCALL_MQ_TIMEDRECEIVE_NAME
+%(
+	name = "mq_timedreceive"
+%)
+
+@define _SYSCALL_MQ_TIMEDRECEIVE_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u, %p, %p", mqdes, msg_ptr_uaddr, msg_len,
+	                 msg_prio_uaddr, abs_timeout_uaddr)
+%)
+
+probe syscall.mq_timedreceive = dw_syscall.mq_timedreceive !, nd_syscall.mq_timedreceive ? {}
+probe syscall.mq_timedreceive.return = dw_syscall.mq_timedreceive.return !,
+                                       nd_syscall.mq_timedreceive.return ? {}
+
+# dw_mq_timedreceive _____________________________________________________
+
+probe dw_syscall.mq_timedreceive =
+	__syscall.mq_timedreceive ?,
+	kernel.function("compat_sys_mq_timedreceive").call ?
+{
+	@_SYSCALL_MQ_TIMEDRECEIVE_NAME
+	mqdes = __int32($mqdes)
+	msg_ptr_uaddr = @__pointer($u_msg_ptr)
+	msg_prio_uaddr = @__pointer($u_msg_prio)
+	abs_timeout_uaddr = @__pointer($u_abs_timeout)
+%( CONFIG_64BIT == "y" %?
+	msg_len = @__compat_ulong($msg_len)
+%:
+	msg_len = __uint32($msg_len)
+%)
+	@_SYSCALL_MQ_TIMEDRECEIVE_ARGSTR
+}
+probe __syscall.mq_timedreceive = kernel.function("sys_mq_timedreceive").call
+{
+        @__syscall_gate(@const("__NR_mq_timedreceive"))
+}
+probe dw_syscall.mq_timedreceive.return =
+        __syscall.mq_timedreceive.return,
+        kernel.function("compat_sys_mq_timedreceive").return ?
+{
+	@_SYSCALL_MQ_TIMEDRECEIVE_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.mq_timedreceive.return = kernel.function("sys_mq_timedreceive").return
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_mq_timedreceive _____________________________________________________
+
+probe nd_syscall.mq_timedreceive =
+        __nd_syscall.mq_timedreceive ?,
+	__nd_syscall.compat_mq_timedreceive ?
+{
+	@_SYSCALL_MQ_TIMEDRECEIVE_NAME
+	asmlinkage()
+	mqdes = int_arg(1)
+	msg_ptr_uaddr = pointer_arg(2)
+	msg_prio_uaddr = pointer_arg(4)
+	abs_timeout_uaddr = pointer_arg(5)
+	@_SYSCALL_MQ_TIMEDRECEIVE_ARGSTR
+}
+probe __nd_syscall.compat_mq_timedreceive = kprobe.function("compat_sys_mq_timedreceive")
+{
+	asmlinkage()
+	msg_len = uint_arg(3)
+}
+probe __nd_syscall.mq_timedreceive = kprobe.function("sys_mq_timedreceive")
+{
+	asmlinkage()
+        @__syscall_gate(@const("__NR_mq_timedreceive"))
+%( CONFIG_64BIT == "y" %?
+	msg_len = ulong_arg(3)
+%:
+	msg_len = uint_arg(3)
+%)
+}
+probe nd_syscall.mq_timedreceive.return =
+        __nd_syscall.mq_timedreceive.return ?,
+        kprobe.function("compat_sys_mq_timedreceive").return ?
+{
+	@_SYSCALL_MQ_TIMEDRECEIVE_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.mq_timedreceive.return = kprobe.function("sys_mq_timedreceive").return
+{
+        @__syscall_gate(@const("__NR_mq_timedreceive"))
+}

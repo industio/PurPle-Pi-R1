@@ -1,0 +1,7 @@
+title: Network packet contents
+name: packet_contents.stp
+keywords: network traffic
+subsystem: network
+description: The packet_contents.stp script displays the length of each network packet and its contents in both hexadecimal and ASCII. Systemtap strings are MAXSTRINGLEN in length by default which may not be enough for larger packets. In order to print larger packets, this limit can be increased by passing in the "-DMAXSTRINGLEN=65536" command line option.
+test_check: stap -p4 packet_contents.stp
+test_installcheck: stap packet_contents.stp -T 1

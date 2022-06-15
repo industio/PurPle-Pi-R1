@@ -1,0 +1,49 @@
+# ioperm _____________________________________________________
+# long sys_ioperm(unsigned long from, unsigned long num, int turn_on)
+#
+
+@define _SYSCALL_IOPERM_NAME
+%(
+	name = "ioperm"
+%)
+
+@define _SYSCALL_IOPERM_ARGSTR
+%(
+	argstr = sprintf("%#x, %#x, %#x", from, num, turn_on)
+%)
+
+probe syscall.ioperm = dw_syscall.ioperm !, nd_syscall.ioperm ? {}
+probe syscall.ioperm.return = dw_syscall.ioperm.return !, nd_syscall.ioperm.return ? {}
+
+# dw_ioperm _____________________________________________________
+
+probe dw_syscall.ioperm = kernel.function("sys_ioperm").call ?
+{
+	@_SYSCALL_IOPERM_NAME
+	from = __ulong($from)
+	num = __ulong($num)
+	turn_on = __uint32($turn_on)
+	@_SYSCALL_IOPERM_ARGSTR
+}
+probe dw_syscall.ioperm.return = kernel.function("sys_ioperm").return ?
+{
+	@_SYSCALL_IOPERM_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ioperm _____________________________________________________
+
+probe nd_syscall.ioperm = kprobe.function("sys_ioperm") ?
+{
+	@_SYSCALL_IOPERM_NAME
+	asmlinkage()
+	from = ulong_arg(1)
+	num = ulong_arg(2)
+	turn_on = uint_arg(3)
+	@_SYSCALL_IOPERM_ARGSTR
+}
+probe nd_syscall.ioperm.return = kprobe.function("sys_ioperm").return ?
+{
+	@_SYSCALL_IOPERM_NAME
+	retstr = returnstr(1)
+}

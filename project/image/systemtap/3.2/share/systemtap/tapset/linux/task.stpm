@@ -1,0 +1,11 @@
+@define task(ptr) %(
+    @cast(@ptr, "task_struct", "kernel<linux/sched.h>")
+%)
+
+@define mm(ptr) %(
+  %( kernel_v >= "2.6.34" %?
+    @cast(@ptr, "mm_struct", "kernel<linux/mm_types.h>")
+  %:
+    @cast(@ptr, "mm_struct", "kernel<linux/sched.h>")
+  %)
+%)

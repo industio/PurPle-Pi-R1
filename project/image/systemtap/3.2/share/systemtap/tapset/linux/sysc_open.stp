@@ -1,0 +1,84 @@
+# open _______________________________________________________
+# long sys_open(const char __user * filename, int flags, int mode)
+# (obsolete) long sys32_open(const char * filename, int flags, int mode)
+#
+
+@define _SYSCALL_OPEN_NAME
+%(
+	name = "open"
+%)
+
+@define _SYSCALL_OPEN_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %#o", filename, flags_str, mode) 
+%)
+
+@define _SYSCALL_OPEN_ARGSTR_2
+%(
+	argstr = sprintf("%s, %s", filename, flags_str) 
+%)
+
+probe syscall.open = dw_syscall.open !, nd_syscall.open ? {}
+probe syscall.open.return = dw_syscall.open.return !, nd_syscall.open.return ? {}
+
+# dw_open _____________________________________________________
+
+probe dw_syscall.open = __syscall.compat_open ?, __syscall.open
+{
+	@__syscall_compat_gate(@const("__NR_open"), @const("__NR_compat_open"))
+	@_SYSCALL_OPEN_NAME
+	flags = __int32($flags)
+	flags_str = _sys_open_flag_str(flags)
+	if ($flags & @const("O_CREAT"))
+		@_SYSCALL_OPEN_ARGSTR
+	else
+		@_SYSCALL_OPEN_ARGSTR_2
+}
+probe __syscall.compat_open = kernel.function("compat_sys_open").call ?,
+			      kernel.function("sys32_open").call ?
+{
+	// On some platforms, $filename and $mode are longs on the
+	// kernel side. Truncate these down to 32 bits.
+	filename = user_string_quoted(__uint32($filename))
+	mode = __uint32($mode)
+}
+probe __syscall.open = kernel.function("sys_open").call
+{
+	filename = user_string_quoted($filename)
+	mode = __uint32($mode)
+}
+probe dw_syscall.open.return = kernel.function("compat_sys_open").return ?,
+                            kernel.function("sys32_open").return ?,
+                            kernel.function("sys_open").return ?
+{
+	@__syscall_compat_gate(@const("__NR_open"), @const("__NR_compat_open"))
+	@_SYSCALL_OPEN_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_open _____________________________________________________
+
+probe nd_syscall.open = kprobe.function("compat_sys_open") ?,
+                        kprobe.function("sys32_open") ?,
+                        kprobe.function("sys_open") ?
+{
+	@__syscall_compat_gate(@const("__NR_open"), @const("__NR_compat_open"))
+	@_SYSCALL_OPEN_NAME
+	asmlinkage()
+	filename = user_string_quoted(pointer_arg(1))
+	flags = int_arg(2)
+	flags_str = _sys_open_flag_str(flags)
+	mode = uint_arg(3)
+	if (flags & @const("O_CREAT"))
+		@_SYSCALL_OPEN_ARGSTR
+	else
+		@_SYSCALL_OPEN_ARGSTR_2
+}
+probe nd_syscall.open.return = kprobe.function("compat_sys_open").return ?,
+                               kprobe.function("sys32_open").return ?,
+                               kprobe.function("sys_open").return ?
+{
+	@__syscall_compat_gate(@const("__NR_open"), @const("__NR_compat_open"))
+	@_SYSCALL_OPEN_NAME
+	retstr = returnstr(1)
+}

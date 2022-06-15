@@ -1,0 +1,1 @@
+include $(PROJ_ROOT)/release/customer_tailor/nvr_default.mk

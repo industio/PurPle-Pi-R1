@@ -1,0 +1,76 @@
+# readahead __________________________________________________
+#
+# asmlinkage ssize_t
+# sys_readahead(int fd,
+#		   loff_t offset,
+#		   size_t count)
+#
+
+@define _SYSCALL_READAHEAD_NAME
+%(
+	name = "readahead"
+%)
+
+@define _SYSCALL_READAHEAD_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %u", fd, offset, count)
+%)
+
+probe syscall.readahead = dw_syscall.readahead !, nd_syscall.readahead ? {}
+probe syscall.readahead.return = dw_syscall.readahead.return !,
+                                 nd_syscall.readahead.return ? {}
+
+# dw_readahead _____________________________________________________
+
+probe dw_syscall.readahead = kernel.function("sys_readahead").call
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_READAHEAD_NAME
+	fd = __int32($fd)
+	offset = $offset
+%( CONFIG_64BIT == "y" %?
+	count = $count
+%:
+	count = __uint32($count)
+%)
+	@_SYSCALL_READAHEAD_ARGSTR
+}
+probe dw_syscall.readahead.return = kernel.function("sys_readahead").return
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_READAHEAD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_readahead _____________________________________________________
+
+probe nd_syscall.readahead = kprobe.function("sys_readahead") ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_READAHEAD_NAME
+	asmlinkage()
+	fd = int_arg(1)
+%( CONFIG_64BIT == "y" %?
+	offset = longlong_arg(2)
+	count = ulong_arg(3)
+%:
+%( arch == "arm" %?
+	# arm has some odd rules regarding long long arguments.
+	offset = longlong_arg(3)
+	count = ulong_arg(5)
+%:
+	# On a 32-bit kernel, 'long long' arguments take the space of
+	# 2 arguments, so we have to adjust the following argument
+	# numbers.
+	offset = longlong_arg(2)
+	count = ulong_arg(4)
+%)
+%)
+	@_SYSCALL_READAHEAD_ARGSTR
+}
+probe nd_syscall.readahead.return = kprobe.function("sys_readahead").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_READAHEAD_NAME
+	retstr = returnstr(1)
+}

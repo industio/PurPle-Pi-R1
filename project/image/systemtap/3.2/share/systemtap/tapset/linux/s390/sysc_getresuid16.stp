@@ -1,0 +1,56 @@
+# getresuid __________________________________________________
+# long sys32_getresuid16(u16 __user *ruid, u16 __user *euid, u16 __user *suid)
+#
+
+@define _SYSCALL_GETRESUID16_NAME
+%(
+	name = "getresuid"
+%)
+
+@define _SYSCALL_GETRESUID16_ARGSTR
+%(
+	argstr = sprintf("%p, %p, %p", ruid_uaddr, euid_uaddr, suid_uaddr)
+%)
+
+probe syscall.getresuid16 = dw_syscall.getresuid16 !, nd_syscall.getresuid16 ? {}
+probe syscall.getresuid16.return = dw_syscall.getresuid16.return !,
+                                   nd_syscall.getresuid16.return ? {}
+
+# dw_getresuid16 _____________________________________________________
+
+probe dw_syscall.getresuid16 = kernel.function("sys32_getresuid16").call ?,
+	kernel.function("compat_sys_s390_getresuid16").call ?
+{
+	@_SYSCALL_GETRESUID16_NAME
+	ruid_uaddr = @choose_defined($ruidp, $ruid)
+	euid_uaddr = @choose_defined($euidp, $euid)
+	suid_uaddr = @choose_defined($suidp, $suid)
+	@_SYSCALL_GETRESUID16_ARGSTR
+}
+probe dw_syscall.getresuid16.return =
+	kernel.function("sys32_getresuid16").return ?,
+	kernel.function("compat_sys_s390_getresuid16").return ?
+{
+	@_SYSCALL_GETRESUID16_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getresuid16 _____________________________________________________
+
+probe nd_syscall.getresuid16 = kprobe.function("sys32_getresuid16") ?,
+	kprobe.function("compat_sys_s390_getresuid16") ?
+{
+	@_SYSCALL_GETRESUID16_NAME
+	asmlinkage()
+	ruid_uaddr = pointer_arg(1)
+	euid_uaddr = pointer_arg(2)
+	suid_uaddr = pointer_arg(3)
+	@_SYSCALL_GETRESUID16_ARGSTR
+}
+probe nd_syscall.getresuid16.return =
+	kprobe.function("sys32_getresuid16").return ?,
+	kprobe.function("compat_sys_s390_getresuid16").return ?
+{
+	@_SYSCALL_GETRESUID16_NAME
+	retstr = returnstr(1)
+}

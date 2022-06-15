@@ -1,0 +1,57 @@
+# inotify_add_watch __________________________________________
+#
+# long sys_inotify_add_watch(int fd, const char __user *path, u32 mask)
+#
+
+@define _SYSCALL_INOTIFY_ADD_WATCH_NAME
+%(
+	name = "inotify_add_watch"
+%)
+
+@define _SYSCALL_INOTIFY_ADD_WATCH_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %s", fd, path, mask_str)
+%)
+
+probe syscall.inotify_add_watch = dw_syscall.inotify_add_watch !,
+                                  nd_syscall.inotify_add_watch ? {}
+probe syscall.inotify_add_watch.return = dw_syscall.inotify_add_watch.return !,
+                                         nd_syscall.inotify_add_watch.return ? {}
+
+# dw_inotify_add_watch _____________________________________________________
+
+probe dw_syscall.inotify_add_watch = kernel.function("sys_inotify_add_watch").call ?
+{
+	@_SYSCALL_INOTIFY_ADD_WATCH_NAME
+	fd = __int32($fd)
+	mask = __uint32($mask)
+	mask_str = _inotify_watch_mask_str(mask)
+	path_uaddr = @choose_defined($pathname, $path)
+	path = user_string_quoted(@choose_defined($pathname, $path))
+	@_SYSCALL_INOTIFY_ADD_WATCH_ARGSTR
+}
+
+probe dw_syscall.inotify_add_watch.return = kernel.function("sys_inotify_add_watch").return ?
+{
+	@_SYSCALL_INOTIFY_ADD_WATCH_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_inotify_add_watch _____________________________________________________
+
+probe nd_syscall.inotify_add_watch = kprobe.function("sys_inotify_add_watch") ?
+{
+	@_SYSCALL_INOTIFY_ADD_WATCH_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	mask = uint_arg(3)
+	mask_str = _inotify_watch_mask_str(mask)
+	path_uaddr = pointer_arg(2)
+	path = user_string_quoted(path_uaddr)
+	@_SYSCALL_INOTIFY_ADD_WATCH_ARGSTR
+}
+probe nd_syscall.inotify_add_watch.return = kprobe.function("sys_inotify_add_watch").return ?
+{
+	@_SYSCALL_INOTIFY_ADD_WATCH_NAME
+	retstr = returnstr(1)
+}

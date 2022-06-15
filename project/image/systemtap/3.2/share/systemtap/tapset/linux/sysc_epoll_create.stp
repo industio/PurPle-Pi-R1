@@ -1,0 +1,73 @@
+# epoll_create _______________________________________________
+# long sys_epoll_create(int size)
+# SYSCALL_DEFINE1(epoll_create1, int, flags)
+
+probe syscall.epoll_create = dw_syscall.epoll_create !, nd_syscall.epoll_create ? {}
+probe syscall.epoll_create.return = dw_syscall.epoll_create.return !, nd_syscall.epoll_create.return ? {}
+
+# dw_epoll_create _____________________________________________________
+
+probe dw_syscall.epoll_create = kernel.function("sys_epoll_create1").call !,
+                             kernel.function("sys_epoll_create").call ?
+{
+	size = @choose_defined($size, 0);
+	flags = __int32(@choose_defined($flags, 0));
+	if (flags == 0) {
+		name = "epoll_create";
+		argstr = sprint(size);
+	} else {
+		name = "epoll_create1";
+		argstr = _epoll_create1_flag_str(flags);
+	}
+}
+probe dw_syscall.epoll_create.return = kernel.function("sys_epoll_create1").return !,
+                                    kernel.function("sys_epoll_create").return ?
+{
+	flags = __int32(@entry(@choose_defined($flags, 0)));
+	name = (flags == 0) ? "epoll_create" : "epoll_create1";
+	retstr = return_str(1, $return)
+}
+
+# nd_epoll_create _____________________________________________________
+
+probe nd_syscall.epoll_create = __nd_syscall.epoll_create1 !,
+                                __nd_syscall.epoll_create ?
+{
+}
+probe __nd_syscall.epoll_create1 = kprobe.function("sys_epoll_create1")
+{
+ 	asmlinkage()
+	size = 0;
+	flags = int_arg(1)
+	if (flags == 0) {
+		name = "epoll_create";
+		argstr = sprint(size);
+	} else {
+		name = "epoll_create1";
+		argstr = _epoll_create1_flag_str(flags);
+	}
+}
+probe __nd_syscall.epoll_create = kprobe.function("sys_epoll_create")
+{
+	name = "epoll_create"
+	asmlinkage()
+	size = int_arg(1)
+	flags = 0
+	argstr = sprint(size)
+}
+probe nd_syscall.epoll_create.return = __nd_syscall.epoll_create1.return !,
+                                       __nd_syscall.epoll_create.return ?
+{
+}
+probe __nd_syscall.epoll_create1.return = kprobe.function("sys_epoll_create1").return
+{
+	flags = @entry(__asmlinkage_int_arg(1))
+	name = (flags == 0) ? "epoll_create" : "epoll_create1";
+	retstr = returnstr(1)
+}
+probe __nd_syscall.epoll_create.return = kprobe.function("sys_epoll_create").return
+{
+	flags = 0
+	name = "epoll_create"
+	retstr = returnstr(1)
+}

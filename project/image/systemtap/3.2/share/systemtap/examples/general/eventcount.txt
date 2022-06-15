@@ -1,0 +1,38 @@
+# stap eventcount.stp 'syscall.write'
+
+Starting event counting at Fri Jun 16 16:22:37 2017 EDT, unfiltered
+Incremental reporting (max 20 lines, sorted by count) every 10 s
+Period time elapsed: 3002 ms, 45 events, 45 after filtering.
+TID                    COUNT (Hz)      EVENT
+---                    ----------      -----
+fwupd(2053)            18 (5.99)       syscall.write
+Timer(3461)            14 (4.66)       syscall.write
+gnome-shell(1672)      7 (2.33)        syscall.write
+tee(15737)             2 (0.66)        syscall.write
+stapio(15742)          1 (0.33)        syscall.write
+Web Content(3434)      1 (0.33)        syscall.write
+dhclient(1146)         1 (0.33)        syscall.write
+Gecko_IOThread(3391)   1 (0.33)        syscall.write
+Sorting by tid
+Cumulative mode enabled
+Cumulative time elapsed: 10000 ms, 182 events, 182 after filtering.
+TID                    COUNT (Hz)      EVENT
+---                    ----------      -----
+Chrome_ChildThr(3439)  1 (0.10)        syscall.write
+Compositor(3412)       11 (1.10)       syscall.write
+DOM Worker(6239)       1 (0.10)        syscall.write
+Gecko_IOThread(3391)   3 (0.30)        syscall.write
+SoftwareVsyncTh(3417)  2 (0.20)        syscall.write
+Timer(3392)            1 (0.10)        syscall.write
+Timer(3461)            68 (6.80)       syscall.write
+Web Content(3434)      6 (0.60)        syscall.write
+dhclient(1146)         1 (0.10)        syscall.write
+firefox(3370)          1 (0.10)        syscall.write
+fwupd(2053)            36 (3.60)       syscall.write
+gnome-shell(1672)      28 (2.80)       syscall.write
+gnome-terminal-(2026)  2 (0.20)        syscall.write
+rtkit-daemon(846)      2 (0.20)        syscall.write
+stapio(15741)          2 (0.20)        syscall.write
+stapio(15742)          3 (0.30)        syscall.write
+tee(15737)             6 (0.60)        syscall.write
+xchat(3517)            8 (0.80)        syscall.write

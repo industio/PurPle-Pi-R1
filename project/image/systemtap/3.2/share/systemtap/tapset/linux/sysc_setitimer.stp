@@ -1,0 +1,104 @@
+# setitimer __________________________________________________
+#
+# long sys_setitimer(int which,
+#		   struct itimerval __user *value,
+#		   struct itimerval __user *ovalue)
+#
+
+@define _SYSCALL_SETITIMER_NAME
+%(
+	name = "setitimer"
+%)
+
+@define _SYSCALL_SETITIMER_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %p", which_str, value_str, ovalue_uaddr)
+%)
+
+probe syscall.setitimer = dw_syscall.setitimer !, nd_syscall.setitimer ? {}
+probe syscall.setitimer.return = dw_syscall.setitimer.return !,
+                                 nd_syscall.setitimer.return ? {}
+
+# dw_setitimer _____________________________________________________
+
+probe dw_syscall.setitimer = kernel.function("sys_setitimer").call
+{
+	@_SYSCALL_SETITIMER_NAME
+	which = __int32($which)
+	which_str = _itimer_which_str(which)
+	value_uaddr = $value
+	value_str = _struct_itimerval_u(value_uaddr)
+	ovalue_uaddr = $ovalue
+	@_SYSCALL_SETITIMER_ARGSTR
+}
+probe dw_syscall.setitimer.return = kernel.function("sys_setitimer").return
+{
+	@_SYSCALL_SETITIMER_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setitimer _____________________________________________________
+
+probe nd_syscall.setitimer = kprobe.function("sys_setitimer") ?
+{
+	@_SYSCALL_SETITIMER_NAME
+	asmlinkage()
+	which = int_arg(1)
+	which_str = _itimer_which_str(which)
+	value_uaddr = pointer_arg(2)
+	value_str = _struct_itimerval_u(value_uaddr)
+	ovalue_uaddr = pointer_arg(3)
+	@_SYSCALL_SETITIMER_ARGSTR
+}
+probe nd_syscall.setitimer.return = kprobe.function("sys_setitimer").return ?
+{
+	@_SYSCALL_SETITIMER_NAME
+	retstr = returnstr(1)
+}
+
+# long compat_sys_setitimer(int which,
+#		struct compat_itimerval __user *in,
+#		struct compat_itimerval __user *out)
+#
+
+probe syscall.compat_setitimer = dw_syscall.compat_setitimer !,
+                                 nd_syscall.compat_setitimer ? {}
+probe syscall.compat_setitimer.return = dw_syscall.compat_setitimer.return !,
+                                        nd_syscall.compat_setitimer.return ? {}
+
+# dw_compat_setitimer _____________________________________________________
+
+probe dw_syscall.compat_setitimer = kernel.function("compat_sys_setitimer").call ?
+{
+	@_SYSCALL_SETITIMER_NAME
+	which = __int32($which)
+	which_str = _itimer_which_str(which)
+	value_uaddr = @__pointer($in)
+	value_str = _struct_compat_itimerval_u(value_uaddr)
+	ovalue_uaddr = @__pointer($out)
+	@_SYSCALL_SETITIMER_ARGSTR
+}
+probe dw_syscall.compat_setitimer.return = kernel.function("compat_sys_setitimer").return ?
+{
+	@_SYSCALL_SETITIMER_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_setitimer _____________________________________________________
+
+probe nd_syscall.compat_setitimer = kprobe.function("compat_sys_setitimer") ?
+{
+	@_SYSCALL_SETITIMER_NAME
+	asmlinkage()
+	which = int_arg(1)
+	which_str = _itimer_which_str(which)
+	value_uaddr = pointer_arg(2)
+	value_str = _struct_compat_itimerval_u(value_uaddr)
+	ovalue_uaddr = pointer_arg(3)
+	@_SYSCALL_SETITIMER_ARGSTR
+}
+probe nd_syscall.compat_setitimer.return = kprobe.function("compat_sys_setitimer").return ?
+{
+	@_SYSCALL_SETITIMER_NAME
+	retstr = returnstr(1)
+}

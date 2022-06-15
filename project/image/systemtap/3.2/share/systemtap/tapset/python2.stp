@@ -1,0 +1,1101 @@
+// python 2 tapset
+// Copyright (C) 2016 Red Hat Inc.
+//
+// This file is part of systemtap, and is free software.  You can
+// redistribute it and/or modify it under the terms of the GNU General
+// Public License (GPL); either version 2, or (at your option) any
+// later version.
+
+%{
+/*
+ * Defines borrowed from object.h.
+ */
+
+/* These flags are used to determine if a type is a subclass. */
+#define Py2_TPFLAGS_INT_SUBCLASS         (1L<<23)
+#define Py2_TPFLAGS_LONG_SUBCLASS        (1L<<24)
+#define Py2_TPFLAGS_LIST_SUBCLASS        (1L<<25)
+#define Py2_TPFLAGS_TUPLE_SUBCLASS       (1L<<26)
+#define Py2_TPFLAGS_STRING_SUBCLASS      (1L<<27)
+#define Py2_TPFLAGS_UNICODE_SUBCLASS     (1L<<28)
+#define Py2_TPFLAGS_DICT_SUBCLASS        (1L<<29)
+#define Py2_TPFLAGS_BASE_EXC_SUBCLASS    (1L<<30)
+#define Py2_TPFLAGS_TYPE_SUBCLASS        (1L<<31)
+
+/*
+ * Defines borrowed from code.h.
+ */
+
+/* Masks for co_flags above */
+#define Py2_CO_OPTIMIZED	0x0001
+#define Py2_CO_NEWLOCALS	0x0002
+#define Py2_CO_VARARGS		0x0004
+#define Py2_CO_VARKEYWORDS	0x0008
+#define Py2_CO_NESTED		0x0010
+#define Py2_CO_GENERATOR	0x0020
+/* The Py2_CO_NOFREE flag is set if there are no free or cell variables.
+   This information is redundant, but it allows a single flag test
+   to determine whether there is any extra work to be done when the
+   call frame it setup.
+*/
+#define Py2_CO_NOFREE		0x0040
+
+/*
+ * Defines borrowed from longintrepr.h
+ */
+#define Py2Long_SHIFT_SMALL	15
+#define Py2Long_SHIFT_BIG	30
+
+%}
+
+#
+# Macros to cast to various python 2 types
+#
+
+###########################################
+#
+# FIXME: We've got a couple of problems with @cast() here.
+#
+# 1) The first thing in the @cast module list is 'python'. On some
+#    systems, the python 2 executable is named
+#    'python2'. Systemtap's configure script finds the right name for
+#    the python 2 executable, but that information doesn't make it
+#    here. This file may need to be generated at systemtap build time
+#    (i.e. have a 'python2.stp.in' tapset file that gets turned into
+#    'python2.stp').
+#
+# 2) The 2nd and 3rd items in the @cast module list is 64-bit and
+#    32-bit versions of 'libpython2.7.so'. That is the name of the
+#    current version of python 2 library on most systems. On older
+#    systems, that version number might be different.  If we could use
+#    wildcards in @cast module paths we could work around this problem
+#    (see PR20394). To work around this issue, we'll include 2.6
+#    versions of the shared library in the @cast module list. 
+#
+###########################################
+
+@define Py2ModuleList %(
+    "python:/usr/lib64/libpython2.7.so:/usr/lib/libpython2.7.so:/usr/lib64/libpython2.6.so:/usr/lib/libpython2.6.so"
+%)
+
+@define Py2Object(object) %(
+    @cast(@object, "PyObject", @Py2ModuleList)
+%)
+@define Py2VarObject(object) %(
+    @cast(@object, "PyVarObject", @Py2ModuleList)
+%)
+@define Py2IntObject(object) %(
+    @cast(@object, "PyIntObject", @Py2ModuleList)
+%)
+@define Py2StringObject(object) %(
+    @cast(@object, "PyStringObject", @Py2ModuleList)
+%)
+@define Py2UnicodeObject(object) %(
+    @cast(@object, "PyUnicodeObject", @Py2ModuleList)
+%)
+@define Py2TypeObject(object) %(
+    @cast(@object, "PyTypeObject", @Py2ModuleList)
+%)
+@define Py2TupleObject(object) %(
+    @cast(@object, "PyTupleObject", @Py2ModuleList)
+%)
+@define Py2ListObject(object) %(
+    @cast(@object, "PyListObject", @Py2ModuleList)
+%)
+@define Py2DictObject(object) %(
+    @cast(@object, "PyDictObject", @Py2ModuleList)
+%)
+@define Py2DictEntry(object) %(
+    @cast(@object, "PyDictEntry", @Py2ModuleList)
+%)
+@define Py2FrameObject(object) %(
+    @cast(@object, "PyFrameObject", @Py2ModuleList)
+%)
+@define Py2CodeObject(object) %(
+    @cast(@object, "PyCodeObject", @Py2ModuleList)
+%)
+@define Py2LongObject(object) %(
+    @cast(@object, "PyLongObject", @Py2ModuleList)
+%)
+@define Py2ClassObject(object) %(
+    @cast(@object, "PyClassObject", @Py2ModuleList)
+%)
+@define Py2InstanceObject(object) %(
+    @cast(@object, "PyInstanceObject", @Py2ModuleList)
+%)
+
+#
+# Systemtap macros based on C macros in object.h.
+#
+
+@define Py2_REFCNT(object) %(
+    @Py2Object(@object)->ob_refcnt
+%)
+@define Py2_TYPE(object) %(
+    @Py2Object(@object)->ob_type
+%)
+@define Py2_SIZE(object) %(
+    @Py2VarObject(@object)->ob_size
+%)
+
+@define Py2Type_HasFeature(t, f) %(
+    ((@t->tp_flags & (@f)) != 0)
+%)
+@define Py2Type_FastSubclass(t, f) %(
+    @Py2Type_HasFeature(@t, @f)
+%)
+
+#
+# Systemtap macros based on C macros in stringobject.h.
+#
+
+@define Py2String_Check(op) %(
+    @Py2Type_FastSubclass(@Py2_TYPE(@op), %{ Py2_TPFLAGS_STRING_SUBCLASS %})
+%)
+
+#
+# Systemtap macros based on C macros in unicodeobject.h.
+#
+
+@define Py2Unicode_Check(op) %(
+    @Py2Type_FastSubclass(@Py2_TYPE(@op), %{ Py2_TPFLAGS_UNICODE_SUBCLASS %})
+%)
+@define Py2Unicode_AS_UNICODE(op) %(
+    (@Py2UnicodeObject(@op)->str)
+%)
+
+#
+# Systemtap macros based on C macros in intobject.h.
+#
+
+@define Py2Int_Check(op) %(
+    @Py2Type_FastSubclass(@Py2_TYPE(@op), %{ Py2_TPFLAGS_INT_SUBCLASS %})
+%)
+
+@define Py2Int_AS_LONG(op) %(
+    @Py2IntObject(@op)->ob_ival
+%)
+
+#
+# Systemtap macros based on C macros in longobject.h.
+#
+
+@define Py2Long_Check(op) %(
+    @Py2Type_FastSubclass(@Py2_TYPE(@op), %{ Py2_TPFLAGS_LONG_SUBCLASS %})
+%)
+
+#
+# Systemtap macros based on C macros in dictobject.h.
+#
+
+@define Py2Dict_Check(op) %(
+    @Py2Type_FastSubclass(@Py2_TYPE(@op), %{ Py2_TPFLAGS_DICT_SUBCLASS %})
+%)
+
+#
+# Systemtap macros based on C macros in tupleobject.h.
+#
+
+@define Py2Tuple_Check(op) %(
+    @Py2Type_FastSubclass(@Py2_TYPE(@op), %{ Py2_TPFLAGS_TUPLE_SUBCLASS %})
+%)
+
+#
+# Systemtap macros based on C macros in listobject.h.
+#
+
+@define Py2List_Check(op) %(
+    @Py2Type_FastSubclass(@Py2_TYPE(@op), %{ Py2_TPFLAGS_LIST_SUBCLASS %})
+%)
+
+#
+# Systemtap macros based on C macros in classobject.h.
+#
+# Note that the real *_Check() macros compare global variables. We'll
+# just check the type name field instead.
+#
+
+@define Py2Class_Check(op) %(
+    (python2_get_typename(@op) == "classobj")
+%)
+@define Py2Instance_Check(op) %(
+    (python2_get_typename(@op) == "instance")
+%)
+@define Py2Method_Check(op) %(
+    (python2_get_typename(@op) == "instancemethod")
+%)
+
+#
+# Systemtap functions based on C functions in intobject.c.
+#
+
+private function Py2Int_AsLong:long(op:long)
+{
+    if (op && @Py2Int_Check(op))
+	return @Py2Int_AS_LONG(op)
+    error(sprintf("Py2Int_AsLong called on %s object at %p",
+		  python2_get_typename(op), @__pointer(op)))
+    return -1
+}
+
+#
+# Systemtap functions based on C functions in longobject.c.
+#
+
+%{
+/* Checking for overflow in PyLong_AsLong is a PITA since C doesn't define
+ * anything about what happens when a signed integer operation overflows,
+ * and some compilers think they're doing you a favor by being "clever"
+ * then.  The bit pattern for the largest positive signed long is
+ * (unsigned long)LONG_MAX, and for the smallest negative signed long
+ * it is abs(LONG_MIN), which we could write -(unsigned long)LONG_MIN.
+ * However, some other compilers warn about applying unary minus to an
+ * unsigned operand.  Hence the weird "0-".
+ */
+
+#define PY2_LLONG_MIN		(-__LONG_LONG_MAX__ - 1L)
+#define PY2_ABS_LLONG_MIN	(0-(unsigned long long)PY2_LLONG_MIN)
+%}
+
+/* Get a C long int from an int object or any object that has an __int__
+ * method.
+ *
+ * On overflow, return -1 and throw an error.
+ */
+
+/*
+ * The Py2Long_AsLongLong() function below is actually based on
+ * PyLong_AsLong(). Python's PyLong_AsLongLong() converts the PyLong
+ * to a Bytes object. This method is simpler.
+ *
+ * On 32-bit platforms, the default for PYLONG_BITS_IN_DIGIT is 15. On
+ * 64-bit platforms, the default for PYLONG_BITS_IN_DIGIT is 30. We're
+ * going to assume that to be true, even though it can be configured
+ * differently.
+ *
+ * Since we can be on a 64-bit kernel but probing a 32-bit python 3
+ * executable, we have to handle both cases at the same time.
+ */
+
+private function Py2Long_AsLongLongAndOverflow_Small:long(v:long)
+{
+    if (@defined(@Py2LongObject(0)->ob_digit[0])) {
+	res = -1
+	i = @Py2_SIZE(v)
+	if (i == -1) {
+	    /* We're using 'x & 0xffff' instead of '(short)x' */
+	    res = -(@Py2LongObject(v)->ob_digit[0] & 0xffff)
+	}
+	else if (i == 0) {
+	    res = 0
+	}
+	else if (i == 1) {
+	    res = @Py2LongObject(v)->ob_digit[0]
+	}
+	else {
+	    sign = 1
+	    x = 0
+	    if (i < 0) {
+		sign = -1
+		i = -(i)
+	    }
+	    while (--i >= 0) {
+		prev = x
+		x = ((x << %{ Py2Long_SHIFT_SMALL %})
+		     | @Py2LongObject(v)->ob_digit[i])
+		if ((x >> %{ Py2Long_SHIFT_SMALL %}) != prev) {
+		    error("Python int too large")
+		    return res
+		}
+	    }
+	    /* Haven't lost any bits, but casting to long requires extra
+	     * care (see comment above).
+	     */
+	    if (x <= %{ __LONG_LONG_MAX__ %}) {
+		res = x * sign
+	    }
+	    else if (sign < 0 && x == %{ PY2_ABS_LLONG_MIN %}) {
+		res = %{ PY2_LLONG_MIN %}
+	    }
+	    else {
+		error("Python int too large")
+		/* res is already set to -1 */
+	    }
+	}
+	return res
+    }
+    else {
+	error("Py2Long_AsLongLongAndOverflow_Small isn't implemented")
+    }
+}
+
+private function Py2Long_AsLongLongAndOverflow_Big:long(v:long)
+{
+    if (@defined(@Py2LongObject(0)->ob_digit[0])) {
+	res = -1
+	i = @Py2_SIZE(v)
+	if (i == -1) {
+	    /* We're using 'x & 0xffffffff' instead of '(int32_t)x' */
+	    res = -(@Py2LongObject(v)->ob_digit[0] & 0xffffffff)
+	}
+	else if (i == 0) {
+	    res = 0
+	}
+	else if (i == 1) {
+	    res = @Py2LongObject(v)->ob_digit[0]
+	}
+	else {
+	    sign = 1
+	    x = 0
+	    if (i < 0) {
+		sign = -1
+		i = -(i)
+	    }
+	    while (--i >= 0) {
+		prev = x
+		x = ((x << %{ Py2Long_SHIFT_BIG %})
+		     | @Py2LongObject(v)->ob_digit[i])
+		if ((x >> %{ Py2Long_SHIFT_BIG %}) != prev) {
+		    error("Python int too large")
+		    return res
+		}
+	    }
+	    /* Haven't lost any bits, but casting to long requires extra
+	     * care (see comment above).
+	     */
+	    if (x <= %{ __LONG_LONG_MAX__ %}) {
+		res = x * sign
+	    }
+	    else if (sign < 0 && x == %{ PY2_ABS_LLONG_MIN %}) {
+		res = %{ PY2_LLONG_MIN %}
+	    }
+	    else {
+		error("Python int too large")
+		/* res is already set to -1 */
+	    }
+	}
+	return res
+    }
+    else {
+	error("Py2Long_AsLongLongAndOverflow_Big isn't implemented")
+    }
+}
+
+private function Py2Long_AsLongLong:long(v:long)
+{
+    if (@defined(@Py2LongObject(0)->ob_digit[0])) {
+	if (! @Py2Long_Check(v)) {    
+	    error(sprintf("Py2Long_AsLong called on %s object at %p",
+		  python2_get_typename(v), @__pointer(v)))
+	    return -1
+	}
+
+%( CONFIG_64BIT == "y" %?
+%( CONFIG_COMPAT == "y" %?
+	if (@__compat_task) {
+	    return Py2Long_AsLongLongAndOverflow_Small(v)
+	}
+%)
+	return Py2Long_AsLongLongAndOverflow_Big(v)
+%:
+	return Py2Long_AsLongLongAndOverflow_Small(v)
+%)
+    }
+    else {
+	error("Py2Long_AsLongLong isn't implemented")
+    }
+}
+
+#
+# Systemtap functions based on C functions in stringobject.c.
+#
+
+private function Py2String_AsString:string(object:long)
+{
+    if (!@Py2String_Check(object)) {
+	# NB: python returns value of string_getbuffer() here
+	# (basically getting a string representation of any
+	# object). We can't create new objects here, so we'll
+	# just quit.
+	warn(sprintf("Py2String_AsString called on non-string address 0x%p\n",
+		     @__pointer(object)))
+	return ""
+    }
+    try {
+	return user_string(@Py2StringObject(object)->ob_sval)
+    } catch {
+	warn(sprintf("Py2String_AsString failed on address 0x%p\n",
+		     @__pointer(@Py2StringObject(object)->ob_sval)))
+	return ""
+    }
+}
+
+private function Py2String_Size:long(object:long)
+{
+    if (! @Py2String_Check(object)) {
+	# NB: python code returns string_getsize(), creating a new
+	# string representation of the object, then returning the
+	# length of the new string. We can't create new objects here,
+	# so we'll just quit.
+	warn(sprintf("Py2string_Size called on non-string object address 0x%p\n",
+		     @__pointer(object)))
+	return 0
+    }
+    return @Py2_SIZE(object)
+}
+
+#
+# Systemtap functions based on C functions in unicodeobject.c.
+#
+
+private function Py2Unicode_AsASCIIString:string(object:long)
+{
+    if (!@Py2Unicode_Check(object)) {
+	warn(sprintf("Py2Unicode_AsASCIIString called on non-unicode string address 0x%p\n",
+		     @__pointer(object)))
+	return ""
+    }
+    try {
+	return user_string_utf32(@Py2Unicode_AS_UNICODE(object))
+    } catch {
+	warn(sprintf("Py2Unicode_AsASCIIString failed on address 0x%p\n",
+		     @__pointer(object)))
+	return ""
+    }
+}
+
+#
+# Systemtap functions based on C functions in codeobject.c.
+#
+
+private function Py2Code_Addr2Line:long(code:long, addrq:long)
+{
+    /*
+     * co_lnotab is used to compute the line number from a bytecode
+     * index, addrq. See the file Objects/lnotab_notes.txt in the
+     * python source for the details of the lnotab representation.
+     *
+     * We can't treat co_lnotab as a "real" null terminated string,
+     * since co_lnotab can have embedded null characters. So, we'll
+     * grab it character by character.
+     */
+    size = Py2String_Size(@Py2CodeObject(code)->co_lnotab) / 2
+    co_lnotab_sval = @Py2StringObject(@Py2CodeObject(code)->co_lnotab)->ob_sval
+    line = @Py2CodeObject(code)->co_firstlineno
+    addr = 0
+    p = 0
+    while (--size >= 0) {
+    	addr += user_char(co_lnotab_sval + p++)
+	if (addr > addrq)
+	    break
+	    
+	line += user_char(co_lnotab_sval + p++)
+    }
+    return line
+}
+
+#
+# Systemtap functions based on C functions in frameobject.c.
+#
+
+private function Py2Frame_GetLineNumber:long(frame:long)
+{
+    # As of python 2.3, f_lineno is only valid when tracing is active.
+    if (@Py2FrameObject(frame)->f_trace)
+	return @Py2FrameObject(frame)->f_lineno
+    else
+	return Py2Code_Addr2Line(@Py2FrameObject(frame)->f_code,
+				 @Py2FrameObject(frame)->f_lasti)
+}
+
+#
+# Systemtap functions based on C functions in tupleobject.c.
+#
+
+private function Py2Tuple_Size:long(op:long)
+{
+    if (!@Py2Tuple_Check(op)) {
+	error(sprintf("Py2Tuple_Size called on %s object at %p",
+		      python2_get_typename(op), @__pointer(op)))
+	return 0
+    }
+    return @Py2_SIZE(op)
+}
+
+private function Py2Tuple_GetItem:long(op:long, i:long)
+{
+    if (!@Py2Tuple_Check(op)) {
+	error(sprintf("Py2Tuple_GetItem called on %s object at %p",
+		      python2_get_typename(op), @__pointer(op)))
+	return 0
+    }
+    if (i < 0 || i >= @Py2_SIZE(op)) {
+        error(sprintf("tuple index %d out of range (%d)", i, @Py2_SIZE(op)))
+        return 0
+    }
+    return @Py2TupleObject(op)->ob_item[i]
+}
+
+private function Py2Tuple_Repr:string(object:long)
+{
+    if (!@Py2Tuple_Check(object)) {
+	error(sprintf("Py2Tuple_Repr called on %s object at %p",
+		      python2_get_typename(object), @__pointer(object)))
+	return ""
+    }
+    n = @Py2_SIZE(object)
+    if (n == 0)
+	return "()"
+
+    retstr = "("
+    first = 1
+    for (i = 0; i < n; i++) {
+	if (! first)
+	    retstr .= " "
+	first = 0
+	retstr .= Py2Object_Repr(Py2Tuple_GetItem(object, i))
+    }
+    retstr .= ")"
+    return retstr
+}
+
+#
+# Systemtap functions based on C functions in listobject.c.
+#
+
+private function Py2List_GetItem:long(op:long, i:long)
+{
+    if (!@Py2List_Check(op)) {
+	error(sprintf("Py2List_GetItem called on %s object at %p",
+		      python2_get_typename(op), @__pointer(op)))
+        return 0
+    }
+    if (i < 0 || i >= @Py2_SIZE(op)) {
+        error(sprintf("tuple index %d out of range (%d)", i, @Py2_SIZE(op)))
+        return 0
+    }
+    return @Py2ListObject(op)->ob_item[i];
+}
+
+private function Py2List_Repr:string(object:long)
+{
+    if (!@Py2List_Check(object)) {
+	error(sprintf("Py2List_Repr called on %s object at %p",
+		      python2_get_typename(object), @__pointer(object)))
+	return ""
+    }
+    n = @Py2_SIZE(object)
+    if (n == 0)
+	return "[]"
+
+    retstr = "["
+    first = 1
+    for (i = 0; i < n; i++) {
+	if (! first)
+	    retstr .= " "
+	first = 0
+	retstr .= Py2Object_Repr(Py2List_GetItem(object, i))
+    }
+    retstr .= "]"
+    return retstr
+}
+
+#
+# Systemtap functions based on C functions in dictobject.c.
+#
+
+private function Py2Dict_GetItem:long(op:long, key:string)
+{
+    if (!@Py2Dict_Check(op)) {
+	error(sprintf("Py2Dict_GetItem called on %s object at %p",
+		      python2_get_typename(op), @__pointer(op)))
+        return 0
+    }
+    // We'd like to hash 'key' here, but we can't (easily). Python
+    // randomizes its hash function at python process startup. So,
+    // instead of hashing the key and then searching for that hash in
+    // the dictionary, we'll do a linear search of the dictionary for
+    // the key.
+    n = @Py2DictObject(op)->ma_mask;
+    for (i = 0; i <= n; i++) {
+	entry_ptr = &@Py2DictObject(op)->ma_table[i]
+	if (@Py2DictEntry(entry_ptr)->me_key == 0
+	    || @Py2DictEntry(entry_ptr)->me_value == 0
+	    || ! @Py2String_Check(@Py2DictEntry(entry_ptr)->me_key))
+	   continue
+	if (Py2String_AsString(@Py2DictEntry(entry_ptr)->me_key) == key)
+	   return @Py2DictEntry(entry_ptr)->me_value
+    }
+    return 0
+}
+
+# This function isn't really based on a function in dictobject.c, but
+# it is based on Py2Dict_GetItem().
+private function Py2Dict_GetItem_FromLong:long(op:long, key:long)
+{
+    if (!@Py2Dict_Check(op)) {
+	error(sprintf("Py2Dict_GetItem called on %s object at %p",
+		      python2_get_typename(op), @__pointer(op)))
+        return 0
+    }
+    // We'd like to hash 'key' here, but we can't (easily). Python
+    // randomizes its hash function at python process startup. So,
+    // instead of hashing the key and then searching for that hash in
+    // the dictionary, we'll do a linear search of the dictionary for
+    // the key.
+    n = @Py2DictObject(op)->ma_mask;
+    for (i = 0; i <= n; i++) {
+	entry_ptr = &@Py2DictObject(op)->ma_table[i]
+	if (@Py2DictEntry(entry_ptr)->me_key == 0
+	    || @Py2DictEntry(entry_ptr)->me_value == 0
+	    || (! @Py2Int_Check(@Py2DictEntry(entry_ptr)->me_key)
+		&& ! @Py2Long_Check(@Py2DictEntry(entry_ptr)->me_key)))
+	   continue
+	if ((@Py2Int_Check(@Py2DictEntry(entry_ptr)->me_key)
+	     && @Py2Int_AS_LONG(@Py2DictEntry(entry_ptr)->me_key) == key)
+	    || (@Py2Long_Check(@Py2DictEntry(entry_ptr)->me_key)
+		&& Py2Long_AsLongLong(@Py2DictEntry(entry_ptr)->me_key)
+		== key))
+	   return @Py2DictEntry(entry_ptr)->me_value
+    }
+    return 0
+}
+
+private function Py2Dict_Repr:string(object:long)
+{
+    if (!@Py2Dict_Check(object)) {
+	error(sprintf("Py2Dict_Repr called on %s object at %p",
+		      python2_get_typename(object), @__pointer(object)))
+	return ""
+    }
+    n = @Py2DictObject(object)->ma_mask;
+    if (n == 0)
+	return "{}"
+
+    retstr = "{"
+    first = 1
+    for (i = 0; i <= n; i++) {
+	entry_ptr = &@Py2DictObject(object)->ma_table[i]
+	if (@Py2DictEntry(entry_ptr)->me_key == 0
+	    || @Py2DictEntry(entry_ptr)->me_value == 0)
+	   continue
+
+	if (! first)
+	    retstr .= " "
+	first = 0
+	retstr .= Py2Object_Repr(@Py2DictEntry(entry_ptr)->me_key)
+	retstr .= ":"
+	retstr .= Py2Object_Repr(@Py2DictEntry(entry_ptr)->me_value)
+    }
+    retstr .= "}"
+    return retstr
+}
+
+#
+# Systemtap functions based on C functions in classobject.c.
+#
+
+private function Py2Class_Lookup:long(op:long, name:string)
+{
+    v = Py2Dict_GetItem(@Py2ClassObject(op)->cl_dict, name)
+    if (v != 0)
+       return v
+
+    n = Py2Tuple_Size(@Py2ClassObject(op)->cl_bases)
+    for (i = 0; i < n; i++) {
+	v = Py2Class_Lookup(Py2Tuple_GetItem(@Py2ClassObject(op)->cl_bases, i),
+			    name)
+	if (v != 0)
+	    return v
+    }
+    return 0
+}
+
+private function Py2Class_GetAttr:long(op:long, name:string)
+{
+    if (!@Py2Class_Check(op)) {
+	error(sprintf("Py2Class_GetAttr called on %s object at %p",
+		      python2_get_typename(op), @__pointer(op)))
+	return 0
+    }
+    if (substr(name, 0, 2) == "__") {
+        if (name == "__dict__")
+	    return @Py2ClassObject(op)->cl_dict
+	if (name == "__bases__")
+	    return @Py2ClassObject(op)->cl_bases
+	if (name == "__name__") {
+	    if (@Py2ClassObject(op)->cl_name == 0)
+		return 0
+	    return @Py2ClassObject(op)->cl_name
+	}
+    }
+    v = Py2Class_Lookup(op, name)
+    if (v == 0) {
+	error(sprintf("class %s has no attribute '%s'",
+		      Py2String_AsString(@Py2ClassObject(op)->cl_name),
+		      name))
+	return 0
+    }
+    return v
+}
+
+private function Py2Class_Repr:string(object:long)
+{
+    if (!@Py2Class_Check(object)) {
+	error(sprintf("Py2Class_Repr called on %s object at %p",
+		      python2_get_typename(object), @__pointer(object)))
+	return ""
+    }
+    mod = Py2Dict_GetItem(@Py2ClassObject(object)->cl_dict, "__module__")
+    if (@Py2ClassObject(object)->cl_name == 0
+	|| !@Py2String_Check(@Py2ClassObject(object)->cl_name))
+	name = "?"
+    else
+	name = Py2String_AsString(@Py2ClassObject(object)->cl_name)
+    if (mod == 0 || !@Py2String_Check(mod))
+        return sprintf("<class ?.%s at %p>", name, @__pointer(object))
+    else
+        return sprintf("<class %s.%s at %p>", name,
+		       Py2String_AsString(mod), @__pointer(object))
+}
+
+private function Py2Instance_GetAttr:long(inst:long, name:string)
+{
+    if (!@Py2Instance_Check(inst)) {
+	error(sprintf("Py2Instance_GetAttr called on %s object at %p",
+		      python2_get_typename(inst), @__pointer(inst)))
+	return 0
+    }
+    if (substr(name, 0, 2) == "__") {
+        if (name == "__dict__") 
+	    return @Py2InstanceObject(inst)->in_dict
+	if (name == "__class__")
+	    return @Py2InstanceObject(inst)->in_class
+    }
+
+    v = Py2Dict_GetItem(@Py2InstanceObject(inst)->in_dict, name)
+    if (v != 0)
+	return v
+    v = Py2Class_Lookup(@Py2InstanceObject(inst)->in_class, name)
+    if (v == 0) {
+	error(sprintf("%s instance has no attribute '%s'",
+		      Py2String_AsString(@Py2InstanceObject(inst)->in_class->cl_name),
+		      name))
+	return 0
+    }
+    return v
+}
+
+private function Py2Instance_Repr:string(object:long)
+{
+    if (!@Py2Instance_Check(object)) {
+	error(sprintf("Py2Instance_Repr called on %s object at %p",
+		      python2_get_typename(object), @__pointer(object)))
+	return ""
+    }
+
+    # Note that class instances can have custom '__repr__'
+    # functions. But, we can't call them. We'll just use the default
+    # 'repr' logic. 
+
+    classname = @Py2InstanceObject(object)->in_class->cl_name
+    mod = Py2Dict_GetItem(@Py2InstanceObject(object)->in_class->cl_dict,
+			  "__module__")
+
+    if (classname == 0
+	|| !@Py2String_Check(classname))
+	cname = "?"
+    else
+	cname = Py2String_AsString(classname)
+    if (mod == 0 || !@Py2String_Check(mod))
+        return sprintf("<?.%s instance at %p>", cname, @__pointer(object))
+    else
+        return sprintf("<%s.%s instance at %p>", Py2String_AsString(mod),
+		       cname, @__pointer(object))
+}
+
+#
+# Systemtap functions based on C functions in object.c.
+#
+
+function Py2Object_Repr:string(object:long)
+{
+    if (object == 0)
+	return "<NULL>"
+    if (@Py2String_Check(object))
+	return sprintf("\"%s\"", Py2String_AsString(object))
+    if (@Py2Unicode_Check(object))
+	return sprintf("\"%s\"", Py2Unicode_AsASCIIString(object))
+    if (@Py2Int_Check(object))
+    	return sprintf("%#x", Py2Int_AsLong(object))
+    if (@Py2Long_Check(object))
+    	return sprintf("%#x", Py2Long_AsLongLong(object))
+    if (@Py2Tuple_Check(object))
+	return Py2Tuple_Repr(object)
+    if (@Py2List_Check(object))
+	return Py2List_Repr(object)
+    if (@Py2Dict_Check(object))
+	return Py2Dict_Repr(object)
+    if (@Py2Instance_Check(object))
+	return Py2Instance_Repr(object)
+    if (@Py2Class_Check(object))
+	return Py2Class_Repr(object)
+    return sprintf("<%s object at %p>", python2_get_typename(object),
+		   @__pointer(object))
+}
+
+# This function isn't really based on a function in object.c, but
+# it is based on Py2Object_Repr().
+private function Py2Object_Repr:string(object:long, index:long)
+{
+    if (object == 0)
+	return "<NULL>"
+    if (@Py2String_Check(object))
+	return sprintf("\"%c\"", stringat(Py2String_AsString(object), index))
+    if (@Py2Unicode_Check(object))
+	return sprintf("\"%c\"", stringat(Py2Unicode_AsASCIIString(object),
+					  index))
+    if (@Py2Tuple_Check(object))
+	return Py2Object_Repr(Py2Tuple_GetItem(object, index))
+    if (@Py2List_Check(object))
+	return Py2Object_Repr(Py2List_GetItem(object, index))
+    if (@Py2Dict_Check(object))
+	return Py2Object_Repr(Py2Dict_GetItem_FromLong(object, index))
+
+    error(sprintf("TypeError: '%s' object cannot be indexed",
+	  python2_get_typename(object)))
+    return ""
+}
+
+# This function isn't really based on a function in object.c, but
+# it is based on Py2Object_Repr().
+private function Py2Object_GetItem:string(object:long, index:long)
+{
+    if (object == 0) {
+	error("TypeError: None object cannot be indexed")
+	return 0
+    }
+    if (@Py2Tuple_Check(object))
+	return Py2Tuple_GetItem(object, index)
+    if (@Py2List_Check(object))
+	return Py2List_GetItem(object, index)
+    if (@Py2Dict_Check(object))
+	return Py2Dict_GetItem_FromLong(object, index)
+
+    error(sprintf("TypeError: '%s' object cannot be indexed",
+	  python2_get_typename(object)))
+    return 0
+}
+
+function Py2Object_GetAttr:long(object:long, attr:string)
+{
+    if (object == 0) {
+	error("The None object has no attributes")
+	return 0
+    }
+    if (@Py2Instance_Check(object))
+	return Py2Instance_GetAttr(object, attr)
+    if (@Py2Class_Check(object))
+	return Py2Class_GetAttr(object, attr)
+
+    error(sprintf("The %s object has no attributes",
+		  python2_get_typename(object)))
+    return 0
+}
+
+#
+# Systemtap support functions for python 2.
+#
+
+/*
+ * python2_print_backtrace - Print python backtrace
+ *
+ * Description: This function is equivalent to
+ * print(python2_sprint_backtrace(frame)), except that deeper stack
+ * tracing may be supported. 
+ *
+ * Note that users should call 'python_print_backtrace()', and the
+ * translator will call the appropriate python 2 or python 3 function
+ * with the correct argument.
+ */
+function python2_print_backtrace:long(frame:long)
+{
+    printf("Traceback (most recent call first):\n")
+    while (frame != 0) {
+	lineno = Py2Frame_GetLineNumber(frame)
+	f_code = @Py2FrameObject(frame)->f_code
+	filename = Py2String_AsString(@Py2CodeObject(f_code)->co_filename)
+	name = Py2String_AsString(@Py2CodeObject(f_code)->co_name)
+
+	# Quit when we make it back to the HelperSDT module.
+	if (isinstr(filename, "/HelperSDT/"))
+	    break;
+
+	printf("  File \"%s\", line %d, in %s\n", filename, lineno, name)
+	# NB: We'd like to print the source line here as python does,
+	# but we can't. Python opens up the file and finds the
+	# appropriate line, but we can't really do that when we're in
+	# the kernel.
+
+	frame = @Py2FrameObject(frame)->f_back
+    }
+}
+
+/*
+ * python2_sprint_backtrace - Get python backtrace
+ * 
+ * Description: This function returns a string containing a python
+ * backtrace.  Output may be truncated as per maximum string length
+ * (MAXSTRINGLEN).
+ *
+ * Note that users should call 'python_sprint_backtrace()', and the
+ * translator will call the appropriate python 2 or python 3 function
+ * with the correct argument.
+ */
+function python2_sprint_backtrace:string(frame:long)
+{
+    retstr = "Traceback (most recent call first):\n"
+    while (frame != 0) {
+	lineno = Py2Frame_GetLineNumber(frame)
+	f_code = @Py2FrameObject(frame)->f_code
+	filename = Py2String_AsString(@Py2CodeObject(f_code)->co_filename)
+	name = Py2String_AsString(@Py2CodeObject(f_code)->co_name)
+
+	# Quit when we make it back to the HelperSDT module.
+	if (isinstr(filename, "/HelperSDT/"))
+	    break;
+
+	retstr .= sprintf("  File \"%s\", line %d, in %s\n", filename,
+			  lineno, name)
+
+	frame = @Py2FrameObject(frame)->f_back
+    }
+    return retstr
+}
+
+/*
+ * python2_get_typename - Get python object type name
+ *
+ * Description: This function returns a string describing the type of
+ * a python object.
+ */
+private function python2_get_typename:string(obj:long)
+{
+    if (obj == 0)
+	return ""
+    return user_string(@Py2_TYPE(obj)->tp_name)
+}
+
+/*
+ * python2_get_locals - Get python local variables
+ *
+ * Description: This function returns a list of python local variables
+ * from a frame.
+ *
+ * frame: python frame object pointer
+ * flags: 0: function parameters only ($$parms), 1: locals only
+ * ($$locals), 2: all local vars, parameters and locals ($$vars)
+ *
+ * Note that users shouldn't call this directly, they should refer to
+ * '$$parms', '$$locals', and '$$vars' in a python probe and the
+ * translator will generate code that calls this function with the
+ * correct arguments.
+ */
+function python2_get_locals:string(frame:long, flags:long)
+{
+    f_code = @Py2FrameObject(frame)->f_code
+	
+    # flags == 2: get all variables
+    if (flags == 2) {		
+	i = 0
+	n = @Py2CodeObject(f_code)->co_nlocals
+    }
+    else {
+	n = @Py2CodeObject(f_code)->co_argcount
+	if (@Py2CodeObject(f_code)->co_flags & %{ Py2_CO_VARARGS %})
+	    n++
+	if (@Py2CodeObject(f_code)->co_flags & %{ Py2_CO_VARKEYWORDS %})
+	    n++
+
+	# flags == 0 (parms only): 0 to n (argcount)
+	if (flags == 0)
+	    i = 0
+	# flags == 1 (locals only): n (argcount) to max
+	else if (flags == 1) {
+	    i = n
+	    n = @Py2CodeObject(f_code)->co_nlocals
+	}
+    }
+    if (i < 0 || i > n) {
+        error(sprintf("python2_get_locals: invalid indicies (%d-%d)", i, n))
+        return ""
+    }
+	    
+    # Each element in co_varnames is a tuple of strings. The values
+    # are in f_localsplus.
+    p = @Py2CodeObject(f_code)->co_varnames
+    localsplus = @Py2FrameObject(frame)->f_localsplus
+    first = 1
+    for (; i < n; i++) {
+	if (! first)
+	    retstr .= " "
+	first = 0
+	key_obj = Py2Tuple_GetItem(p, i)
+	value_obj = user_long(localsplus + (i * %{ sizeof(intptr_t) %}))
+	retstr .= sprintf("%s=%s", Py2String_AsString(key_obj),
+			  Py2Object_Repr(value_obj))
+    }
+    return retstr
+}
+
+function python2_get_var_obj:long(frame:long, var:string)
+{
+    f_code = @Py2FrameObject(frame)->f_code
+    n = @Py2CodeObject(f_code)->co_nlocals
+
+    # Each element in co_varnames is a tuple of strings. The values
+    # are in f_localsplus.
+    p = @Py2CodeObject(f_code)->co_varnames
+    localsplus = @Py2FrameObject(frame)->f_localsplus
+    for (i = 0; i < n; i++) {
+	key_obj = Py2Tuple_GetItem(p, i)
+	if (var == Py2String_AsString(key_obj)) {
+	    return user_long(localsplus + (i * %{ sizeof(intptr_t) %}))
+	}
+    }
+
+    # If we can't find it in the locals, we look in the globals.
+    f_globals = @Py2FrameObject(frame)->f_globals
+    value_obj = Py2Dict_GetItem(f_globals, var)
+    if (value_obj == 0) {
+	error(sprintf("Python variable '%s' cannot be found", var))
+	return 0
+    }
+    return value_obj
+}
+
+function python2_get_var_obj:long(frame:long, var:string, index:long)
+{
+    f_code = @Py2FrameObject(frame)->f_code
+    n = @Py2CodeObject(f_code)->co_nlocals
+	    
+    # Each element in co_varnames is a tuple of strings. The values
+    # are in f_localsplus.
+    p = @Py2CodeObject(f_code)->co_varnames
+    localsplus = @Py2FrameObject(frame)->f_localsplus
+    for (i = 0; i < n; i++) {
+	key_obj = Py2Tuple_GetItem(p, i)
+	if (var == Py2String_AsString(key_obj)) {
+	    return user_long(localsplus + (i * %{ sizeof(intptr_t) %}))
+	}
+    }
+
+    # If we can't find it in the locals, we look in the globals.
+    f_globals = @Py2FrameObject(frame)->f_globals
+    value_obj = Py2Dict_GetItem(f_globals, var)
+    if (value_obj == 0) {
+	error(sprintf("Python variable '%s' cannot be found", var))
+	return 0
+    }
+    return value_obj
+}

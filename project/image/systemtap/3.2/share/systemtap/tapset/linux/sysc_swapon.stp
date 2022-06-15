@@ -1,0 +1,55 @@
+# swapon _____________________________________________________
+#
+# asmlinkage long
+# sys_swapon(const char __user * specialfile,
+#		int swap_flags)
+#
+
+@define _SYSCALL_SWAPON_NAME
+%(
+	name = "swapon"
+%)
+
+@define _SYSCALL_SWAPON_ARGSTR
+%(
+	argstr = sprintf("%s, %s", path, swapflags_str)
+%)
+
+probe syscall.swapon = dw_syscall.swapon !, nd_syscall.swapon ? {}
+probe syscall.swapon.return = dw_syscall.swapon.return !,
+                              nd_syscall.swapon.return ? {}
+
+# dw_swapon _____________________________________________________
+
+probe dw_syscall.swapon = kernel.function("sys_swapon").call ?
+{
+	@_SYSCALL_SWAPON_NAME
+	path_uaddr = $specialfile
+	path = user_string_quoted(path_uaddr)
+	swapflags = __int32($swap_flags)
+	swapflags_str = _swapon_flags_str(__int32($swap_flags))
+	@_SYSCALL_SWAPON_ARGSTR
+}
+probe dw_syscall.swapon.return = kernel.function("sys_swapon").return ?
+{
+	@_SYSCALL_SWAPON_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_swapon _____________________________________________________
+
+probe nd_syscall.swapon = kprobe.function("sys_swapon") ?
+{
+	@_SYSCALL_SWAPON_NAME
+	asmlinkage()
+	path_uaddr = pointer_arg(1)
+	path = user_string_quoted(path_uaddr)
+	swapflags = int_arg(2)
+	swapflags_str = _swapon_flags_str(swapflags)
+	@_SYSCALL_SWAPON_ARGSTR
+}
+probe nd_syscall.swapon.return = kprobe.function("sys_swapon").return ?
+{
+	@_SYSCALL_SWAPON_NAME
+	retstr = returnstr(1)
+}

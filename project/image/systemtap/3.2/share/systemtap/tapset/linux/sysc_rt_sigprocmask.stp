@@ -1,0 +1,183 @@
+# rt_sigprocmask _____________________________________________
+# long sys_rt_sigprocmask(int how, sigset_t __user *set, sigset_t __user *oset,
+#			  size_t sigsetsize)
+# long sys32_rt_sigprocmask(u32 how, compat_sigset_t __user *set,
+#			    compat_sigset_t __user *oset, size_t sigsetsize)
+# long compat_sys_rt_sigprocmask(int how, compat_sigset_t __user *set,
+#				 compat_sigset_t __user *oset,
+#				 compat_size_t sigsetsize)
+#
+
+@define _SYSCALL_RT_SIGPROCMASK_NAME
+%(
+	name = "rt_sigprocmask"
+%)
+
+@define _SYSCALL_RT_SIGPROCMASK_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %p, %d", how_str, set_str, oldset_uaddr, sigsetsize)
+%)
+
+probe syscall.rt_sigprocmask = dw_syscall.rt_sigprocmask !,
+                               nd_syscall.rt_sigprocmask ? {}
+probe syscall.rt_sigprocmask.return = dw_syscall.rt_sigprocmask.return !,
+                                      nd_syscall.rt_sigprocmask.return ? {}
+
+# dw_rt_sigprocmask _____________________________________________________
+
+probe dw_syscall.rt_sigprocmask = kernel.function("sys_rt_sigprocmask").call ?
+{
+%( arch != "x86_64" || kernel_v < "3.4" || CONFIG_COMPAT != "y" %?
+	// In kernels < 3.4, a 32-bit rt_sigprocmask call goes through
+	// sys32_rt_sigprocmask().
+	@__syscall_gate(@const("__NR_rt_sigprocmask"))
+%)
+	@_SYSCALL_RT_SIGPROCMASK_NAME
+	how = __int32($how)
+	how_str = _sigprocmask_how_str(how)
+	set_uaddr = @choose_defined($set, $nset)
+
+	// In kernels 3.4+, the following kernel commit changed the
+	// way rt_sigprocmask is handled on x86:
+	//
+	//    commit 2c73ce734653f96542a070f3c3b3e3d1cd0fba02
+	//    Author: H. Peter Anvin <hpa@zytor.com>
+	//    Date:   Sun Feb 19 09:48:01 2012 -0800
+	//
+	//    x86-64, ia32: Drop sys32_rt_sigprocmask
+ 	//
+	// On those kernels, a call to the 32-bit rt_sigprocmask goes
+	// straight to the 64-bit rt_sigprocmask function.
+%( arch == "x86_64" && kernel_v >= "3.4" && CONFIG_COMPAT == "y" %?
+	if (@__compat_task && _stp_syscall_nr() == @const("__NR_compat_rt_sigprocmask")) {
+		oldset_uaddr = __uint32($oset)
+		set_str = _stp_compat_sigset_u(set_uaddr)
+		sigsetsize = __int32($sigsetsize) 
+		@_SYSCALL_RT_SIGPROCMASK_ARGSTR
+	}
+	else
+%)
+	{
+		oldset_uaddr = $oset
+		set_str = _stp_sigset_u(set_uaddr)
+		sigsetsize = $sigsetsize
+		@_SYSCALL_RT_SIGPROCMASK_ARGSTR
+	}
+}
+probe dw_syscall.rt_sigprocmask.return =
+	kernel.function("sys_rt_sigprocmask").return ?
+{
+%( arch != "x86_64" || kernel_v < "3.4" || CONFIG_COMPAT != "y" %?
+	@__syscall_gate(@const("__NR_rt_sigprocmask"))
+%)
+	@_SYSCALL_RT_SIGPROCMASK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_rt_sigprocmask _____________________________________________________
+
+probe nd_syscall.rt_sigprocmask = kprobe.function("sys_rt_sigprocmask") ?
+{
+%( arch != "x86_64" || kernel_v < "3.4" || CONFIG_COMPAT != "y" %?
+	// In kernels < 3.4, a 32-bit rt_sigprocmask call goes through
+	// sys32_rt_sigprocmask().
+	@__syscall_gate(@const("__NR_rt_sigprocmask"))
+%)
+	@_SYSCALL_RT_SIGPROCMASK_NAME
+	asmlinkage()
+	how = int_arg(1)
+	how_str = _sigprocmask_how_str(how)
+	set_uaddr = pointer_arg(2)
+
+	// In kernels 3.4+, the following kernel commit changed the
+	// way rt_sigprocmask is handled on x86:
+ 	//
+	//    commit 2c73ce734653f96542a070f3c3b3e3d1cd0fba02
+	//    Author: H. Peter Anvin <hpa@zytor.com>
+	//    Date:   Sun Feb 19 09:48:01 2012 -0800
+ 	//
+	//    x86-64, ia32: Drop sys32_rt_sigprocmask
+  	//
+	// On those kernels, a call to the 32-bit rt_sigprocmask goes
+	// straight to the 64-bit rt_sigprocmask function.
+%( arch == "x86_64" && kernel_v >= "3.4" && CONFIG_COMPAT == "y" %?
+	if (@__compat_task &&
+	    _stp_syscall_nr() == @const("__NR_compat_rt_sigprocmask")) {
+		oldset_uaddr = uint_arg(3)
+		set_str = _stp_compat_sigset_u(set_uaddr)
+		sigsetsize = int_arg(4)
+		@_SYSCALL_RT_SIGPROCMASK_ARGSTR
+	}
+	else
+%)
+	{
+		oldset_uaddr = pointer_arg(3)
+		set_str = _stp_sigset_u(set_uaddr)
+		sigsetsize = uint_arg(4)
+		@_SYSCALL_RT_SIGPROCMASK_ARGSTR
+	}
+}
+probe nd_syscall.rt_sigprocmask.return =
+	kprobe.function("sys_rt_sigprocmask").return ?
+{
+%( arch != "x86_64" || kernel_v < "3.4" || CONFIG_COMPAT != "y" %?
+	@__syscall_gate(@const("__NR_rt_sigprocmask"))
+%)
+	@_SYSCALL_RT_SIGPROCMASK_NAME
+	retstr = returnstr(1)
+}
+
+# syscall. compat_rt_sigprocmask _______________________________________________
+
+probe syscall.compat_rt_sigprocmask = dw_syscall.compat_rt_sigprocmask !,
+                                      nd_syscall.compat_rt_sigprocmask ? {}
+probe syscall.compat_rt_sigprocmask.return = dw_syscall.compat_rt_sigprocmask.return !,
+                                             nd_syscall.compat_rt_sigprocmask.return ? {}
+
+# dw_compat_rt_sigprocmask _____________________________________________________
+
+probe dw_syscall.compat_rt_sigprocmask =
+	kernel.function("compat_sys_rt_sigprocmask").call ?,
+	kernel.function("sys32_rt_sigprocmask").call ?
+{
+	@_SYSCALL_RT_SIGPROCMASK_NAME
+	how = __int32($how)
+	how_str = _sigprocmask_how_str(how)
+	set_uaddr = @__pointer(@choose_defined($set, $nset))
+	set_str = _stp_compat_sigset_u(set_uaddr)
+	oldset_uaddr = __uint32($oset)
+	sigsetsize = __uint32($sigsetsize)
+	@_SYSCALL_RT_SIGPROCMASK_ARGSTR
+}
+probe dw_syscall.compat_rt_sigprocmask.return =
+	kernel.function("compat_sys_rt_sigprocmask").return ?,
+	kernel.function("sys32_rt_sigprocmask").return ?
+{
+	@_SYSCALL_RT_SIGPROCMASK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_rt_sigprocmask _____________________________________________________
+
+probe nd_syscall.compat_rt_sigprocmask =
+	kprobe.function("compat_sys_rt_sigprocmask") ?,
+	kprobe.function("sys32_rt_sigprocmask") ?
+{
+	@_SYSCALL_RT_SIGPROCMASK_NAME
+	if (ppfunc() != "compat_sys_rt_sigprocmask")
+		asmlinkage()
+	how = int_arg(1)
+	how_str = _sigprocmask_how_str(how)
+	set_uaddr = pointer_arg(2)
+	set_str = _stp_compat_sigset_u(set_uaddr)
+	oldset_uaddr = pointer_arg(3)
+	sigsetsize = uint_arg(4)
+	@_SYSCALL_RT_SIGPROCMASK_ARGSTR
+}
+probe nd_syscall.compat_rt_sigprocmask.return =
+	kprobe.function("compat_sys_rt_sigprocmask").return ?,
+	kprobe.function("sys32_rt_sigprocmask").return ?
+{
+	@_SYSCALL_RT_SIGPROCMASK_NAME
+	retstr = returnstr(1)
+}

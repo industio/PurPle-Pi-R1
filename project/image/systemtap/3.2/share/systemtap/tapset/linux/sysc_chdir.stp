@@ -1,0 +1,44 @@
+# chdir ______________________________________________________
+# long sys_chdir(const char __user * filename)
+
+@define _SYSCALL_CHDIR_NAME
+%(
+	name = "chdir"
+%)
+
+@define _SYSCALL_CHDIR_ARGSTR
+%(
+	argstr = path
+%)
+
+probe syscall.chdir = dw_syscall.chdir !, nd_syscall.chdir ? {}
+probe syscall.chdir.return = dw_syscall.chdir.return !, nd_syscall.chdir.return ? {}
+
+# dw_chdir _____________________________________________________
+
+probe dw_syscall.chdir = kernel.function("sys_chdir").call
+{
+	@_SYSCALL_CHDIR_NAME
+	path = user_string_quoted($filename)
+	@_SYSCALL_CHDIR_ARGSTR
+}
+probe dw_syscall.chdir.return = kernel.function("sys_chdir").return
+{
+	@_SYSCALL_CHDIR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_chdir _____________________________________________________
+
+probe nd_syscall.chdir = kprobe.function("sys_chdir") ?
+{
+	@_SYSCALL_CHDIR_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+	@_SYSCALL_CHDIR_ARGSTR
+}
+probe nd_syscall.chdir.return = kprobe.function("sys_chdir").return ?
+{
+	@_SYSCALL_CHDIR_NAME
+	retstr = returnstr(1)
+}

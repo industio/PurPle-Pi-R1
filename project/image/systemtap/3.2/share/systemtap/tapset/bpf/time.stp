@@ -1,0 +1,18 @@
+// time tapset
+// Copyright (C) 2016 Red Hat Inc.
+//
+// This file is part of systemtap, and is free software.  You can
+// redistribute it and/or modify it under the terms of the GNU General
+// Public License (GPL); either version 2, or (at your option) any
+// later version.
+
+/**
+ * sfunction ktime_get_ns
+ * 
+ * Description: This function returns the system ktime.
+ */
+function ktime_get_ns:long ()
+%{ /* bpf */ /* pure */ /* unprivileged */ /* stable */
+   0x85, 0, 0, 0, 5;	/* call BPF_FUNC_ktime_get_ns */
+   0xbf, $$, 0, 0, 0	/* movx $$, r0 */
+%}

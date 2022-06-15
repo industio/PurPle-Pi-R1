@@ -1,0 +1,48 @@
+# setns ______________________________________________________
+# SYSCALL_DEFINE2(setns, int, fd, int, nstype)
+
+@define _SYSCALL_SETNS_NAME
+%(
+	name = "setns"
+%)
+
+@define _SYSCALL_SETNS_ARGSTR
+%(
+	argstr = sprintf("%d, %s", fd, nstype_str);
+%)
+
+probe syscall.setns = dw_syscall.setns !, nd_syscall.setns ? {}
+probe syscall.setns.return = dw_syscall.setns.return !, nd_syscall.setns.return ? {}
+
+# dw_setns _____________________________________________________
+
+probe dw_syscall.setns = kernel.function("sys_setns") ?
+{
+	@_SYSCALL_SETNS_NAME
+	fd = __int32($fd)
+	nstype = __int32($nstype)
+	nstype_str = __fork_flags(nstype)
+	@_SYSCALL_SETNS_ARGSTR
+}
+probe dw_syscall.setns.return = kernel.function("sys_setns").return ?
+{
+	@_SYSCALL_SETNS_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setns _____________________________________________________
+
+probe nd_syscall.setns = kprobe.function("sys_setns") ?
+{
+	@_SYSCALL_SETNS_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	nstype = int_arg(2)
+	nstype_str = __fork_flags(nstype)
+        @_SYSCALL_SETNS_ARGSTR
+}
+probe nd_syscall.setns.return = kprobe.function("sys_setns").return ?
+{
+	@_SYSCALL_SETNS_NAME
+	retstr = returnstr(1)
+}

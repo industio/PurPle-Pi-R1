@@ -1,0 +1,63 @@
+%( systemtap_v <= "2.7" %?
+# sys32_ipc() is just a syscall multiplexer (similar to
+# sys_socketcall()). So, we don't really need to probe it, since we'll
+# be probing what sys32_ipc() will call (semget, msgsnd, msgrcv,
+# shmat, etc.).
+
+# ipc ________________________________________________________
+#  int sys_ipc (uint call, int first, int second, int third, void __user *ptr, long fifth)
+#
+
+@define _SYSCALL_IPC_NAME
+%(
+	name = "ipc"
+%)
+
+@define _SYSCALL_IPC_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %d, %d, %p, %d", call, first,
+	                 second, third, ptr_uaddr, fifth)
+%)
+
+probe syscall.ipc = dw_syscall.ipc !, nd_syscall.ipc ? {}
+probe syscall.ipc.return = dw_syscall.ipc.return !, nd_syscall.ipc.return ? {}
+
+# dw_ipc _____________________________________________________
+
+probe dw_syscall.ipc = kernel.function("sys_ipc") ?
+{
+	@_SYSCALL_IPC_NAME
+	call = $call
+	first = $first
+	second = $second
+	third = $third
+	ptr_uaddr = $ptr
+	fifth = $fifth
+	@_SYSCALL_IPC_ARGSTR
+}
+probe dw_syscall.ipc.return = kernel.function("sys_ipc").return ?
+{
+	@_SYSCALL_IPC_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ipc _____________________________________________________
+
+probe nd_syscall.ipc = kprobe.function("sys_ipc") ?
+{
+	@_SYSCALL_IPC_NAME
+	asmlinkage()
+	call = uint_arg(1)
+	first = int_arg(2)
+	second = int_arg(3)
+	third = int_arg(4)
+	ptr_uaddr = pointer_arg(5)
+	fifth = long_arg(6)
+	@_SYSCALL_IPC_ARGSTR
+}
+probe nd_syscall.ipc.return = kprobe.function("sys_ipc").return ?
+{
+	@_SYSCALL_IPC_NAME
+	retstr = returnstr(1)
+}
+%)

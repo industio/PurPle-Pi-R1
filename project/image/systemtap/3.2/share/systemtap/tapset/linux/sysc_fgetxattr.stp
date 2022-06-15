@@ -1,0 +1,59 @@
+# fgetxattr __________________________________________________
+# ssize_t sys_fgetxattr(int fd, char __user *name,
+# 		void __user *value, size_t size)
+
+@define _SYSCALL_FGETXATTR_NAME
+%(
+	name = "fgetxattr"
+%)
+
+@define _SYSCALL_FGETXATTR_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %p, %u", filedes, name_str, value_uaddr, size)
+%)
+
+probe syscall.fgetxattr = dw_syscall.fgetxattr !, nd_syscall.fgetxattr ? {}
+probe syscall.fgetxattr.return = dw_syscall.fgetxattr.return !, nd_syscall.fgetxattr.return ? {}
+
+# dw_fgetxattr _____________________________________________________
+
+probe dw_syscall.fgetxattr = kernel.function("sys_fgetxattr").call
+{
+	@_SYSCALL_FGETXATTR_NAME
+	filedes = __int32($fd)
+# 'name2' should have been 'name_str'.  Deprecate the old name.
+%(systemtap_v <= "1.4" %?
+	name2 = user_string_quoted($name)
+%)
+	name_str = user_string_quoted($name)
+	value_uaddr = $value
+	size = __ulong($size)
+	@_SYSCALL_FGETXATTR_ARGSTR
+}
+probe dw_syscall.fgetxattr.return = kernel.function("sys_fgetxattr").return
+{
+	@_SYSCALL_FGETXATTR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fgetxattr _____________________________________________________
+
+probe nd_syscall.fgetxattr = kprobe.function("sys_fgetxattr") ?
+{
+	@_SYSCALL_FGETXATTR_NAME
+	asmlinkage()
+	filedes = int_arg(1)
+# 'name2' should have been 'name_str'.  Deprecate the old name.
+%(systemtap_v <= "1.4" %?
+	name2 = user_string_quoted(pointer_arg(2))
+%)
+	name_str = user_string_quoted(pointer_arg(2))
+	value_uaddr = pointer_arg(3)
+	size  = ulong_arg(4)
+	@_SYSCALL_FGETXATTR_ARGSTR
+}
+probe nd_syscall.fgetxattr.return = kprobe.function("sys_fgetxattr").return ?
+{
+	@_SYSCALL_FGETXATTR_NAME
+	retstr = returnstr(1)
+}

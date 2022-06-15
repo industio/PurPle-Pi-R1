@@ -1,0 +1,66 @@
+# fallocate ____________________________________________________
+#
+# SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+
+@define _SYSCALL_FALLOCATE_NAME
+%(
+	name = "fallocate"
+%)
+
+@define _SYSCALL_FALLOCATE_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %#x, %u", fd, mode_str, offset, len)
+%)
+
+probe syscall.fallocate = dw_syscall.fallocate !, nd_syscall.fallocate ? {}
+probe syscall.fallocate.return = dw_syscall.fallocate.return !, nd_syscall.fallocate.return ? {}
+
+# dw_fallocate _____________________________________________________
+
+probe dw_syscall.fallocate = kernel.function("sys_fallocate").call ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_FALLOCATE_NAME
+	fd = __int32($fd)
+	mode = __uint32($mode)
+	mode_str = _stp_fallocate_mode_str(mode)
+	offset = $offset
+	len = $len
+	@_SYSCALL_FALLOCATE_ARGSTR
+}
+probe dw_syscall.fallocate.return = kernel.function("sys_fallocate").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_FALLOCATE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fallocate _____________________________________________________
+
+probe nd_syscall.fallocate = kprobe.function("sys_fallocate") ?
+{
+	asmlinkage()
+	@__syscall_gate_compat_simple
+	@_SYSCALL_FALLOCATE_NAME
+	fd = int_arg(1)
+	mode = uint_arg(2)
+	mode_str = _stp_fallocate_mode_str(mode)
+%( CONFIG_64BIT == "y" %?
+	offset = longlong_arg(3)
+	len = longlong_arg(4)
+%:
+	# On a 32-bit kernel, 'long long' arguments take the space of
+	# 2 arguments, so we have to adjust the following argument
+	# numbers.
+	offset = longlong_arg(3)
+	len = longlong_arg(5)
+%)
+	@_SYSCALL_FALLOCATE_ARGSTR
+}
+probe nd_syscall.fallocate.return = kprobe.function("sys_fallocate").return ?
+{
+	asmlinkage()
+	@__syscall_gate_compat_simple
+	@_SYSCALL_FALLOCATE_NAME
+	retstr = returnstr(1)
+}

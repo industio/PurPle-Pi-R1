@@ -1,0 +1,83 @@
+# pwritev ___________________________________________________
+#
+# sys_pwritev(unsigned long fd, const struct iovec __user * vec,
+#             unsigned long vlen, unsigned long pos_l, unsigned long pos_h)
+# compat_sys_pwritev(unsigned long fd, const struct compat_iovec __user *vec,
+#                    unsigned long vlen, u32 pos_low, u32 pos_high)
+#
+
+@define _SYSCALL_PWRITEV_NAME
+%(
+	name = "pwritev"
+%)
+
+@define _SYSCALL_PWRITEV_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d, 0x%x", fd, vector_uaddr, count, offset)
+%)
+
+probe syscall.pwritev = dw_syscall.pwritev !, nd_syscall.pwritev ? {}
+probe syscall.pwritev.return = dw_syscall.pwritev.return !,
+                               nd_syscall.pwritev.return ? {}
+
+# dw_pwritev _____________________________________________________
+
+probe dw_syscall.pwritev = __syscall.pwritev ?, __syscall.compat_pwritev ?
+{
+	@_SYSCALL_PWRITEV_NAME
+}
+probe __syscall.pwritev = kernel.function("sys_pwritev").call
+{
+	fd = __int32($fd)
+	vector_uaddr = $vec
+	count = __int32($vlen)
+	offset = @__pos_from_hilo($pos_h, $pos_l)
+	@_SYSCALL_PWRITEV_ARGSTR
+}
+probe __syscall.compat_pwritev = kernel.function("compat_sys_pwritev").call
+{
+	fd = __int32($fd)
+	vector_uaddr = $vec
+	count = __int32($vlen)
+	offset = ($pos_high << 32) + __uint32($pos_low)
+	@_SYSCALL_PWRITEV_ARGSTR
+}
+probe dw_syscall.pwritev.return = kernel.function("sys_pwritev").return ?,
+			       kernel.function("compat_sys_pwritev").return ?
+{
+	@_SYSCALL_PWRITEV_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_pwritev _____________________________________________________
+
+probe nd_syscall.pwritev = __nd_syscall.pwritev ?,
+			   __nd_syscall.compat_pwritev ?
+{
+	@_SYSCALL_PWRITEV_NAME
+}
+probe __nd_syscall.pwritev = kprobe.function("sys_pwritev").call
+{
+	asmlinkage()
+	fd = int_arg(1)
+	vector_uaddr = pointer_arg(2)
+	count = int_arg(3)
+	offset = @__pos_from_hilo(ulong_arg(5), ulong_arg(4))
+	@_SYSCALL_PWRITEV_ARGSTR
+}
+probe __nd_syscall.compat_pwritev = kprobe.function("compat_sys_pwritev").call
+{
+	asmlinkage()
+	fd = int_arg(1)
+	vector_uaddr = pointer_arg(2)
+	count = int_arg(3)
+	offset = (u32_arg(5) << 32) + u32_arg(4)
+	@_SYSCALL_PWRITEV_ARGSTR
+}
+probe nd_syscall.pwritev.return =
+	kprobe.function("sys_pwritev").return ?,
+	kprobe.function("compat_sys_pwritev").return ?
+{
+	@_SYSCALL_PWRITEV_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,117 @@
+# bind _______________________________________________________
+# long sys_bind(int fd, struct sockaddr __user *umyaddr, int addrlen)
+
+@define _SYSCALL_BIND_NAME
+%(
+	name = "bind"
+%)
+
+@define _SYSCALL_BIND_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %d", sockfd,
+			 _struct_sockaddr_u(my_addr_uaddr, addrlen), addrlen)
+%)
+
+probe syscall.bind = dw_syscall.bind !, nd_syscall.bind ? {}
+probe syscall.bind.return = dw_syscall.bind.return !, nd_syscall.bind.return ? {}
+
+# dw_bind _____________________________________________________
+
+probe dw_syscall.bind = __syscall.bind ?, __syscall.socketcall.bind ?,
+	__syscall.compat_socketcall.bind ?
+{
+	@_SYSCALL_BIND_NAME
+	@_af_inet_info_u(my_addr_uaddr, addrlen)
+	@_SYSCALL_BIND_ARGSTR
+}
+probe __syscall.bind = kernel.function("sys_bind").call ?
+{
+	@__syscall_gate(@const("__NR_bind"))
+	sockfd = __int32($fd)
+	my_addr_uaddr = $umyaddr
+	addrlen = __int32($addrlen)
+}
+probe __syscall.socketcall.bind = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_BIND")) next;
+	sockfd = __int32(user_ulong(&@ulong_cast($args)[0]))
+	my_addr_uaddr = user_ulong(&@ulong_cast($args)[1])
+	addrlen = __int32(user_ulong(&@ulong_cast($args)[2]))
+}
+probe __syscall.compat_socketcall.bind =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_BIND")) next;
+	sockfd = user_int(&@uint_cast($args)[0])
+	my_addr_uaddr = user_uint32(&@uint_cast($args)[1])
+	addrlen = user_int(&@uint_cast($args)[2])
+}
+probe dw_syscall.bind.return = __syscall.bind.return ?,
+	__syscall.socketcall.bind.return ?
+{
+	@_SYSCALL_BIND_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.bind.return = kernel.function("sys_bind").return ?
+{
+	@__syscall_gate(@const("__NR_bind"))
+}
+probe __syscall.socketcall.bind.return =
+	kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_BIND")) next;
+}
+
+# nd_bind _____________________________________________________
+
+probe nd_syscall.bind = __nd_syscall.bind ?, __nd_syscall.socketcall.bind ?,
+	__nd_syscall.compat_socketcall.bind ?
+{
+	@_SYSCALL_BIND_NAME
+	@_af_inet_info_u(my_addr_uaddr, addrlen)
+	@_SYSCALL_BIND_ARGSTR
+}
+probe __nd_syscall.bind = kprobe.function("sys_bind") ?
+{
+	@__syscall_gate(@const("__NR_bind"))
+	asmlinkage()
+	sockfd = int_arg(1)
+	my_addr_uaddr = pointer_arg(2)
+	addrlen = int_arg(3)
+}
+probe __nd_syscall.socketcall.bind = kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_BIND")) next;
+	__args = &@ulong_cast(pointer_arg(2))
+	sockfd = __int32(user_ulong(&@ulong_cast(__args)[0]))
+	my_addr_uaddr = user_ulong(&@ulong_cast(__args)[1])
+	addrlen = __int32(user_ulong(&@ulong_cast(__args)[2]))
+}
+probe __nd_syscall.compat_socketcall.bind =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_BIND")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	sockfd = user_int(&@uint_cast(__args)[0])
+	my_addr_uaddr = user_uint32(&@uint_cast(__args)[1])
+	addrlen = user_int(&@uint_cast(__args)[2])
+}
+probe nd_syscall.bind.return = __nd_syscall.bind.return ?,
+	__nd_syscall.socketcall.bind.return ?
+{
+	@_SYSCALL_BIND_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.bind.return = kprobe.function("sys_bind").return ?
+{
+	@__syscall_gate(@const("__NR_bind"))
+}
+probe __nd_syscall.socketcall.bind.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_BIND")) next;
+}

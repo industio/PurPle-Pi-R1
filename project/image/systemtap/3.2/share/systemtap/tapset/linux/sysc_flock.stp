@@ -1,0 +1,46 @@
+# flock ______________________________________________________
+# long sys_flock(unsigned int fd, unsigned int cmd)
+
+@define _SYSCALL_FLOCK_NAME
+%(
+	name = "flock"
+%)
+
+@define _SYSCALL_FLOCK_ARGSTR
+%(
+	argstr = sprintf("%d, %s", fd, _flock_cmd_str(operation))
+%)
+
+probe syscall.flock = dw_syscall.flock !, nd_syscall.flock ? {}
+probe syscall.flock.return = dw_syscall.flock.return !, nd_syscall.flock.return ? {}
+
+# dw_flock _____________________________________________________
+
+probe dw_syscall.flock = kernel.function("sys_flock").call
+{
+	@_SYSCALL_FLOCK_NAME
+	fd = __int32($fd)
+	operation = $cmd
+	@_SYSCALL_FLOCK_ARGSTR
+}
+probe dw_syscall.flock.return = kernel.function("sys_flock").return
+{
+	@_SYSCALL_FLOCK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_flock _____________________________________________________
+
+probe nd_syscall.flock = kprobe.function("sys_flock") ?
+{
+	@_SYSCALL_FLOCK_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	operation = int_arg(2)
+	@_SYSCALL_FLOCK_ARGSTR
+}
+probe nd_syscall.flock.return = kprobe.function("sys_flock").return ?
+{
+	@_SYSCALL_FLOCK_NAME
+	retstr = returnstr(1)
+}

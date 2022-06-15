@@ -1,0 +1,59 @@
+# ni_syscall _________________________________________________
+#
+# long sys_ni_syscall(void)
+#
+
+@define _SYSCALL_NI_SYSCALL_NAME
+%(
+	name = "ni_syscall"
+%)
+
+@define _SYSCALL_NI_SYSCALL_ARGSTR
+%(
+	argstr = ""
+%)
+
+@define _SYSCALL_GATE
+%(
+%( kernel_v < "3.1" %?
+	// Kernel commit 49b2868 removed nfsservctl.
+	//
+	// We want to ignore compat nfsservctl calls, since
+	// compat_sys_nfsservctl() calls sys_ni_syscall().
+	@__compat_syscall_gate_negative(@const("__NR_compat_nfsservctl"))
+%)
+%)
+
+probe syscall.ni_syscall = dw_syscall.ni_syscall !, nd_syscall.ni_syscall {}
+probe syscall.ni_syscall.return = dw_syscall.ni_syscall.return !,
+                                  nd_syscall.ni_syscall.return {}
+
+# dw_ni_syscall _____________________________________________________
+
+probe dw_syscall.ni_syscall = kernel.function("sys_ni_syscall").call
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_NI_SYSCALL_NAME
+	@_SYSCALL_NI_SYSCALL_ARGSTR
+}
+probe dw_syscall.ni_syscall.return = kernel.function("sys_ni_syscall").return
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_NI_SYSCALL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ni_syscall _____________________________________________________
+
+probe nd_syscall.ni_syscall = kprobe.function("sys_ni_syscall")
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_NI_SYSCALL_NAME
+	@_SYSCALL_NI_SYSCALL_ARGSTR
+}
+probe nd_syscall.ni_syscall.return = kprobe.function("sys_ni_syscall").return
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_NI_SYSCALL_NAME
+	retstr = returnstr(1)
+}

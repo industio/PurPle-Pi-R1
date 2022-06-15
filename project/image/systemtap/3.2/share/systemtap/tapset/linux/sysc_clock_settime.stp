@@ -1,0 +1,105 @@
+# clock_settime ______________________________________________
+# long sys_clock_settime(clockid_t which_clock,
+#                   const struct timespec __user *tp)
+#
+# long compat_sys_clock_settime(clockid_t which_clock,
+#		struct compat_timespec __user *tp)
+
+@define _SYSCALL_CLOCK_SETTIME_NAME
+%(
+	name = "clock_settime"
+%)
+
+@define _SYSCALL_CLOCK_SETTIME_ARGSTR
+%(
+	argstr = sprintf("%s, %s", clk_id_str, tp_uaddr_str)
+%)
+
+probe syscall.clock_settime = dw_syscall.clock_settime !, nd_syscall.clock_settime ? {}
+probe syscall.clock_settime.return = dw_syscall.clock_settime.return !, nd_syscall.clock_settime.return ? {}
+
+# dw_clock_settime _____________________________________________________
+
+probe dw_syscall.clock_settime = __syscall.clock_settime,
+	__syscall.compat_clock_settime ?
+{
+	@_SYSCALL_CLOCK_SETTIME_NAME
+}
+probe __syscall.clock_settime = kernel.function("sys_clock_settime").call
+{
+	@__syscall_gate(@const("__NR_clock_settime"))
+	clk_id = __int32($which_clock)
+	clk_id_str = _get_wc_str($which_clock)
+	tp_uaddr = $tp
+	tp_uaddr_str = _struct_timespec_u(tp_uaddr, 1)
+	@_SYSCALL_CLOCK_SETTIME_ARGSTR
+}
+probe __syscall.compat_clock_settime =
+	kernel.function("compat_sys_clock_settime").call ?
+{
+	clk_id = __int32($which_clock)
+	clk_id_str = _get_wc_str(__int32($which_clock))
+	tp_uaddr = $tp
+	tp_uaddr_str = _struct_compat_timespec_u(tp_uaddr, 1)
+	@_SYSCALL_CLOCK_SETTIME_ARGSTR
+}
+probe dw_syscall.clock_settime.return = __syscall.clock_settime.return,
+	__syscall.compat_clock_settime.return ?
+{
+	@_SYSCALL_CLOCK_SETTIME_NAME
+}
+probe __syscall.clock_settime.return =
+	kernel.function("sys_clock_settime").return
+{
+	@__syscall_gate(@const("__NR_clock_settime"))
+	retstr = return_str(1, $return)
+}
+probe __syscall.compat_clock_settime.return =
+	kernel.function("compat_sys_clock_settime").return ?
+{
+	retstr = return_str(1, $return)
+}
+
+# nd_clock_settime _____________________________________________________
+
+probe nd_syscall.clock_settime = __nd_syscall.clock_settime,
+	__nd_syscall.compat_clock_settime ?
+{
+	@_SYSCALL_CLOCK_SETTIME_NAME
+}
+probe __nd_syscall.clock_settime = kprobe.function("sys_clock_settime").call
+{
+	@__syscall_gate(@const("__NR_clock_settime"))
+	asmlinkage()
+	clk_id = int_arg(1)
+	clk_id_str = _get_wc_str(clk_id)
+	tp_uaddr = pointer_arg(2)
+	tp_uaddr_str = _struct_timespec_u(tp_uaddr, 1)
+	@_SYSCALL_CLOCK_SETTIME_ARGSTR
+}
+probe __nd_syscall.compat_clock_settime =
+	kprobe.function("compat_sys_clock_settime").call ?
+{
+	asmlinkage()
+	clk_id = int_arg(1)
+	clk_id_str = _get_wc_str(clk_id)
+	tp_uaddr = pointer_arg(2)
+	tp_uaddr_str = _struct_compat_timespec_u(tp_uaddr, 1)
+	@_SYSCALL_CLOCK_SETTIME_ARGSTR
+}
+probe nd_syscall.clock_settime.return = __nd_syscall.clock_settime.return,
+	__nd_syscall.compat_clock_settime.return ?
+{
+ 	@_SYSCALL_CLOCK_SETTIME_NAME
+}
+probe __nd_syscall.clock_settime.return =
+	kprobe.function("sys_clock_settime").return
+{
+	@__syscall_gate(@const("__NR_clock_settime"))
+	retstr = returnstr(1)
+}
+probe __nd_syscall.compat_clock_settime.return =
+	kprobe.function("compat_sys_clock_settime").return ?
+{
+	retstr = returnstr(1)
+}

@@ -1,0 +1,8 @@
+title: track wakeup-to-dispatch latency stats
+name: sched-latency.stp
+keywords: process scheduler time tracepoint
+subsystem: scheduler
+description: This script periodically reports a histogram of the latency between a task (thread) being woken up and it actually being dispatched to a CPU: the amount of time it's spent in the runnable queue.
+test_support: stap -p4 sched-latency.stp
+test_check: stap -p4 sched-latency.stp
+test_installcheck: stap sched-latency.stp -T 7

@@ -1,0 +1,52 @@
+# signal _____________________________________________________
+# unsigned long sys_signal(int sig, __sighandler_t handler)
+#
+
+@define _SYSCALL_SIGNAL_NAME
+%(
+	name = "signal"
+%)
+
+@define _SYSCALL_SIGNAL_ARGSTR
+%(
+	argstr = sprintf("%s, %s", sig_str, handler_str)
+%)
+
+probe syscall.signal = dw_syscall.signal !, nd_syscall.signal ? {}
+probe syscall.signal.return = dw_syscall.signal.return !,
+                              nd_syscall.signal.return ? {}
+
+# dw_signal _____________________________________________________
+
+probe dw_syscall.signal = kernel.function("sys_signal").call ?
+{
+	@_SYSCALL_SIGNAL_NAME
+	sig = __int32($sig)
+	sig_str = _signal_name(sig)
+	handler = $handler
+	handler_str = _sighandler_str(handler)
+	@_SYSCALL_SIGNAL_ARGSTR
+}
+probe dw_syscall.signal.return = kernel.function("sys_signal").return ?
+{
+	@_SYSCALL_SIGNAL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_signal _____________________________________________________
+
+probe nd_syscall.signal = kprobe.function("sys_signal") ?
+{
+	@_SYSCALL_SIGNAL_NAME
+	asmlinkage()
+	sig = int_arg(1)
+	sig_str = _signal_name(sig)
+	handler =  pointer_arg(2)
+	handler_str = _sighandler_str(handler)
+	@_SYSCALL_SIGNAL_ARGSTR
+}
+probe nd_syscall.signal.return = kprobe.function("sys_signal").return ?
+{
+	@_SYSCALL_SIGNAL_NAME
+	retstr = returnstr(1)
+}

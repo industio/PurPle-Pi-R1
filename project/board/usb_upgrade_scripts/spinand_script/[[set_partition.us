@@ -1,0 +1,13 @@
+# <- this is for comment / total file size must be less than 4KB
+fatload usb 0 0x20100000 $(usb_folder)/SPINANDINFO.sni
+fatload usb 0 0x20800000 $(usb_folder)/PARTINFO.pni
+writecis 0x20100000 0x20800000
+setenv mtdparts ' mtdparts=nand0:0x20000@0x60000(IPL0),0x20000(IPL1),0x20000(IPL2),0x20000(IPL_CUST0),0x20000(IPL_CUST1),0x20000(IPL_CUST2),0x60000(UBOOT0),0x60000(UBOOT1),0x20000(ENV),0x500000(KERNEL),0x500000(RECOVERY),-(UBI)
+saveenv
+nand erase.part UBI
+ubi part UBI
+ubi create rootfs 0xa00000
+ubi create nvrservice 0xa00000
+ubi create customer 0x5000000
+
+% <- this is end of file symbol

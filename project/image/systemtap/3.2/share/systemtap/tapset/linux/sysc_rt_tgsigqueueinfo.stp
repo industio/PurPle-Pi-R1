@@ -1,0 +1,74 @@
+# rt_tgsigqueueinfo ____________________________________________
+#
+# SYSCALL_DEFINE4(rt_tgsigqueueinfo, pid_t, tgid, pid_t, pid, int, sig,
+#		siginfo_t __user *, uinfo)
+# COMPAT_SYSCALL_DEFINE4(rt_tgsigqueueinfo,
+#			compat_pid_t, tgid,
+#			compat_pid_t, pid,
+#			int, sig,
+#			struct compat_siginfo __user *, uinfo)
+#
+
+@define _SYSCALL_RT_TGSIGQUEUEINFO_NAME
+%(
+	name = "rt_tgsigqueueinfo"
+%)
+
+@define _SYSCALL_RT_TGSIGQUEUEINFO_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %s, %s", tgid, tid, sig_str, uinfo_str)
+%)
+
+probe syscall.rt_tgsigqueueinfo = dw_syscall.rt_tgsigqueueinfo !,
+                                  nd_syscall.rt_tgsigqueueinfo ? {}
+probe syscall.rt_tgsigqueueinfo.return = dw_syscall.rt_tgsigqueueinfo.return !,
+                                         nd_syscall.rt_tgsigqueueinfo.return ? {}
+
+# dw_rt_tgsigqueueinfo _____________________________________________________
+
+probe dw_syscall.rt_tgsigqueueinfo =
+	kernel.function("sys_rt_tgsigqueueinfo").call ?,
+	kernel.function("compat_sys_rt_tgsigqueueinfo").call ?
+{
+	@_SYSCALL_RT_TGSIGQUEUEINFO_NAME
+	tgid = __int32($tgid)
+	tid = __int32($pid)
+	sig = __int32($sig)
+	sig_str = _signal_name(sig)
+	uinfo_uaddr = $uinfo
+	uinfo_str = (@__compat_task ? _stp_compat_siginfo_u(uinfo_uaddr)
+	             : _stp_siginfo_u(uinfo_uaddr))
+	@_SYSCALL_RT_TGSIGQUEUEINFO_ARGSTR
+}
+probe dw_syscall.rt_tgsigqueueinfo.return =
+	kernel.function("sys_rt_tgsigqueueinfo").return ?,
+	kernel.function("compat_sys_rt_tgsigqueueinfo").return ?
+{
+	@_SYSCALL_RT_TGSIGQUEUEINFO_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_rt_tgsigqueueinfo _____________________________________________________
+
+probe nd_syscall.rt_tgsigqueueinfo =
+	kprobe.function("sys_rt_tgsigqueueinfo") ?,
+	kprobe.function("compat_sys_rt_tgsigqueueinfo") ?
+{
+	@_SYSCALL_RT_TGSIGQUEUEINFO_NAME
+	asmlinkage()
+	tgid = int_arg(1)
+	tid = int_arg(2)
+	sig = int_arg(3)
+	sig_str = _signal_name(sig)
+	uinfo_uaddr = pointer_arg(4)
+	uinfo_str = (@__compat_task ? _stp_compat_siginfo_u(uinfo_uaddr)
+	             : _stp_siginfo_u(uinfo_uaddr))
+	@_SYSCALL_RT_TGSIGQUEUEINFO_ARGSTR
+}
+probe nd_syscall.rt_tgsigqueueinfo.return =
+	kprobe.function("sys_rt_tgsigqueueinfo").return ?,
+	kprobe.function("compat_sys_rt_tgsigqueueinfo").return ?
+{
+	@_SYSCALL_RT_TGSIGQUEUEINFO_NAME
+	retstr = returnstr(1)
+}

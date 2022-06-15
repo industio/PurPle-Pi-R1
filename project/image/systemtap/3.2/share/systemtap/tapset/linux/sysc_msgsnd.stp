@@ -1,0 +1,168 @@
+# msgsnd _____________________________________________________
+# long sys_msgsnd (int msqid,
+#             struct msgbuf __user *msgp,
+#             size_t msgsz,
+#             int msgflg)
+#
+
+@define _SYSCALL_MSGSND_NAME
+%(
+	name = "msgsnd"
+%)
+
+@define _SYSCALL_MSGSND_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u, %s", msqid, msgp_uaddr, msgsz, msgflg_str)
+%)
+
+probe syscall.msgsnd = dw_syscall.msgsnd !, nd_syscall.msgsnd ? {}
+probe syscall.msgsnd.return = dw_syscall.msgsnd.return !,
+                              nd_syscall.msgsnd.return ? {}
+
+# dw_msgsnd _____________________________________________________
+
+probe dw_syscall.msgsnd = kernel.function("sys_msgsnd").call ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_MSGSND_NAME
+	msqid = __int32($msqid)
+	msgp_uaddr = $msgp
+	msgsz = __ulong($msgsz)
+	msgflg = __int32($msgflg)
+	msgflg_str = _stp_msgflg_str(__int32($msgflg))
+	@_SYSCALL_MSGSND_ARGSTR
+}
+probe dw_syscall.msgsnd.return = kernel.function("sys_msgsnd").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_MSGSND_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_msgsnd _____________________________________________________
+
+probe nd_syscall.msgsnd = kprobe.function("sys_msgsnd") ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_MSGSND_NAME
+	asmlinkage()
+	msqid = int_arg(1)
+	msgp_uaddr = pointer_arg(2)
+	msgsz = ulong_arg(3)
+	msgflg = int_arg(4)
+	msgflg_str = _stp_msgflg_str(msgflg)
+	@_SYSCALL_MSGSND_ARGSTR
+}
+probe nd_syscall.msgsnd.return = kprobe.function("sys_msgsnd").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_MSGSND_NAME
+	retstr = returnstr(1)
+}
+# compat_sys_msgsnd ________________________________________
+#
+# long compat_sys_msgsnd(int first, int second, int third, void __user *uptr)
+# COMPAT_SYSCALL_DEFINE4(msgsnd, int, msqid, compat_uptr_t, msgp,
+#		       compat_ssize_t, msgsz, int, msgflg)
+# ifdef CONFIG_ARCH_WANT_OLD_COMPAT_IPC
+#  COMPAT_SYSCALL_DEFINE6(ipc, u32, call, int, first, int, second,
+#	u32, third, compat_uptr_t, ptr, u32, fifth)
+# endif
+#
+
+probe syscall.compat_sys_msgsnd = dw_syscall.compat_sys_msgsnd !,
+                                  nd_syscall.compat_sys_msgsnd ? {}
+probe syscall.compat_sys_msgsnd.return = dw_syscall.compat_sys_msgsnd.return !,
+                                         nd_syscall.compat_sys_msgsnd.return ? {}
+
+# dw_compat_sys_msgsnd _____________________________________________________
+
+probe dw_syscall.compat_sys_msgsnd = __syscall.compat_msgsnd ?,
+      __syscall.compat_ipc.msgsnd ?
+{
+	@_SYSCALL_MSGSND_NAME
+	msgflg_str = _stp_msgflg_str(msgflg)
+	@_SYSCALL_MSGSND_ARGSTR
+}
+probe __syscall.compat_msgsnd = kernel.function("compat_sys_msgsnd").call ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+	msqid = __int32(@choose_defined($msqid, $first))
+	msgp_uaddr = @choose_defined($msgp, $uptr)
+	msgsz = __uint32(@choose_defined($msgsz, $second))
+	msgflg = __int32(@choose_defined($msgflg, $third))
+}
+probe __syscall.compat_ipc.msgsnd = kernel.function("compat_sys_ipc").call ?,
+				    kernel.function("sys32_ipc").call ?
+{
+	if (($call & 0xffff) != @const("MSGSND")) next;
+	msqid = __int32($first)
+	msgsz = __uint32($second)
+	msgflg = __int32($third)
+	msgp_uaddr = $ptr
+}
+probe dw_syscall.compat_sys_msgsnd.return =
+	__syscall.compat_sys_msgsnd.return ?,
+	__syscall.compat_ipc.msgsnd.return ?
+{
+	@_SYSCALL_MSGSND_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.compat_sys_msgsnd.return =
+	kernel.function("compat_sys_msgsnd").return ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+}
+probe __syscall.compat_ipc.msgsnd.return =
+	kernel.function("compat_sys_ipc").return ?,
+	kernel.function("sys32_ipc").return ?
+{
+	if ((@entry($call) & 0xffff) != @const("MSGSND")) next;
+}
+
+# nd_compat_sys_msgsnd _____________________________________________________
+
+probe nd_syscall.compat_sys_msgsnd = __nd_syscall.compat_msgsnd ?,
+	__nd_syscall.compat_ipc.msgsnd ?
+{
+	@_SYSCALL_MSGSND_NAME
+	msgflg_str = _stp_msgflg_str(msgflg)
+	@_SYSCALL_MSGSND_ARGSTR
+}
+probe __nd_syscall.compat_msgsnd = kprobe.function("compat_sys_msgsnd") ?
+{
+	asmlinkage()
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+	msqid = int_arg(1)
+	msgsz = uint_arg(2)
+	msgflg = int_arg(3)
+	msgp_uaddr = pointer_arg(4)
+}
+probe __nd_syscall.compat_ipc.msgsnd = kprobe.function("compat_sys_ipc") ?,
+				       kprobe.function("sys32_ipc") ?
+{
+	asmlinkage()
+	if ((uint_arg(1) & 0xffff) != @const("MSGSND")) next;
+	msqid = int_arg(2)
+	msgsz = uint_arg(3)
+	msgflg = int_arg(4)
+	msgp_uaddr = pointer_arg(5)
+}
+probe nd_syscall.compat_sys_msgsnd.return =
+	__nd_syscall.compat_sys_msgsnd.return ?,
+	__nd_syscall.compat_ipc.msgsnd.return ?
+{
+	@_SYSCALL_MSGSND_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.compat_sys_msgsnd.return =
+	kprobe.function("compat_sys_msgsnd").return ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+}
+probe __nd_syscall.compat_ipc.msgsnd.return =
+	kprobe.function("compat_sys_ipc").return ?,
+	kprobe.function("sys32_ipc").return ?
+{
+	if ((@entry(__asmlinkage_int_arg(1)) & 0xffff) != @const("MSGSND")) next;
+}

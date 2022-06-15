@@ -1,0 +1,61 @@
+%( kernel_v < "3.7" %?
+# execve _____________________________________________________
+#
+# In kernels < 3.7, sys_execve() was in arch-specific code (and had
+# varying arguments). It was just a wrapper around generic
+# do_execve(), but the wrapper could error out before calling
+# do_execve(). So, we'll have to handle it in arch-specific tapset
+# code to catch all calls.
+#
+#  int sys_execve(char __user *filenamei, char __user * __user *argv,
+#		  char __user * __user *envp, struct pt_regs *regs)
+
+@define _SYSCALL_EXECVE_NAME
+%(
+	name = "execve"
+%)
+
+@define _SYSCALL_EXECVE_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s", filename, args, env_str)
+%)
+
+probe syscall.execve = dw_syscall.execve !, nd_syscall.execve {}
+probe syscall.execve.return = dw_syscall.execve.return !, nd_syscall.execve.return {}
+
+# dw_execve _____________________________________________________
+
+probe dw_syscall.execve = kernel.function("sys_execve").call
+{
+	@_SYSCALL_EXECVE_NAME
+	filename = user_string_quoted($filenamei)
+	args = __get_argv($argv, 0)
+	env_str = __get_argv($envp, 0)
+	@_SYSCALL_EXECVE_ARGSTR
+}
+probe dw_syscall.execve.return = kernel.function("sys_execve").return
+{
+	@_SYSCALL_EXECVE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_execve _____________________________________________________
+
+probe nd_syscall.execve = kprobe.function("sys_execve").call
+{
+	@_SYSCALL_EXECVE_NAME
+	filename = user_string_quoted(pointer_arg(1))
+	args = __get_argv(pointer_arg(2), 0)
+	env_str = __get_argv(pointer_arg(3), 0)
+	@_SYSCALL_EXECVE_ARGSTR
+}
+probe nd_syscall.execve.return = kprobe.function("sys_execve").return
+{
+	@_SYSCALL_EXECVE_NAME
+	retstr = returnstr(1)
+}
+%:
+# We want to make sure this file isn't empty, so we'll add a "never"
+# probe. Otherwise, the translator gives a warning.
+probe never {}
+%)

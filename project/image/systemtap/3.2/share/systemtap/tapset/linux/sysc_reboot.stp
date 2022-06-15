@@ -1,0 +1,62 @@
+# reboot _____________________________________________________
+#
+# long sys_reboot(int magic1,
+#		int magic2,
+#		unsigned int cmd,
+#		void __user * arg)
+#
+
+@define _SYSCALL_REBOOT_NAME
+%(
+	name = "reboot"
+%)
+
+@define _SYSCALL_REBOOT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %p", magic_str, magic2_str, flag_str, arg_uaddr)
+%)
+
+probe syscall.reboot = dw_syscall.reboot !, nd_syscall.reboot ? {}
+probe syscall.reboot.return = dw_syscall.reboot.return !,
+                              nd_syscall.reboot.return ? {}
+
+# dw_reboot _____________________________________________________
+
+probe dw_syscall.reboot = kernel.function("sys_reboot").call
+{
+	@_SYSCALL_REBOOT_NAME
+	magic = __int32($magic1)
+	magic_str = _reboot_magic_str(__int32($magic1))
+	magic2 = __int32($magic2)
+	magic2_str =_reboot_magic_str(__int32($magic2))
+	flag = __uint32($cmd)
+	flag_str =  _reboot_flag_str(__uint32($cmd))
+	arg_uaddr = $arg
+	@_SYSCALL_REBOOT_ARGSTR
+}
+probe dw_syscall.reboot.return = kernel.function("sys_reboot").return
+{
+	@_SYSCALL_REBOOT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_reboot _____________________________________________________
+
+probe nd_syscall.reboot = kprobe.function("sys_reboot") ?
+{
+	@_SYSCALL_REBOOT_NAME
+	asmlinkage()
+	magic = int_arg(1)
+	magic_str = _reboot_magic_str(magic)
+	magic2 = int_arg(2)
+	magic2_str =_reboot_magic_str(magic2)
+	flag = uint_arg(3)
+	flag_str =  _reboot_flag_str(flag)
+	arg_uaddr = pointer_arg(4)
+	@_SYSCALL_REBOOT_ARGSTR
+}
+probe nd_syscall.reboot.return = kprobe.function("sys_reboot").return ?
+{
+	@_SYSCALL_REBOOT_NAME
+	retstr = returnstr(1)
+}

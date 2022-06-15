@@ -1,0 +1,71 @@
+# setgroups __________________________________________________
+#
+# long sys_setgroups(int gidsetsize, gid_t __user *grouplist)
+# long sys_setgroups16(int gidsetsize, old_gid_t __user *grouplist)
+# long sys32_setgroups16(int gidsetsize, u16 __user *grouplist)
+#
+
+@define _SYSCALL_SETGROUPS_NAME
+%(
+	name = "setgroups"
+%)
+
+@define _SYSCALL_SETGROUPS_ARGSTR
+%(
+	argstr = sprintf("%d, %p", size, list_uaddr)
+%)
+
+probe syscall.setgroups = dw_syscall.setgroups !, nd_syscall.setgroups ? {}
+probe syscall.setgroups.return = dw_syscall.setgroups.return !,
+                                 nd_syscall.setgroups.return ? {}
+
+# dw_setgroups _____________________________________________________
+
+probe dw_syscall.setgroups = kernel.function("sys_setgroups16").call ?,
+                          kernel.function("sys32_setgroups16").call ?,
+%( arch == "s390" %?
+                          kernel.function("compat_sys_s390_setgroups16").call ?,
+%)
+                          kernel.function("sys_setgroups").call ?
+{
+	@_SYSCALL_SETGROUPS_NAME
+	size = __int32($gidsetsize)
+	list_uaddr = $grouplist
+	@_SYSCALL_SETGROUPS_ARGSTR
+}
+probe dw_syscall.setgroups.return = kernel.function("sys_setgroups16").return ?,
+	kernel.function("sys32_setgroups16").return ?,
+%( arch == "s390" %?
+	kernel.function("compat_sys_s390_setgroups16").return ?,
+%)
+	kernel.function("sys_setgroups").return ?
+{
+	@_SYSCALL_SETGROUPS_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setgroups _____________________________________________________
+
+probe nd_syscall.setgroups = kprobe.function("sys_setgroups16") ?,
+                             kprobe.function("sys32_setgroups16") ?,
+%( arch == "s390" %?
+                             kprobe.function("compat_sys_s390_setgroups16") ?,
+%)
+                             kprobe.function("sys_setgroups") ?
+{
+	@_SYSCALL_SETGROUPS_NAME
+	asmlinkage()
+	size = int_arg(1)
+	list_uaddr = pointer_arg(2)
+	@_SYSCALL_SETGROUPS_ARGSTR
+}
+probe nd_syscall.setgroups.return = kprobe.function("sys_setgroups16").return ?,
+	kprobe.function("sys32_setgroups16").return ?,
+%( arch == "s390" %?
+	kprobe.function("compat_sys_s390_setgroups16").return ?,
+%)
+	kprobe.function("sys_setgroups").return ?
+{
+	@_SYSCALL_SETGROUPS_NAME
+	retstr = returnstr(1)
+}

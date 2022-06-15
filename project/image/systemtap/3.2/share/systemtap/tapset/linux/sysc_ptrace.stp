@@ -1,0 +1,66 @@
+# ptrace _____________________________________________________
+#
+# int sys_ptrace(long request,
+#                long pid,
+#                long addr,
+#                long data)
+#
+
+@define _SYSCALL_PTRACE_NAME
+%(
+	name = "ptrace"
+%)
+
+@define _SYSCALL_PTRACE_ARGSTR
+%(
+	argstr = _ptrace_argstr(request, pid, addr, data)
+%)
+
+probe syscall.ptrace = dw_syscall.ptrace !, nd_syscall.ptrace ? {}
+probe syscall.ptrace.return = dw_syscall.ptrace.return !,
+                              nd_syscall.ptrace.return ? {}
+
+# dw_ptrace _____________________________________________________
+
+probe dw_syscall.ptrace = kernel.function("sys_ptrace").call ?,
+		kernel.function("compat_sys_ptrace").call ?
+{
+	@_SYSCALL_PTRACE_NAME
+	request = @__compat_ulong($request)
+	pid = __int32($pid)
+	addr = @__compat_ulong($addr)
+	data = @__compat_ulong(@choose_defined($data, $cdata))
+	@_SYSCALL_PTRACE_ARGSTR
+}
+probe dw_syscall.ptrace.return = kernel.function("sys_ptrace").return ?,
+	kernel.function("compat_sys_ptrace").return ?
+{
+	@_SYSCALL_PTRACE_NAME
+	retstr = return_str(1, $return)
+
+	geteventmsg_data = _ptrace_return_geteventmsg_data(@entry($request), @entry($data))
+	arch_prctl_addr = _ptrace_return_arch_prctl_addr(@entry($request), @entry($addr), @entry($data))
+}
+
+# nd_ptrace _____________________________________________________
+
+probe nd_syscall.ptrace = kprobe.function("sys_ptrace") ?,
+	kprobe.function("compat_sys_ptrace") ?
+{
+	@_SYSCALL_PTRACE_NAME
+	asmlinkage()
+	request = long_arg(1)
+	pid = int_arg(2)
+	addr = ulong_arg(3)
+	data = ulong_arg(4)
+	@_SYSCALL_PTRACE_ARGSTR
+}
+probe nd_syscall.ptrace.return = kprobe.function("sys_ptrace").return ?,
+	kprobe.function("compat_sys_ptrace").return ?
+{
+	@_SYSCALL_PTRACE_NAME
+	retstr = returnstr(1)
+
+	geteventmsg_data = 0
+	arch_prctl_addr = 0
+}

@@ -1,0 +1,172 @@
+// IP tapset
+//
+// Copyright (C) 2009, IBM Inc.
+// Copyright (C) 2010-2017 Red Hat Inc.
+//
+// Author : Breno Leitao <leitao@linux.vnet.ibm.com>
+//
+// This file is free software.  You can redistribute it and/or modify it under
+// the terms of the GNU General Public License (GPL), version 2.
+//
+// Based on previous work done by Arnaldo Carvalho de Melo <acme@redhat.com>
+
+%{
+#include <linux/skbuff.h>
+#include <linux/socket.h>		// For AF_INET & AF_INET6
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+#include <linux/types.h>
+#include <linux/in6.h>
+#endif /* CONFIG_IPV6 || CONFIG_IPV6_MODULE */
+%}
+
+/**
+ * sfunction format_ipaddr - Returns a string representation for an IP address
+ *
+ * @addr: the IP address
+ * @family: the IP address family (either AF_INET or AF_INET6)
+ */
+function format_ipaddr:string (addr:long, family:long)
+%{ /* pure */
+	if (STAP_ARG_family == AF_INET) {
+		__be32 ip = (__be32)STAP_ARG_addr;
+#ifndef NIPQUAD_FMT			// kver >= 2.6.36
+		snprintf(STAP_RETVALUE, MAXSTRINGLEN, "%pI4", &ip);
+#else
+		snprintf(STAP_RETVALUE, MAXSTRINGLEN, NIPQUAD_FMT,
+			 NIPQUAD(ip));
+#endif
+	}
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+	else if (STAP_ARG_family == AF_INET6) {
+		struct in6_addr *ipv6 = (struct in6_addr *)(uintptr_t)STAP_ARG_addr;
+		// We need to derefence the memory safely from the
+		// address passed to us that contains the IPv6 address.
+		// However, kderef()/kread() only handle data with a
+		// size of 1, 2, 4, or 8.  So, we'll use
+		// kderef_buffer() which goes byte by byte.
+		kderef_buffer(NULL, ipv6, sizeof(struct in6_addr));
+#ifndef NIP6_FMT			// kver >= 2.6.36
+		snprintf(STAP_RETVALUE, MAXSTRINGLEN, "%pI6", ipv6);
+#else
+		snprintf(STAP_RETVALUE, MAXSTRINGLEN, NIP6_FMT, NIP6(*ipv6));
+#endif
+	}
+#endif /* CONFIG_IPV6 || CONFIG_IPV6_MODULE */
+	else
+		strncpy(STAP_RETVALUE, "*unknown address family*",
+			MAXSTRINGLEN);
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+	CATCH_DEREF_FAULT();
+#endif /* CONFIG_IPV6 || CONFIG_IPV6_MODULE */
+%}
+
+/**
+ * sfunction ip_ntop - Returns a string representation for an IPv4 address
+ *
+ * @addr: the IPv4 address represented as an integer
+ */
+function ip_ntop:string (addr:long)
+{
+	return format_ipaddr(addr, @const("AF_INET"))
+}
+
+/*
+ * Return the source IP address for a given sock.
+ *
+ * Note that the probes that use this function typically get a 'struct
+ * sock' pointer, not a 'struct inet_sock' pointer.  This is expected.
+ * To use a 'struct sock' pointer, you typically call inet_sk() on the
+ * pointer, which just returns the pointer (since the 1st member of
+ * 'struct inet_sock' is a 'struct sock').
+ */
+
+function __ip_sock_saddr:long (sock:long)
+{
+    family = @inet_sock_cast(sock)->sk->__sk_common->skc_family
+    if (family == @const("AF_INET")) {
+	return @choose_defined(@inet_sock_cast(sock)->inet_saddr, # kernel >= 2.6.33
+		@choose_defined(@inet_sock_cast(sock)->saddr, # kernel >= 2.6.11
+		    @inet_sock_cast(sock)->inet->saddr))
+    }
+%( CONFIG_IPV6 == "[ym]" %?
+    else if (family == @const("AF_INET6")) {
+	return (&@inet_sock_cast(sock)->pinet6->saddr)
+    }
+%)
+    return 0
+}
+
+/* return the destination IP address for a given sock */
+function __ip_sock_daddr:long (sock:long)
+{
+    family = @inet_sock_cast(sock)->sk->__sk_common->skc_family
+    if (family == @const("AF_INET")) {
+	return @choose_defined(@inet_sock_cast(sock)->sk->__sk_common->skc_daddr, # kernel >= 2.6.38
+		@choose_defined(@inet_sock_cast(sock)->inet_daddr, # kernel >= 2.6.33
+		    @choose_defined(@inet_sock_cast(sock)->daddr, # kernel >= 2.6.11
+			@inet_sock_cast(sock)->inet->daddr)))
+    }
+%( CONFIG_IPV6 == "[ym]" %?
+    else if (family == @const("AF_INET6")) {
+	return @choose_defined(&@inet_sock_cast(sock)->sk->__sk_common->skc_v6_daddr,
+			       &@inet_sock_cast(sock)->pinet6->daddr)
+    }
+%)
+    return 0
+}
+
+/* return the IP address family for a given sock */
+function __ip_sock_family:long (sock:long)
+{
+    return (@inet_sock_cast(sock)->sk->__sk_common->skc_family)
+}
+
+/* Get the IP header from a sk_buff struct */
+function __get_skb_iphdr:long(skb:long)
+%( kernel_v < "2.6.21" %?
+{
+  iphdr = @cast(skb, "sk_buff", "kernel<linux/skbuff.h>")->nh->raw
+	return iphdr
+}
+%:
+%{ /* pure */
+	struct sk_buff *skb;
+	skb = (struct sk_buff *)(uintptr_t)STAP_ARG_skb;
+
+	/* We used to have our own version of skb_network_header()
+	 * here, but it has changed too much over time to keep up with
+	 * it. So, instead we'll make sure the entire skb is safe to
+	 * read, then call the real skb_network_header(). */
+	kderef_buffer(NULL, skb, sizeof(struct sk_buff));
+	STAP_RETVALUE = (long)skb_network_header(skb);
+	CATCH_DEREF_FAULT();
+%}
+%)
+
+# Here's an explanation of the @cast() 3rd argument here. In newer
+# kernels, the "iphdr" structure is in <uapi/linux/ip.h>. But in RHEL6
+# that structure is in <linux/ip.h> and <uapi/linux/ip.h> doesn't
+# exist. So, we can't do "kernel<linux/ip.h><uapi/linux/ip.h>". So, we
+# list each header file separately.
+
+@define iphdr_cast(ptr) %(
+  @cast(@ptr, "iphdr", "kernel<linux/ip.h>:kernel<uapi/linux/ip.h>")
+%)
+
+/* return the source next layer protocol for a given sk_buff structure */
+function __ip_skb_proto:long (iphdr)
+{
+  return @iphdr_cast(iphdr)->protocol
+}
+
+/* return the source IP address for a given sk_buff structure */
+function __ip_skb_saddr:long (iphdr)
+{
+  return @iphdr_cast(iphdr)->saddr
+}
+
+/* return the destination IP address for a given skb */
+function __ip_skb_daddr:long (iphdr)
+{
+  return @iphdr_cast(iphdr)->daddr
+}

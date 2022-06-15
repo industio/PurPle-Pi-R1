@@ -1,0 +1,54 @@
+# sched_setscheduler _________________________________________
+#
+# long sys_sched_setscheduler(pid_t pid, int policy, struct sched_param __user *param)
+#
+
+@define _SYSCALL_SCHED_SETSCHEDULER_NAME
+%(
+	name = "sched_setscheduler"
+%)
+
+@define _SYSCALL_SCHED_SETSCHEDULER_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %p", pid, policy_str, p_uaddr)
+%)
+
+probe syscall.sched_setscheduler = dw_syscall.sched_setscheduler !,
+                                   nd_syscall.sched_setscheduler ? {}
+probe syscall.sched_setscheduler.return = dw_syscall.sched_setscheduler.return !,
+                                          nd_syscall.sched_setscheduler.return ? {}
+
+# dw_sched_setscheduler _____________________________________________________
+
+probe dw_syscall.sched_setscheduler = kernel.function("sys_sched_setscheduler").call ?
+{
+	@_SYSCALL_SCHED_SETSCHEDULER_NAME
+	pid = __int32($pid)
+	policy = __int32($policy)
+	policy_str = _sched_policy_str(policy)
+	p_uaddr = $param
+	@_SYSCALL_SCHED_SETSCHEDULER_ARGSTR
+}
+probe dw_syscall.sched_setscheduler.return = kernel.function("sys_sched_setscheduler").return ?
+{
+	@_SYSCALL_SCHED_SETSCHEDULER_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sched_setscheduler _____________________________________________________
+
+probe nd_syscall.sched_setscheduler = kprobe.function("sys_sched_setscheduler") ?
+{
+	@_SYSCALL_SCHED_SETSCHEDULER_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	policy = int_arg(2)
+	policy_str = _sched_policy_str(policy)
+	p_uaddr = pointer_arg(3)
+	@_SYSCALL_SCHED_SETSCHEDULER_ARGSTR
+}
+probe nd_syscall.sched_setscheduler.return = kprobe.function("sys_sched_setscheduler").return ?
+{
+	@_SYSCALL_SCHED_SETSCHEDULER_NAME
+	retstr = returnstr(1)
+}

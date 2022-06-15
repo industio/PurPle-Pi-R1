@@ -1,0 +1,144 @@
+# sendto _____________________________________________________
+#
+# long sys_sendto(int fd,
+#		void __user * buff,
+#		size_t len,
+#		unsigned flags,
+#		struct sockaddr __user *addr,
+#		int addr_len)
+#
+
+@define _SYSCALL_SENDTO_NAME
+%(
+	name = "sendto"
+%)
+
+@define _SYSCALL_SENDTO_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %u, %s, %s, %u", s, buf, len, flags_str, to_str, tolen)
+%)
+
+probe syscall.sendto = dw_syscall.sendto !, nd_syscall.sendto ? {}
+probe syscall.sendto.return = dw_syscall.sendto.return !,
+                              nd_syscall.sendto.return ? {}
+
+# dw_sendto _____________________________________________________
+
+probe dw_syscall.sendto = __syscall.sendto ?, __syscall.socketcall.sendto ?,
+	__syscall.compat_socketcall.sendto ?
+{
+	@_SYSCALL_SENDTO_NAME
+	flags_str = _msg_flags_str(flags)
+	buf = user_buffer_quoted(buf_uaddr, len, syscall_string_trunc)
+	to_str = _struct_sockaddr_u(to_uaddr, tolen)
+	@_SYSCALL_SENDTO_ARGSTR
+}
+probe __syscall.sendto = kernel.function("sys_sendto").call ?
+{
+	@__syscall_gate(@const("__NR_sendto"))
+	s = __int32($fd)
+	buf_uaddr = $buff
+	len = __ulong($len)
+	flags = __uint32($flags)
+	to_uaddr = $addr
+	tolen = __uint32($addr_len)
+}
+probe __syscall.socketcall.sendto = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_SENDTO")) next;
+	s = __int32(user_ulong(&@ulong_cast($args)[0]))
+	buf_uaddr = user_ulong(&@ulong_cast($args)[1])
+	len = user_ulong(&@ulong_cast($args)[2])
+	flags = __uint32(user_ulong(&@ulong_cast($args)[3]))
+	to_uaddr = user_ulong(&@ulong_cast($args)[4])
+	tolen = __uint32(user_ulong(&@ulong_cast($args)[5]))
+}
+probe __syscall.compat_socketcall.sendto =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_SENDTO")) next;
+	s = user_int(&@uint_cast($args)[0])
+	buf_uaddr = user_uint32(&@uint_cast($args)[1])
+	len = user_uint32(&@uint_cast($args)[2])
+	flags = user_uint32(&@uint_cast($args)[3])
+	to_uaddr = user_uint32(&@uint_cast($args)[4])
+	tolen = user_uint32(&@uint_cast($args)[5])
+}
+probe dw_syscall.sendto.return = kernel.function("sys_sendto").return ?,
+	kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (@defined(@entry($call))) {
+		if (__int32(@entry($call)) != @const("SYS_SENDTO")) next;
+	}
+	else {
+		@__syscall_gate(@const("__NR_sendto"))
+	}
+	@_SYSCALL_SENDTO_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sendto _____________________________________________________
+
+probe nd_syscall.sendto = __nd_syscall.sendto ?,
+	__nd_syscall.socketcall.sendto ?,
+	__nd_syscall.compat_socketcall.sendto ?
+{
+	@_SYSCALL_SENDTO_NAME
+	flags_str = _msg_flags_str(flags)
+	buf = user_buffer_quoted(buf_uaddr, len, syscall_string_trunc)
+	to_str = _struct_sockaddr_u(to_uaddr, tolen)
+	@_SYSCALL_SENDTO_ARGSTR
+}
+probe __nd_syscall.sendto = kprobe.function("sys_sendto").call ?
+{
+	asmlinkage()
+	@__syscall_gate(@const("__NR_sendto"))
+	s = int_arg(1)
+	buf_uaddr = pointer_arg(2)
+	len = ulong_arg(3)
+	flags = uint_arg(4)
+	to_uaddr = pointer_arg(5)
+	tolen = uint_arg(6)
+}
+probe __nd_syscall.socketcall.sendto = kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_SENDTO")) next;
+	__args = &@ulong_cast(pointer_arg(2))
+	s = __int32(user_ulong(&@ulong_cast(__args)[0]))
+	buf_uaddr = user_ulong(&@ulong_cast(__args)[1])
+	len = user_ulong(&@ulong_cast(__args)[2])
+	flags = __uint32(user_ulong(&@ulong_cast(__args)[3]))
+	to_uaddr = user_ulong(&@ulong_cast(__args)[4])
+	tolen = __uint32(user_ulong(&@ulong_cast(__args)[5]))
+}
+probe __nd_syscall.compat_socketcall.sendto =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_SENDTO")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	s = user_int(&@uint_cast(__args)[0])
+	buf_uaddr = user_uint32(&@uint_cast(__args)[1])
+	len = user_uint32(&@uint_cast(__args)[2])
+	flags = user_uint32(&@uint_cast(__args)[3])
+	to_uaddr = user_uint32(&@uint_cast(__args)[4])
+	tolen = user_uint32(&@uint_cast(__args)[5])
+}
+probe nd_syscall.sendto.return = __nd_syscall.sendto.return ?,
+	__nd_syscall.socketcall.sendto.return ?
+{
+	@_SYSCALL_SENDTO_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.sendto.return = kprobe.function("sys_sendto").return ?
+{
+	@__syscall_gate(@const("__NR_sendto"))
+}
+probe __nd_syscall.socketcall.recv.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_SENDTO")) next;
+}

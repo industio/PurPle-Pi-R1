@@ -1,0 +1,71 @@
+# getgroups __________________________________________________
+# long sys_getgroups(int gidsetsize, gid_t __user *grouplist)
+# long sys_getgroups16(int gidsetsize, old_gid_t __user *grouplist)
+# long sys32_getgroups16(int gidsetsize, u16 __user *grouplist)
+#
+
+@define _SYSCALL_GETGROUPS_NAME
+%(
+	name = "getgroups"
+%)
+
+@define _SYSCALL_GETGROUPS_ARGSTR
+%(
+	argstr = sprintf("%d, %p", size, list_uaddr)
+%)
+
+probe syscall.getgroups = dw_syscall.getgroups !, nd_syscall.getgroups ? {}
+probe syscall.getgroups.return = dw_syscall.getgroups.return !, nd_syscall.getgroups.return ? {}
+
+# dw_getgroups _____________________________________________________
+
+probe dw_syscall.getgroups = kernel.function("sys_getgroups16").call ?,
+	kernel.function("sys32_getgroups16").call ?,
+%( arch == "s390" %?
+	kernel.function("compat_sys_s390_getgroups16").call ?,
+%)
+	kernel.function("sys_getgroups").call ?
+{
+	@_SYSCALL_GETGROUPS_NAME
+	size = __int32($gidsetsize)
+	list_uaddr = $grouplist
+	@_SYSCALL_GETGROUPS_ARGSTR
+}
+probe dw_syscall.getgroups.return =
+	kernel.function("sys_getgroups16").return ?,
+	kernel.function("sys32_getgroups16").return ?,
+%( arch == "s390" %?
+	kernel.function("compat_sys_s390_getgroups16").return ?,
+%)
+	kernel.function("sys_getgroups").return ?
+{
+	@_SYSCALL_GETGROUPS_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getgroups _____________________________________________________
+
+probe nd_syscall.getgroups = kprobe.function("sys_getgroups16") ?,
+	kprobe.function("sys32_getgroups16") ?,
+%( arch == "s390" %?
+	kprobe.function("compat_sys_s390_getgroups16") ?,
+%)
+	kprobe.function("sys_getgroups") ?
+{
+	@_SYSCALL_GETGROUPS_NAME
+	asmlinkage()
+	size = int_arg(1)
+	list_uaddr = pointer_arg(2)
+	@_SYSCALL_GETGROUPS_ARGSTR
+}
+probe nd_syscall.getgroups.return =
+	kprobe.function("sys_getgroups16").return ?,
+	kprobe.function("sys32_getgroups16").return ?,
+%( arch == "s390" %?
+	kprobe.function("compat_sys_s390_getgroups16").return ?,
+%)
+	kprobe.function("sys_getgroups").return ?
+{
+	@_SYSCALL_GETGROUPS_NAME
+	retstr = returnstr(1)
+}

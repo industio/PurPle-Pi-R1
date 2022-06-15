@@ -1,0 +1,7 @@
+#! /usr/bin/env stap
+
+probe kernel.function("collapse_huge_page")
+{
+  printf("%-25s: %s (%d) collapse_huge_page",
+    ctime(gettimeofday_s()), execname(), pid())
+}

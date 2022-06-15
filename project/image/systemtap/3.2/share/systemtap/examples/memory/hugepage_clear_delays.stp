@@ -1,0 +1,22 @@
+#! /usr/bin/env stap
+
+global huge_clear
+
+probe kernel.function("clear_huge_page").return
+{
+  huge_clear [execname(), pid()]
+    <<< (gettimeofday_us() - @entry(gettimeofday_us()))
+}
+
+probe begin { printf("Collecting data... press Ctrl-C to stop.\n") }
+
+probe end
+{
+  printf("\n")
+  foreach([name, p] in huge_clear-) {
+    printf("%16s(%5d) count=%d sum(us)=%d avg(us)=%d\n",
+      name, p, @count(huge_clear[name,p]),
+      @sum(huge_clear[name,p]),
+      @avg(huge_clear[name,p]))
+  }
+}

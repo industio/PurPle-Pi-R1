@@ -1,0 +1,58 @@
+# ppc[64]_newuname ________________________________________
+#
+# asmlinkage int ppc64_newuname(struct new_utsname __user * name)
+# long ppc_newuname(struct new_utsname __user * name)
+#
+
+@define _SYSCALL_PPC64_NEWUNAME_NAME
+%(
+	name = "uname"
+%)
+
+@define _SYSCALL_PPC64_NEWUNAME_ARGSTR
+%(
+	argstr = sprintf("%p", name_uaddr)
+%)
+
+probe syscall.ppc64_newuname = dw_syscall.ppc64_newuname !,
+                               nd_syscall.ppc64_newuname ? {}
+probe syscall.ppc64_newuname.return = dw_syscall.ppc64_newuname.return !,
+                                      nd_syscall.ppc64_newuname.return ? {}
+
+# dw_ppc64_newuname _____________________________________________________
+
+probe dw_syscall.ppc64_newuname = kernel.function("ppc64_newuname") ?,
+	kernel.function("ppc_newuname") ?
+{
+	@_SYSCALL_PPC64_NEWUNAME_NAME
+	name_uaddr = $name
+	@_SYSCALL_PPC64_NEWUNAME_ARGSTR
+}
+probe dw_syscall.ppc64_newuname.return =
+	kernel.function("ppc64_newuname").return ?,
+	kernel.function("ppc_newuname").return ?
+{
+	@_SYSCALL_PPC64_NEWUNAME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ppc64_newuname _____________________________________________________
+
+probe nd_syscall.ppc64_newuname = __nd_syscall.ppc64_newuname ?,
+	kprobe.function("ppc_newuname") ?
+{
+	@_SYSCALL_PPC64_NEWUNAME_NAME
+	name_uaddr = pointer_arg(1)
+	@_SYSCALL_PPC64_NEWUNAME_ARGSTR
+}
+probe __nd_syscall.ppc64_newuname = kprobe.function("ppc64_newuname") ?
+{
+	asmlinkage()
+}
+probe nd_syscall.ppc64_newuname.return =
+	kprobe.function("ppc64_newuname").return ?,
+	kprobe.function("ppc_newuname").return ?
+{
+	@_SYSCALL_PPC64_NEWUNAME_NAME
+	retstr = returnstr(1)
+}

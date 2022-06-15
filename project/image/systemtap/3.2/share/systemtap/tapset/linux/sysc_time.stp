@@ -1,0 +1,61 @@
+# time _______________________________________________________
+#
+# long sys_time(time_t __user * tloc)
+# long sys_time64(long __user * tloc)
+# long sys32_time(compat_time_t __user * tloc)
+# long compat_sys_time(compat_time_t __user * tloc)
+#
+
+@define _SYSCALL_TIME_NAME
+%(
+	name = "time"
+%)
+
+@define _SYSCALL_TIME_ARGSTR
+%(
+	argstr = sprintf("%p", t_uaddr)
+%)
+
+probe syscall.time = dw_syscall.time !, nd_syscall.time ? {}
+probe syscall.time.return = dw_syscall.time.return !, nd_syscall.time.return ? {}
+
+# dw_time _____________________________________________________
+
+probe dw_syscall.time = kernel.function("sys32_time").call ?,
+                     kernel.function("sys_time64").call ?,
+                     kernel.function("compat_sys_time").call ?,
+                     kernel.function("sys_time").call ?
+{
+	@_SYSCALL_TIME_NAME
+	t_uaddr = $tloc
+	@_SYSCALL_TIME_ARGSTR
+}
+probe dw_syscall.time.return = kernel.function("sys32_time").return ?,
+                            kernel.function("sys_time64").return ?,
+                            kernel.function("compat_sys_time").return ?,
+                            kernel.function("sys_time").return ?
+{
+	@_SYSCALL_TIME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_time _____________________________________________________
+
+probe nd_syscall.time = kprobe.function("sys32_time") ?,
+                        kprobe.function("sys_time64") ?,
+                        kprobe.function("compat_sys_time") ?,
+                        kprobe.function("sys_time") ?
+{
+	@_SYSCALL_TIME_NAME
+	asmlinkage()
+	t_uaddr = pointer_arg(1)
+	@_SYSCALL_TIME_ARGSTR
+}
+probe nd_syscall.time.return = kprobe.function("sys32_time").return ?,
+                               kprobe.function("sys_time64").return ?,
+                               kprobe.function("compat_sys_time").return ?,
+                               kprobe.function("sys_time").return ?
+{
+	@_SYSCALL_TIME_NAME
+	retstr = returnstr(1)
+}

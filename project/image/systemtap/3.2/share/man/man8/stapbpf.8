@@ -1,0 +1,151 @@
+.\" -*- nroff -*-
+.TH STAPBPF 8 
+.SH NAME
+stapbpf \- systemtap bpf runtime
+
+.\" macros
+.de SAMPLE
+
+.nr oldin \\n(.i
+.br
+.RS
+.nf
+.nh
+..
+.de ESAMPLE
+.hy
+.fi
+.RE
+.in \\n[oldin]u
+
+..
+
+
+.SH SYNOPSIS
+
+.br
+.B stapbpf
+[
+.I OPTIONS
+]
+.I MODULE
+
+.SH DESCRIPTION
+
+The
+.I stapbpf
+program is the BPF back-end of the Systemtap tool.  It expects a 
+bpf-elf file produced by the front-end
+.I stap
+tool, when run with
+.IR \-\-runtime=bpf .
+
+.PP
+Splitting the systemtap tool into a front-end and a back-end allows a
+user to compile a systemtap script on a development machine that has
+the debugging information (need to compile the script) and then
+transfer the resulting shared object to a production machine that
+doesn't have any development tools or debugging information installed.
+.PP
+Please refer to stappaths (7) for the version number, or run
+rpm \-q systemtap (fedora/red hat)
+apt\-get \-v systemtap (ubuntu)
+
+.SH OPTIONS
+The
+.I stapbpf
+program supports the following options.  Any other option
+prints a list of supported options.
+.TP
+.B \-v
+Verbose mode.
+.TP
+.B \-V
+Print version number and exit.
+.TP
+.B \-w
+Suppress warnings from the script.
+.TP
+.B \-h
+Print help message.
+.TP
+.B \-o FILE
+Send output to FILE.
+
+.SH ARGUMENTS
+.B MODULE
+is the path of a bpf-elf file produced by the front-end
+.I stap
+tool, when run with
+.IR \-\-runtime=bpf .
+
+.SH EXAMPLES
+Here is a very basic example of how to use
+.IR stapbpf .
+First, use
+.I stap
+to compile a script.  The
+.I stap
+program will report the name of the resulting module in the current
+working directory.
+.PP
+\& $ stap \-\-runtime=bpf \-p4 \-e \[aq]probe begin { printf("Hello World!\\n"); exit() }\[aq]
+.br
+\& stap_28784.bo
+.PP
+Run
+.I stapbpf
+with the pathname to the module as an argument.
+.PP
+\& $ stapbpf ./stap_28784.bo
+.br
+\& Hello World!
+
+.SH LIMITATIONS
+This runtime is in an early stage of development and it currently lacks
+support for a number of features available in the default runtime. The only
+probes currently supported are:
+
+.SAMPLE
+begin
+end
+kernel.*
+.ESAMPLE
+
+.B for
+loops and
+.B while
+loops are usable only in 
+.B begin
+and
+.B end
+probes. 
+.B try
+and
+.B foreach
+statements are not supported. Except for
+.B printf
+format strings,
+there is no support for string variables or string literals. Additionally,
+.B printf
+is limited to no more than 3 format specifiers and the name
+of the bpf-elf file produced by the front-end 
+.I stap
+tool should not be changed.
+
+.SH SAFETY AND SECURITY
+See the 
+.IR stap (1)
+manual page for additional information on safety and security.
+
+.SH SEE ALSO
+.IR stap (1),
+.IR stapprobes (3stap),
+.IR staprun (8),
+.IR stapex (3stap)
+
+.SH BUGS
+Use the Bugzilla link of the project web page or our mailing list.
+.nh
+.BR http://sourceware.org/systemtap/ ", " <systemtap@sourceware.org> .
+.hy

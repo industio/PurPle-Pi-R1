@@ -1,0 +1,45 @@
+# io_destroy _________________________________________________
+# long sys_io_destroy(aio_context_t ctx)
+
+@define _SYSCALL_IO_DESTROY_NAME
+%(
+	name = "io_destroy"
+%)
+
+@define _SYSCALL_IO_DESTROY_ARGSTR
+%(
+	argstr = sprintf("%u", ctx)
+%)
+
+probe syscall.io_destroy = dw_syscall.io_destroy !, nd_syscall.io_destroy ? {}
+probe syscall.io_destroy.return = dw_syscall.io_destroy.return !,
+                                  nd_syscall.io_destroy.return ? {}
+
+# dw_io_destroy _____________________________________________________
+
+probe dw_syscall.io_destroy = kernel.function("sys_io_destroy").call
+{
+	@_SYSCALL_IO_DESTROY_NAME
+	ctx = @__compat_ulong($ctx)
+	@_SYSCALL_IO_DESTROY_ARGSTR
+}
+probe dw_syscall.io_destroy.return = kernel.function("sys_io_destroy").return
+{
+	@_SYSCALL_IO_DESTROY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_io_destroy _____________________________________________________
+
+probe nd_syscall.io_destroy = kprobe.function("sys_io_destroy") ?
+{
+	@_SYSCALL_IO_DESTROY_NAME
+	asmlinkage()
+	ctx = ulong_arg(1)
+	@_SYSCALL_IO_DESTROY_ARGSTR
+}
+probe nd_syscall.io_destroy.return = kprobe.function("sys_io_destroy").return ?
+{
+	@_SYSCALL_IO_DESTROY_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,67 @@
+# fchownat ___________________________________________________
+# new function with 2.6.16
+# long sys_fchownat(int dfd, const char __user *filename,
+#	uid_t user, gid_t group, int flag)
+
+@define _SYSCALL_FCHOWNAT_NAME
+%(
+	name = "fchownat"
+%)
+
+@define _SYSCALL_FCHOWNAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %d, %d, %s", dirfd_str, pathname, owner,
+	                 group, flags_str)
+%)
+
+probe syscall.fchownat = dw_syscall.fchownat !, nd_syscall.fchownat ? {}
+probe syscall.fchownat.return = dw_syscall.fchownat.return !, nd_syscall.fchownat.return ? {}
+
+# dw_fchownat _____________________________________________________
+
+probe dw_syscall.fchownat = kernel.function("sys_fchownat").call ?
+{
+	@__syscall_compat_gate(@const("__NR_fchownat"),
+			       @const("__NR_compat_fchownat"))
+	@_SYSCALL_FCHOWNAT_NAME
+	dirfd = __int32($dfd)
+	dirfd_str = _dfd_str(__int32($dfd))
+	pathname = user_string_quoted($filename)
+	owner = __int32($user)
+	group = __int32($group)
+	flags = __int32($flag)
+	flags_str = _at_flag_str(__int32($flag))
+	@_SYSCALL_FCHOWNAT_ARGSTR
+}
+probe dw_syscall.fchownat.return = kernel.function("sys_fchownat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_fchownat"),
+			       @const("__NR_compat_fchownat"))
+	@_SYSCALL_FCHOWNAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fchownat _____________________________________________________
+
+probe nd_syscall.fchownat = kprobe.function("sys_fchownat") ?
+{
+	@__syscall_compat_gate(@const("__NR_fchownat"),
+			       @const("__NR_compat_fchownat"))
+	@_SYSCALL_FCHOWNAT_NAME
+	asmlinkage()
+	dirfd = int_arg(1)
+	dirfd_str = _dfd_str(dirfd)
+	pathname = user_string_quoted(pointer_arg(2))
+	owner = __int32(uint_arg(3))
+	group = __int32(uint_arg(4))
+	flags = int_arg(5)
+	flags_str = _at_flag_str(flags)
+	@_SYSCALL_FCHOWNAT_ARGSTR
+}
+probe nd_syscall.fchownat.return = kprobe.function("sys_fchownat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_fchownat"),
+			       @const("__NR_compat_fchownat"))
+	@_SYSCALL_FCHOWNAT_NAME
+	retstr = returnstr(1)
+}

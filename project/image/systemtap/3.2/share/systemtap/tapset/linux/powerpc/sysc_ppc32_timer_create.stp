@@ -1,0 +1,55 @@
+# ppc32_timer_create ________________________________________
+#
+# long ppc32_timer_create(clockid_t clock,
+#			struct compat_sigevent __user *ev32,
+#			timer_t __user *timer_id)
+#
+
+@define _SYSCALL_PPC32_TIMER_CREATE_NAME
+%(
+	name = "ppc32_timer_create"
+%)
+
+@define _SYSCALL_PPC32_TIMER_CREATE_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %p", which_clock,
+	                 timer_event_spec, created_timer_id)
+%)
+
+probe syscall.ppc32_timer_create = dw_syscall.ppc32_timer_create !,
+                                   nd_syscall.ppc32_timer_create ? {}
+probe syscall.ppc32_timer_create.return = dw_syscall.ppc32_timer_create.return !,
+                                          nd_syscall.ppc32_timer_create.return ? {}
+
+# dw_ppc32_timer_create _____________________________________________________
+
+probe dw_syscall.ppc32_timer_create = kernel.function("ppc32_timer_create") ?
+{
+	@_SYSCALL_PPC32_TIMER_CREATE_NAME
+	which_clock = $clock
+	timer_event_spec = $ev32
+	created_timer_id = $timer_id
+	@_SYSCALL_PPC32_TIMER_CREATE_ARGSTR
+}
+probe dw_syscall.ppc32_timer_create.return = kernel.function("ppc32_timer_create").return ?
+{
+	@_SYSCALL_PPC32_TIMER_CREATE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ppc32_timer_create _____________________________________________________
+
+probe nd_syscall.ppc32_timer_create = kprobe.function("ppc32_timer_create") ?
+{
+	@_SYSCALL_PPC32_TIMER_CREATE_NAME
+	asmlinkage()
+	which_clock = int_arg(1)
+	timer_event_spec = pointer_arg(2)
+	created_timer_id = pointer_arg(3)
+	@_SYSCALL_PPC32_TIMER_CREATE_ARGSTR
+}
+probe nd_syscall.ppc32_timer_create.return = kprobe.function("ppc32_timer_create").return ?
+{
+	@_SYSCALL_PPC32_TIMER_CREATE_NAME
+	retstr = returnstr(1)
+}

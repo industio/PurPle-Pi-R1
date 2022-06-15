@@ -1,0 +1,50 @@
+# personality ________________________________________________
+#
+# asmlinkage long
+# sys_personality(unsigned int personality)
+# personality type changed from ulong to uint32 in upstream commit 485d5276
+# (v2.6.35-rc2~25). But rhel6 distribution kernel has the backport in 2.6.32.
+#
+
+@define _SYSCALL_PERSONALITY_NAME
+%(
+	name = "personality"
+%)
+
+@define _SYSCALL_PERSONALITY_ARGSTR
+%(
+	argstr = sprintf("%#x", persona);
+%)
+
+probe syscall.personality = dw_syscall.personality !, nd_syscall.personality ? {}
+probe syscall.personality.return = dw_syscall.personality.return !,
+                                   nd_syscall.personality.return ? {}
+
+# dw_personality _____________________________________________________
+
+probe dw_syscall.personality = kernel.function("sys_personality").call
+{
+	@_SYSCALL_PERSONALITY_NAME
+	persona = __uint32($personality)
+	@_SYSCALL_PERSONALITY_ARGSTR
+}
+probe dw_syscall.personality.return = kernel.function("sys_personality").return
+{
+	@_SYSCALL_PERSONALITY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_personality _____________________________________________________
+
+probe nd_syscall.personality = kprobe.function("sys_personality") ?
+{
+	@_SYSCALL_PERSONALITY_NAME
+	asmlinkage()
+	persona = uint_arg(1)
+	@_SYSCALL_PERSONALITY_ARGSTR
+}
+probe nd_syscall.personality.return = kprobe.function("sys_personality").return ?
+{
+	@_SYSCALL_PERSONALITY_NAME
+	retstr = returnstr(1)
+}

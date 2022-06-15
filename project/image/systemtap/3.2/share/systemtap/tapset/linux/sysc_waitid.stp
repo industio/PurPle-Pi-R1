@@ -1,0 +1,88 @@
+# waitid _____________________________________________________
+#
+# long sys_waitid(int which,
+#		pid_t pid,
+#		struct siginfo __user *infop,
+#		int options,
+#		struct rusage __user *ru)
+# COMPAT_SYSCALL_DEFINE5(waitid,
+#		int, which, compat_pid_t, pid,
+#		struct compat_siginfo __user *, uinfo, int, options,
+#		struct compat_rusage __user *, uru)
+#
+
+@define _SYSCALL_WAITID_NAME
+%(
+	name = "waitid"
+%)
+
+@define _SYSCALL_WAITID_ARGSTR
+%(
+	argstr = sprintf("%s, %d, %p, %s, %p", which_str, pid, infop_uaddr,
+	                 options_str, rusage_uaddr)
+%)
+
+probe syscall.waitid = dw_syscall.waitid !, nd_syscall.waitid ? {}
+probe syscall.waitid.return = dw_syscall.waitid.return !,
+                              nd_syscall.waitid.return ? {}
+
+# dw_waitid _____________________________________________________
+
+probe dw_syscall.waitid = __syscall.waitid,
+	kernel.function("compat_sys_waitid").call ?
+{
+	@_SYSCALL_WAITID_NAME
+	which = __int32($which)
+	which_str = _waitid_which_str(__int32($which))
+	pid = __int32(@choose_defined($upid, $pid))
+	infop_uaddr = @__pointer(@choose_defined($infop, $uinfo))
+	options = $options
+	options_str = _wait4_opt_str($options)
+	rusage_uaddr = @choose_defined($ru, $uru)
+	@_SYSCALL_WAITID_ARGSTR
+}
+probe __syscall.waitid = kernel.function("sys_waitid").call
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.waitid.return = __syscall.waitid.return,
+	kernel.function("compat_sys_waitid").return ?
+{
+	@_SYSCALL_WAITID_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.waitid.return = kernel.function("sys_waitid").return
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_waitid _____________________________________________________
+
+probe nd_syscall.waitid = __nd_syscall.waitid,
+	kprobe.function("compat_sys_waitid") ?
+{
+	@_SYSCALL_WAITID_NAME
+	asmlinkage()
+	which = int_arg(1)
+	which_str = _waitid_which_str(which)
+	pid = int_arg(2)
+	infop_uaddr = pointer_arg(3)
+	options = int_arg(4)
+	options_str = _wait4_opt_str(options)
+	rusage_uaddr = pointer_arg(5)
+	@_SYSCALL_WAITID_ARGSTR
+}
+probe __nd_syscall.waitid = kprobe.function("sys_waitid")
+{
+	@__syscall_gate_compat_simple
+}
+probe nd_syscall.waitid.return = __nd_syscall.waitid.return,
+	kprobe.function("compat_sys_waitid").return ?
+{
+	@_SYSCALL_WAITID_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.waitid.return = kprobe.function("sys_waitid").return
+{
+	@__syscall_gate_compat_simple
+}

@@ -1,0 +1,51 @@
+# compat_timer_gettime ________________________________________
+#
+# long compat_timer_gettime(timer_t timer_id,
+#		struct compat_itimerspec __user *setting)
+#
+
+@define _SYSCALL_COMPAT_TIMER_GETTIME_NAME
+%(
+	name = "compat_timer_gettime"
+%)
+
+@define _SYSCALL_COMPAT_TIMER_GETTIME_ARGSTR
+%(
+	argstr = sprintf("%d, %p", timer_id, setting_uaddr)
+%)
+
+probe syscall.compat_timer_gettime = dw_syscall.compat_timer_gettime !,
+                                     nd_syscall.compat_timer_gettime ? {}
+probe syscall.compat_timer_gettime.return = dw_syscall.compat_timer_gettime.return !,
+                                            nd_syscall.compat_timer_gettime.return ? {}
+
+# dw_compat_timer_gettime _____________________________________________________
+
+probe dw_syscall.compat_timer_gettime = kernel.function("compat_timer_gettime") ?
+{
+	@_SYSCALL_COMPAT_TIMER_GETTIME_NAME
+	timer_id = $timer_id
+	setting_uaddr = $setting
+	@_SYSCALL_COMPAT_TIMER_GETTIME_ARGSTR
+}
+probe dw_syscall.compat_timer_gettime.return = kernel.function("compat_timer_gettime").return ?
+{
+	@_SYSCALL_COMPAT_TIMER_GETTIME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_timer_gettime _____________________________________________________
+
+probe nd_syscall.compat_timer_gettime = kprobe.function("compat_timer_gettime") ?
+{
+	@_SYSCALL_COMPAT_TIMER_GETTIME_NAME
+	asmlinkage()
+	timer_id = int_arg(1)
+	setting_uaddr = pointer_arg(2)
+	@_SYSCALL_COMPAT_TIMER_GETTIME_ARGSTR
+}
+probe nd_syscall.compat_timer_gettime.return = kprobe.function("compat_timer_gettime").return ?
+{
+	@_SYSCALL_COMPAT_TIMER_GETTIME_NAME
+	retstr = returnstr(1)
+}

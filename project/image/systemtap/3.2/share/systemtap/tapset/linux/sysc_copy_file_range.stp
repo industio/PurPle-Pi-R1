@@ -1,0 +1,59 @@
+# copy_file_range ___________________________________________
+# SYSCALL_DEFINE6(copy_file_range, int, fd_in, loff_t __user *, off_in,
+#		int, fd_out, loff_t __user *, off_out,
+#		size_t, len, unsigned int, flags)
+
+@define _SYSCALL_COPY_FILE_RANGE_NAME
+%(
+	name = "copy_file_range"
+%)
+
+@define _SYSCALL_COPY_FILE_RANGE_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d, %p, %u, 0x%x", fd_in, off_in, fd_out,
+	                 off_out, len, flags)
+%)
+
+probe syscall.copy_file_range = dw_syscall.copy_file_range !, nd_syscall.copy_file_range ? {}
+probe syscall.copy_file_range.return = dw_syscall.copy_file_range.return !, nd_syscall.copy_file_range.return ? {}
+
+# dw_copy_file_range _____________________________________________________
+
+probe dw_syscall.copy_file_range = kernel.function("sys_copy_file_range").call ?
+{
+	@_SYSCALL_COPY_FILE_RANGE_NAME
+	fd_in = __int32($fd_in)
+	off_in = @__pointer($off_in)
+	fd_out = __int32($fd_out)
+	off_out = @__pointer($off_out)
+	len = __ulong($len)
+	flags = __uint32($flags)
+	@_SYSCALL_COPY_FILE_RANGE_ARGSTR
+}
+probe dw_syscall.copy_file_range.return =
+	kernel.function("sys_copy_file_range").return ?
+{
+	@_SYSCALL_COPY_FILE_RANGE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_copy_file_range _____________________________________________________
+
+probe nd_syscall.copy_file_range =
+	kprobe.function("sys_copy_file_range").call ?
+{
+	@_SYSCALL_COPY_FILE_RANGE_NAME
+	fd_in = int_arg(1)
+	off_in = pointer_arg(2)
+	fd_out = int_arg(3)
+	off_out = pointer_arg(4)
+	len = ulong_arg(5)
+	flags = uint_arg(6)
+	@_SYSCALL_COPY_FILE_RANGE_ARGSTR
+}
+probe nd_syscall.copy_file_range.return =
+	kprobe.function("sys_copy_file_range").return ?
+{
+	@_SYSCALL_COPY_FILE_RANGE_NAME
+	retstr = returnstr(1)
+}

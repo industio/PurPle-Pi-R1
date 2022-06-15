@@ -1,0 +1,7 @@
+#! /usr/bin/env stap
+
+probe kernel.function("split_huge_page")
+{
+  printf("%-25s: %s (%d) split_huge_page",
+    ctime(gettimeofday_s()), execname(), pid())
+}

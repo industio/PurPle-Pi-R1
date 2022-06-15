@@ -1,0 +1,43 @@
+# sync _______________________________________________________
+#
+# sys_sync(void)
+#
+
+@define _SYSCALL_SYNC_NAME
+%(
+	name = "sync"
+%)
+
+@define _SYSCALL_SYNC_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.sync = dw_syscall.sync !, nd_syscall.sync {}
+probe syscall.sync.return = dw_syscall.sync.return !, nd_syscall.sync.return {}
+
+# dw_sync _____________________________________________________
+
+probe dw_syscall.sync = kernel.function("sys_sync").call
+{
+	@_SYSCALL_SYNC_NAME
+	@_SYSCALL_SYNC_ARGSTR
+}
+probe dw_syscall.sync.return = kernel.function("sys_sync").return
+{
+	@_SYSCALL_SYNC_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sync _____________________________________________________
+
+probe nd_syscall.sync = kprobe.function("sys_sync")
+{
+	@_SYSCALL_SYNC_NAME
+	@_SYSCALL_SYNC_ARGSTR
+}
+probe nd_syscall.sync.return = kprobe.function("sys_sync").return
+{
+	@_SYSCALL_SYNC_NAME
+	retstr = returnstr(1)
+}

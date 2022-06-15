@@ -1,0 +1,11 @@
+# <- this is for comment / total file size must be less than 4KB
+
+mxp  t.init
+fatload usb 0 0x21000000 $(usb_folder)/MXP_SF.bin
+mxp  t.update 0x21000000
+mxp  t.load
+sf probe 0
+sf erase 0x10000 0x1000
+sf write 0x21000000 0x10000 0x1000
+
+% <- this is end of file symbol

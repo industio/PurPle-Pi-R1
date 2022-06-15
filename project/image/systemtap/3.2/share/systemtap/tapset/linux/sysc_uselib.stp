@@ -1,0 +1,50 @@
+# uselib _____________________________________________________
+#
+# asmlinkage long
+# sys_uselib(const char __user * library)
+#
+
+@define _SYSCALL_USELIB_NAME
+%(
+	name = "uselib"
+%)
+
+@define _SYSCALL_USELIB_ARGSTR
+%(
+	argstr = library
+%)
+
+probe syscall.uselib = dw_syscall.uselib !, nd_syscall.uselib ? {}
+probe syscall.uselib.return = dw_syscall.uselib.return !,
+                              nd_syscall.uselib.return ? {}
+
+# dw_uselib _____________________________________________________
+
+probe dw_syscall.uselib = kernel.function("sys_uselib").call ?
+{
+	@_SYSCALL_USELIB_NAME
+	library_uaddr = $library
+	library = user_string_quoted($library)
+	@_SYSCALL_USELIB_ARGSTR
+}
+probe dw_syscall.uselib.return = kernel.function("sys_uselib").return ?
+{
+	@_SYSCALL_USELIB_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_uselib _____________________________________________________
+
+probe nd_syscall.uselib = kprobe.function("sys_uselib") ?
+{
+	@_SYSCALL_USELIB_NAME
+	asmlinkage()
+	library_uaddr = pointer_arg(1)
+	library = user_string_quoted(library_uaddr)
+	@_SYSCALL_USELIB_ARGSTR
+}
+probe nd_syscall.uselib.return = kprobe.function("sys_uselib").return ?
+{
+	@_SYSCALL_USELIB_NAME
+	retstr = returnstr(1)
+}

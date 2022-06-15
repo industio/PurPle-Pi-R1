@@ -1,0 +1,78 @@
+// context tapset
+// Copyright (C) 2016 Red Hat Inc.
+//
+// This file is part of systemtap, and is free software.  You can
+// redistribute it and/or modify it under the terms of the GNU General
+// Public License (GPL); either version 2, or (at your option) any
+// later version.
+
+/**
+ * sfunction pid - Returns the ID of a thread group
+ * 
+ * Description: This function returns the ID of a target process.
+ */
+function pid:long ()
+%{ /* bpf */ /* pure */ /* unprivileged */ /* stable */
+   0x85, 0, 0, 0, 14;	/* call BPF_FUNC_get_current_pid_tgid */
+   0xbf, $$, 0, 0, 0;   /* movx $$, r0 */
+   0x67, $$, 0, 0, 32	/* lshk $$, 32 */
+%}
+
+/**
+ * sfunction tid - Returns the thread ID of a target process
+ * 
+ * Description: This function returns the ID of a target process.
+ */
+function tid:long ()
+%{ /* bpf */ /* pure */ /* unprivileged */ /* stable */
+   0x85, 0, 0, 0, 14;	/* call BPF_FUNC_get_current_pid_tgid */
+   0xbc, $$, 0, 0, 0	/* movwx $$, r0 */
+%}
+
+/**
+ * sfunction gid - Returns the group ID of a target process
+ * 
+ * Description: This function returns the group ID of a target process.
+ */
+function gid:long ()
+%{ /* bpf */ /* pure */ /* unprivileged */ /* stable */
+   0x85, 0, 0, 0, 15;	/* call BPF_FUNC_get_current_uid_gid */
+   0xbf, $$, 0, 0, 0;   /* movx $$, r0 */
+   0x67, $$, 0, 0, 32	/* lshk $$, 32 */
+%}
+
+/**
+ * sfunction uid - Returns the user ID of a target process
+ *
+ * Description: This function returns the user ID of the target process.
+ */
+function uid:long ()
+%{ /* bpf */ /* pure */ /* unprivileged */ /* stable */
+   0x85, 0, 0, 0, 15;	/* call BPF_FUNC_get_current_uid_gid */
+   0xbc, $$, 0, 0, 0	/* movwx $$, r0 */
+%}
+
+/**
+ * sfunction cpuid - Returns the current cpu number
+ * 
+ * Description: This function returns the current cpu number.
+ * Deprecated in SystemTap 1.4 and removed in SystemTap 1.5.
+ */
+%( systemtap_v <= "1.4" %?
+  function cpuid:long ()
+  %{ /* bpf */ /* pure */
+     0x85, 0, 0, 0, 8;	/* call BPF_FUNC_get_smp_processor_id */
+     0xbf, $$, 0, 0, 0	/* movx $$, r0 */
+  %}
+%)
+
+/**
+ * sfunction cpu - Returns the current cpu number
+ *
+ * Description: This function returns the current cpu number.
+ */
+function cpu:long ()
+%{ /* bpf */ /* pure */ /* unprivileged */ /* stable */
+   0x85, 0, 0, 0, 8;	/* call BPF_FUNC_get_smp_processor_id */
+   0xbf, $$, 0, 0, 0	/* movx $$, r0 */
+%}

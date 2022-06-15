@@ -1,0 +1,59 @@
+# seccomp ____________________________________________________
+# long sys_seccomp(unsigned int op, unsigned int flags, const char __user* uargs)
+
+@define _SYSCALL_SECCOMP_NAME
+%(
+	name = "seccomp"
+%)
+
+@define _SYSCALL_SECCOMP_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %p", op_str, flags_str, uargs_uaddr)
+%)
+
+probe syscall.seccomp = dw_syscall.seccomp !, nd_syscall.seccomp ? {}
+probe syscall.seccomp.return = dw_syscall.seccomp.return !,
+                               nd_syscall.seccomp.return ? {}
+
+# dw_seccomp _____________________________________________________
+
+probe dw_syscall.seccomp = kernel.function("sys_seccomp").call ?
+{
+	@_SYSCALL_SECCOMP_NAME
+	op = $op
+	op_str = _seccomp_op_str(op)
+	flags = $flags
+	flags_str = _seccomp_flags_str(flags)
+%( systemtap_v <= "2.9" %?
+	uargs = user_string_quoted($uargs)
+%)
+	uargs_uaddr = $uargs
+	@_SYSCALL_SECCOMP_ARGSTR
+}
+probe dw_syscall.seccomp.return = kernel.function("sys_seccomp").return ?
+{
+	@_SYSCALL_SECCOMP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_seccomp _____________________________________________________
+
+probe nd_syscall.seccomp = kprobe.function("sys_seccomp") ?
+{
+	@_SYSCALL_SECCOMP_NAME
+	asmlinkage()
+	op = uint_arg(1)
+	op_str = _seccomp_op_str(op)
+	flags = uint_arg(2)
+	flags_str = _seccomp_flags_str(flags)
+%( systemtap_v <= "2.9" %?
+	uargs = user_string_quoted(pointer_arg(3))
+%)
+	uargs_uaddr = pointer_arg(3)
+	@_SYSCALL_SECCOMP_ARGSTR
+}
+probe nd_syscall.seccomp.return = kprobe.function("sys_seccomp").return ?
+{
+	@_SYSCALL_SECCOMP_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,98 @@
+# In kernels < 2.6.33, mmap()/mmap2() was handled by arch-specific
+# code.  In kernels >= 2.6.33, the arch-specific code just calls
+# generic sys_mmap_pgoff().
+%( kernel_v < "2.6.33" %?
+# mmap2 _________________________________________________
+#
+# long sys_mmap2(struct mmap_arg_struct __user  *arg)
+# long sys32_mmap2(struct mmap_arg_struct_emu31 __user *arg)
+#
+
+@define _SYSCALL_MMAP2_NAME
+%(
+	name = "mmap2"
+%)
+
+@define _SYSCALL_MMAP2_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s, %s, %d, %d", start, length,
+	                 prot_str, flags_str, fd, pgoffset)
+%)
+
+probe syscall.mmap2 = dw_syscall.mmap2 !, nd_syscall.mmap2 ? {}
+probe syscall.mmap2.return = dw_syscall.mmap2.return !, nd_syscall.mmap2.return ? {}
+
+# dw_mmap2 _____________________________________________________
+
+probe dw_syscall.mmap2 = __syscall.mmap2 ?, __syscall.mmap2_32 ?
+{
+        @_SYSCALL_MMAP2_NAME
+	prot_str = _mprotect_prot_str(prot)
+	flags_str = _mmap_flags(flags)
+	@_SYSCALL_MMAP2_ARGSTR
+}
+probe __syscall.mmap2 = kernel.function("sys_mmap2")
+{
+	start = user_long(&@cast($arg, "mmap_arg_struct")->addr)
+	length = user_ulong(&@cast($arg, "mmap_arg_struct")->len)
+	prot = user_long(&@cast($arg, "mmap_arg_struct")->prot)
+	flags = user_long(&@cast($arg, "mmap_arg_struct")->flags)
+	fd = user_long(&@cast($arg, "mmap_arg_struct")->fd)
+	pgoffset = user_long(&@cast($arg, "mmap_arg_struct")->offset)
+}
+probe __syscall.mmap2_32 = kernel.function("sys32_mmap2")
+{
+	start = user_int(&@cast($arg, "mmap_arg_struct_emu31")->addr)
+	length = user_uint32(&@cast($arg, "mmap_arg_struct_emu31")->len)
+	prot = user_int(&@cast($arg, "mmap_arg_struct_emu31")->prot)
+	flags = user_int(&@cast($arg, "mmap_arg_struct_emu31")->flags)
+	fd = user_int(&@cast($arg, "mmap_arg_struct_emu31")->fd)
+	pgoffset = user_int(&@cast($arg, "mmap_arg_struct_emu31")->offset)
+}
+
+probe dw_syscall.mmap2.return = kernel.function("sys_mmap2").return ?,
+                             kernel.function("sys32_mmap2").return ?
+{
+        @_SYSCALL_MMAP2_NAME
+        retstr = return_str(2, $return)
+}
+
+# nd_mmap2 _____________________________________________________
+
+probe nd_syscall.mmap2 = __nd_syscall.mmap2 ?, __nd_syscall.mmap2_32 ?
+{
+	@_SYSCALL_MMAP2_NAME
+	prot_str = _mprotect_prot_str(prot)
+	flags_str = _mmap_flags(flags)
+	@_SYSCALL_MMAP2_ARGSTR
+}
+probe __nd_syscall.mmap2 = kprobe.function("sys_mmap2")
+{
+	asmlinkage()
+	__args = &@ulong_cast(pointer_arg(1))
+	start = user_ulong(&(__args)[0])
+	length = user_ulong(&(__args)[1])
+	prot = user_ulong(&(__args)[2])
+	flags = user_ulong(&(__args)[3])
+	fd = user_long(&(__args)[4])
+	pgoffset = user_ulong(&(__args)[5])
+}
+probe __nd_syscall.mmap2_32 = kprobe.function("sys32_mmap2")
+{
+	asmlinkage()
+	__args = &@uint_cast(pointer_arg(1))
+	start = user_uint32(&(__args)[0])
+	length = user_uint32(&(__args)[1])
+	prot = user_uint32(&(__args)[2])
+	flags = user_uint32(&(__args)[3])
+	fd = user_int(&(__args)[4])
+	pgoffset = user_uint32(&(__args)[5])
+}
+
+probe nd_syscall.mmap2.return = kprobe.function("sys_mmap2").return ?,
+                                kprobe.function("sys32_mmap2").return ?
+{
+	@_SYSCALL_MMAP2_NAME
+	retstr = returnstr(2)
+}
+%)

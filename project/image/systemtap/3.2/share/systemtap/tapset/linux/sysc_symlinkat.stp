@@ -1,0 +1,65 @@
+# symlinkat __________________________________________________
+# new function with 2.6.16
+# long sys_symlinkat(const char __user *oldname, int newdfd,
+#	const char __user *newname)
+
+@define _SYSCALL_SYMLINKAT_NAME
+%(
+	name = "symlinkat"
+%)
+
+@define _SYSCALL_SYMLINKAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s", oldname_str, newdfd_str, newname_str)
+%)
+
+probe syscall.symlinkat = dw_syscall.symlinkat !, nd_syscall.symlinkat ? {}
+probe syscall.symlinkat.return = dw_syscall.symlinkat.return !,
+                                 nd_syscall.symlinkat.return ? {}
+
+# dw_symlinkat _____________________________________________________
+
+probe dw_syscall.symlinkat = kernel.function("sys_symlinkat").call ?
+{
+	@__syscall_compat_gate(@const("__NR_symlinkat"),
+			       @const("__NR_compat_symlinkat"))
+	@_SYSCALL_SYMLINKAT_NAME
+	oldname = $oldname
+	oldname_str = user_string_quoted($oldname)
+	newdfd = __int32($newdfd)
+	newdfd_str = _dfd_str(__int32($newdfd))
+	newname = $newname
+	newname_str = user_string_quoted($newname)
+	@_SYSCALL_SYMLINKAT_ARGSTR
+}
+probe dw_syscall.symlinkat.return = kernel.function("sys_symlinkat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_symlinkat"),
+			       @const("__NR_compat_symlinkat"))
+	@_SYSCALL_SYMLINKAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_symlinkat _____________________________________________________
+
+probe nd_syscall.symlinkat = kprobe.function("sys_symlinkat") ?
+{
+	@__syscall_compat_gate(@const("__NR_symlinkat"),
+			       @const("__NR_compat_symlinkat"))
+	@_SYSCALL_SYMLINKAT_NAME
+	asmlinkage()
+	oldname = pointer_arg(1)
+	oldname_str = user_string_quoted(oldname)
+	newdfd = int_arg(2)
+	newdfd_str = _dfd_str(newdfd)
+	newname = pointer_arg(3)
+	newname_str = user_string_quoted(newname)
+	@_SYSCALL_SYMLINKAT_ARGSTR
+}
+probe nd_syscall.symlinkat.return = kprobe.function("sys_symlinkat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_symlinkat"),
+			       @const("__NR_compat_symlinkat"))
+	@_SYSCALL_SYMLINKAT_NAME
+	retstr = returnstr(1)
+}

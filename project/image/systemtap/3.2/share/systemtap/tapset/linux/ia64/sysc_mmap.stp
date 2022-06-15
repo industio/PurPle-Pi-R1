@@ -1,0 +1,69 @@
+# In kernels < 2.6.33, mmap()/mmap2() was handled by arch-specific
+# code.  In kernels >= 2.6.33, the arch-specific code just calls
+# generic sys_mmap_pgoff().
+%( kernel_v < "2.6.33" %?
+# mmap
+# sys_mmap (unsigned long addr, unsigned long len, int prot, int flags, int fd, long off)
+#
+
+@define _SYSCALL_MMAP_NAME
+%(
+	name = "mmap"
+%)
+
+@define _SYSCALL_MMAP_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s, %s, %d, %d", start, len, prot_str,
+	                 flags_str, fd, offset)
+%)
+
+probe syscall.mmap = dw_syscall.mmap !, nd_syscall.mmap ? {}
+probe syscall.mmap.return = dw_syscall.mmap.return !, nd_syscall.mmap.return ? {}
+
+# dw_mmap _____________________________________________________
+
+probe dw_syscall.mmap = kernel.function("sys_mmap") ?
+{
+        @_SYSCALL_MMAP_NAME
+        start = $addr
+        len = $len
+        prot = $prot
+	prot_str = _mprotect_prot_str(prot)
+        flags = $flags
+	flags_str = _mmap_flags(flags)
+	# Although the kernel gets an unsigned long fd, on the
+	# user-side it is a signed int.  Fix this.
+	fd = __int32($fd)
+        offset = $off
+        @_SYSCALL_MMAP_ARGSTR
+}
+
+probe dw_syscall.mmap.return = kernel.function("sys_mmap").return ?
+{
+        @_SYSCALL_MMAP_NAME
+        retstr = return_str(2, $return)
+}
+
+# nd_mmap _____________________________________________________
+
+probe nd_syscall.mmap = kprobe.function("sys_mmap") ?
+{
+	@_SYSCALL_MMAP_NAME
+	asmlinkage()
+	start = ulong_arg(1)
+	len = ulong_arg(2)
+	prot = int_arg(3)
+	prot_str = _mprotect_prot_str(prot)
+	flags = int_arg(4)
+	flags_str = _mmap_flags(flags)
+	fd = int_arg(5)
+	offset = long_arg(6)
+	@_SYSCALL_MMAP_ARGSTR
+}
+
+probe nd_syscall.mmap.return = kprobe.function("sys_mmap").return ?
+{
+	@_SYSCALL_MMAP_NAME
+	retstr = returnstr(2)
+}
+%)

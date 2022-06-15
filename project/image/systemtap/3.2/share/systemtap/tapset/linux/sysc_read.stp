@@ -1,0 +1,97 @@
+# read _______________________________________________________
+# ssize_t sys_read(unsigned int fd, char __user * buf, size_t count)
+
+@define _SYSCALL_READ_NAME
+%(
+	name = "read"
+%)
+
+@define _SYSCALL_READ_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u", fd, buf_uaddr, count)
+%)
+
+probe syscall.read = dw_syscall.read !, nd_syscall.read ? {}
+probe syscall.read.return = dw_syscall.read.return !,
+                            nd_syscall.read.return ? {}
+
+# dw_read _____________________________________________________
+
+probe dw_syscall.read =
+%( arch == "s390" %?
+	__syscall.read, kernel.function("sys32_read").call ?,
+	kernel.function("compat_sys_s390_read").call ?
+%:
+	__syscall.read
+%)
+{
+	@_SYSCALL_READ_NAME
+	fd = __int32($fd)
+	buf_uaddr = @__pointer($buf)
+	count = @__compat_ulong($count)
+	@_SYSCALL_READ_ARGSTR
+}
+probe __syscall.read = kernel.function("sys_read").call
+{
+%( arch == "s390" %?
+	@__syscall_gate(@const("__NR_read"))
+%)
+}
+probe dw_syscall.read.return =
+%( arch == "s390" %?
+	__syscall.read.return, kernel.function("sys32_read").return ?,
+	kernel.function("compat_sys_s390_read").return ?
+%:
+	__syscall.read.return
+%)
+{
+	@_SYSCALL_READ_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.read.return = kernel.function("sys_read").return
+{
+%( arch == "s390" %?
+	@__syscall_gate(@const("__NR_read"))
+%)
+}
+
+# nd_read _____________________________________________________
+
+probe nd_syscall.read =
+%( arch == "s390" %?
+	__nd_syscall.read, kprobe.function("sys32_read") ?,
+	kprobe.function("compat_sys_s390_read") ?
+%:
+	__nd_syscall.read
+%)
+{
+	@_SYSCALL_READ_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	buf_uaddr = pointer_arg(2)
+	count = ulong_arg(3)
+	@_SYSCALL_READ_ARGSTR
+}
+probe __nd_syscall.read = kprobe.function("sys_read")
+{
+%( arch == "s390" %?
+	@__syscall_gate(@const("__NR_read"))
+%)
+}
+probe nd_syscall.read.return =
+%( arch == "s390" %?
+	__nd_syscall.read.return, kprobe.function("sys32_read").return ?,
+	kprobe.function("compat_sys_s390_read").return ?
+%:
+	__nd_syscall.read.return
+%)
+{
+	@_SYSCALL_READ_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.read.return = kprobe.function("sys_read").return
+{
+%( arch == "s390" %?
+	@__syscall_gate(@const("__NR_read"))
+%)
+}

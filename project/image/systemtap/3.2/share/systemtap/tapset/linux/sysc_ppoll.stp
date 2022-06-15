@@ -1,0 +1,110 @@
+# ppoll _______________________________________________________
+#
+# long sys_ppoll(struct pollfd __user *ufds, unsigned int nfds,
+#	struct timespec __user *tsp, const sigset_t __user *sigmask,
+#	size_t sigsetsize)
+#
+
+@define _SYSCALL_PPOLL_NAME
+%(
+	name = "ppoll"
+%)
+
+@define _SYSCALL_PPOLL_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s, %p, %d",
+	                 fds_uaddr, nfds, tsp_str, sigmask, sigsetsize)
+%)
+
+probe syscall.ppoll = dw_syscall.ppoll !, nd_syscall.ppoll ? {}
+probe syscall.ppoll.return = dw_syscall.ppoll.return !,
+                             nd_syscall.ppoll.return ? {}
+
+# dw_ppoll _____________________________________________________
+
+probe dw_syscall.ppoll = kernel.function("sys_ppoll").call ?
+{
+	@_SYSCALL_PPOLL_NAME
+	fds_uaddr = $ufds
+	nfds = __uint32($nfds)
+	tsp = $tsp
+	tsp_str = _struct_timespec_u(tsp, 1)
+	sigmask = $sigmask
+	sigsetsize = $sigsetsize
+	@_SYSCALL_PPOLL_ARGSTR
+}
+probe dw_syscall.ppoll.return = kernel.function("sys_ppoll").return ?
+{
+	@_SYSCALL_PPOLL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ppoll _____________________________________________________
+
+probe nd_syscall.ppoll = kprobe.function("sys_ppoll") ?
+{
+	@_SYSCALL_PPOLL_NAME
+	asmlinkage()
+	fds_uaddr = pointer_arg(1) 
+	nfds = uint_arg(2)
+	tsp = pointer_arg(3)
+	tsp_str = _struct_timespec_u(tsp, 1)
+	sigmask = pointer_arg(4)
+	sigsetsize = ulong_arg(5)
+	@_SYSCALL_PPOLL_ARGSTR
+}
+probe nd_syscall.ppoll.return = kprobe.function("sys_ppoll").return ?
+{
+	@_SYSCALL_PPOLL_NAME
+	retstr = returnstr(1)
+}
+# compat_ppoll ________________________________________________
+#
+# long compat_sys_ppoll(struct pollfd __user *ufds,
+#	unsigned int nfds, struct compat_timespec __user *tsp,
+#	const compat_sigset_t __user *sigmask, compat_size_t sigsetsize)
+#
+
+probe syscall.compat_ppoll = dw_syscall.compat_ppoll !,
+                             nd_syscall.compat_ppoll ? {}
+probe syscall.compat_ppoll.return = dw_syscall.compat_ppoll.return !,
+                                    nd_syscall.compat_ppoll.return ? {}
+
+# dw_compat_ppoll _____________________________________________________
+
+probe dw_syscall.compat_ppoll = kernel.function("compat_sys_ppoll").call ?
+{
+	@_SYSCALL_PPOLL_NAME
+	fds_uaddr = @__pointer($ufds)
+	nfds = __uint32($nfds)
+	tsp = @__pointer($tsp)
+	tsp_str = _struct_compat_timespec_u(tsp, 1)
+	sigmask = @__pointer($sigmask)
+	sigsetsize = $sigsetsize
+	@_SYSCALL_PPOLL_ARGSTR
+}
+probe dw_syscall.compat_ppoll.return = kernel.function("compat_sys_ppoll").return ?
+{
+	@_SYSCALL_PPOLL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_ppoll _____________________________________________________
+
+probe nd_syscall.compat_ppoll = kprobe.function("compat_sys_ppoll") ?
+{
+	@_SYSCALL_PPOLL_NAME
+	asmlinkage()
+	fds_uaddr = pointer_arg(1) 
+	nfds = uint_arg(2)
+	tsp =pointer_arg(3)
+	tsp_str = _struct_compat_timespec_u(tsp, 1)
+	sigmask = pointer_arg(4)
+	sigsetsize = u32_arg(5)
+	@_SYSCALL_PPOLL_ARGSTR
+}
+probe nd_syscall.compat_ppoll.return = kprobe.function("compat_sys_ppoll").return ?
+{
+	@_SYSCALL_PPOLL_NAME
+	retstr = returnstr(1)
+}

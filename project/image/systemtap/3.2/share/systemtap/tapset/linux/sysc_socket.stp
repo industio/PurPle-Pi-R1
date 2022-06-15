@@ -1,0 +1,122 @@
+# socket _____________________________________________________
+# long sys_socket(int family, int type, int protocol)
+#
+
+@define _SYSCALL_SOCKET_NAME
+%(
+	name = "socket"
+%)
+
+@define _SYSCALL_SOCKET_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s", family_str, type_str, protocol_str)
+%)
+
+probe syscall.socket = dw_syscall.socket !, nd_syscall.socket ? {}
+probe syscall.socket.return = dw_syscall.socket.return !,
+                              nd_syscall.socket.return ? {}
+
+# dw_socket _____________________________________________________
+
+probe dw_syscall.socket = __syscall.socket ?, __syscall.socketcall.socket ?,
+	__syscall.compat_socketcall.socket ?
+{
+	@_SYSCALL_SOCKET_NAME
+	family_str = _sock_family_str(family)
+	type_str = _sock_type_str(type)
+	protocol_str = _sock_protocol_str(family, protocol)
+	@_SYSCALL_SOCKET_ARGSTR
+}
+probe __syscall.socket = kernel.function("sys_socket").call ?
+{
+	@__syscall_gate(@const("__NR_socket"))
+	family = __int32($family)
+	type = __int32($type)
+	protocol = __int32($protocol)
+}
+probe __syscall.socketcall.socket = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_SOCKET")) next;
+	family = __int32(user_ulong(&@ulong_cast($args)[0]))
+	type = __int32(user_ulong(&@ulong_cast($args)[1]))
+	protocol = __int32(user_ulong(&@ulong_cast($args)[2]))
+}
+probe __syscall.compat_socketcall.socket =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_SOCKET")) next;
+	family = user_int(&@uint_cast($args)[0])
+	type = user_int(&@uint_cast($args)[1])
+	protocol = user_int(&@uint_cast($args)[2])
+}
+probe dw_syscall.socket.return = __syscall.return ?,
+	__syscall.socketcall.socket.return ?
+{
+	@_SYSCALL_SOCKET_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.return = kernel.function("sys_socket").return ?
+{
+	@__syscall_gate(@const("__NR_socket"))
+}
+probe __syscall.socketcall.socket.return =
+	kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_SOCKET")) next;
+}
+
+# nd_socket _____________________________________________________
+
+probe nd_syscall.socket = __nd_syscall.socket ?,
+	__nd_syscall.socketcall.socket ?, __nd_syscall.compat_socketcall.socket ?
+{
+	@_SYSCALL_SOCKET_NAME
+	family_str = _sock_family_str(family)
+	type_str = _sock_type_str(type)
+	protocol_str = _sock_protocol_str(family, protocol)
+	@_SYSCALL_SOCKET_ARGSTR
+}
+probe __nd_syscall.socket = kprobe.function("sys_socket") ?
+{
+	@__syscall_gate(@const("__NR_socket"))
+	asmlinkage()
+	family = int_arg(1)
+	type = int_arg(2)
+	protocol = int_arg(3)
+}
+probe __nd_syscall.socketcall.socket = kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_SOCKET")) next;
+	__args = &@ulong_cast(pointer_arg(2))
+	family = __int32(user_ulong(&@ulong_cast(__args)[0]))
+	type = __int32(user_ulong(&@ulong_cast(__args)[1]))
+	protocol = __int32(user_ulong(&@ulong_cast(__args)[2]))
+}
+probe __nd_syscall.compat_socketcall.socket =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_SOCKET")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	family = user_int(&@uint_cast(__args)[0])
+	type = user_int(&@uint_cast(__args)[1])
+	protocol = user_int(&@uint_cast(__args)[2])
+}
+probe nd_syscall.socket.return = __nd_syscall.socket.return ?,
+	__nd_syscall.socketcall.socket.return ?
+{
+	@_SYSCALL_SOCKET_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.socket.return = kprobe.function("sys_socket").return ?
+{
+	@__syscall_gate(@const("__NR_socket"))
+}
+probe __nd_syscall.socketcall.socket.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_SOCKET")) next;
+}

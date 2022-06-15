@@ -1,0 +1,63 @@
+# rt_sigsuspend ______________________________________________
+#
+# SYSCALL_DEFINE2(rt_sigsuspend, sigset_t __user *, unewset, size_t, sigsetsize)
+#
+
+@define _SYSCALL_RT_SIGSUSPEND_NAME
+%(
+	name = "rt_sigsuspend"
+%)
+
+@define _SYSCALL_RT_SIGSUSPEND_ARGSTR
+%(
+	argstr = sprintf("%s, %u", set_str, sigsetsize)
+%)
+
+probe syscall.rt_sigsuspend = dw_syscall.rt_sigsuspend !, nd_syscall.rt_sigsuspend ? {}
+probe syscall.rt_sigsuspend.return = dw_syscall.rt_sigsuspend.return !,
+                                     nd_syscall.rt_sigsuspend.return ? {}
+
+# dw_rt_sigsuspend _____________________________________________________
+
+probe dw_syscall.rt_sigsuspend = kernel.function("compat_sys_rt_sigsuspend").call ?,
+                              kernel.function("ia64_rt_sigsuspend").call ?,
+                              kernel.function("sys_rt_sigsuspend").call ?
+{
+	@_SYSCALL_RT_SIGSUSPEND_NAME
+	set_uaddr = @__pointer($unewset)
+	sigsetsize = @__compat_ulong($sigsetsize)
+	set_str = (@__compat_task ? _stp_compat_sigset_u(set_uaddr)
+	           : _stp_sigset_u(set_uaddr))
+	@_SYSCALL_RT_SIGSUSPEND_ARGSTR
+}
+probe dw_syscall.rt_sigsuspend.return =
+	kernel.function("compat_sys_rt_sigsuspend").return ?,
+	kernel.function("ia64_rt_sigsuspend").return ?,
+	kernel.function("sys_rt_sigsuspend").return ?
+{
+	@_SYSCALL_RT_SIGSUSPEND_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_rt_sigsuspend _____________________________________________________
+
+probe nd_syscall.rt_sigsuspend = kprobe.function("sys_rt_sigsuspend") ?,
+	kprobe.function("ia64_rt_sigsuspend") ?,
+	kprobe.function("compat_sys_rt_sigsuspend") ?
+{
+	asmlinkage()
+	@_SYSCALL_RT_SIGSUSPEND_NAME
+	set_uaddr = pointer_arg(1)
+	sigsetsize = ulong_arg(2)
+	set_str = (@__compat_task ? _stp_compat_sigset_u(set_uaddr)
+	           : _stp_sigset_u(set_uaddr))
+	@_SYSCALL_RT_SIGSUSPEND_ARGSTR
+}
+probe nd_syscall.rt_sigsuspend.return =
+	kprobe.function("sys_rt_sigsuspend").return ?,
+	kprobe.function("ia64_rt_sigsuspend").return ?,
+	kprobe.function("compat_sys_rt_sigsuspend").return ?
+{
+	@_SYSCALL_RT_SIGSUSPEND_NAME
+	retstr = returnstr(1)
+}

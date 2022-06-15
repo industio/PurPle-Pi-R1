@@ -1,0 +1,50 @@
+# inotify_rm_watch ___________________________________________
+#
+# long sys_inotify_rm_watch(int fd, u32 wd)
+#
+
+@define _SYSCALL_INOTIFY_RM_WATCH_NAME
+%(
+	name = "inotify_rm_watch"
+%)
+
+@define _SYSCALL_INOTIFY_RM_WATCH_ARGSTR
+%(
+	argstr = sprintf("%d, %d", fd, wd)
+%)
+
+probe syscall.inotify_rm_watch = dw_syscall.inotify_rm_watch !,
+                                 nd_syscall.inotify_rm_watch ? {}
+probe syscall.inotify_rm_watch.return = dw_syscall.inotify_rm_watch.return !,
+                                        nd_syscall.inotify_rm_watch.return ? {}
+
+# dw_inotify_rm_watch _____________________________________________________
+
+probe dw_syscall.inotify_rm_watch = kernel.function("sys_inotify_rm_watch").call ?
+{
+	@_SYSCALL_INOTIFY_RM_WATCH_NAME
+	fd = __int32($fd)
+	wd = __int32($wd)
+	@_SYSCALL_INOTIFY_RM_WATCH_ARGSTR
+}
+probe dw_syscall.inotify_rm_watch.return = kernel.function("sys_inotify_rm_watch").return ?
+{
+	@_SYSCALL_INOTIFY_RM_WATCH_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_inotify_rm_watch _____________________________________________________
+
+probe nd_syscall.inotify_rm_watch = kprobe.function("sys_inotify_rm_watch") ?
+{
+	@_SYSCALL_INOTIFY_RM_WATCH_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	wd = int_arg(2)
+	@_SYSCALL_INOTIFY_RM_WATCH_ARGSTR
+}
+probe nd_syscall.inotify_rm_watch.return = kprobe.function("sys_inotify_rm_watch").return ?
+{
+	@_SYSCALL_INOTIFY_RM_WATCH_NAME
+	retstr = returnstr(1)
+}

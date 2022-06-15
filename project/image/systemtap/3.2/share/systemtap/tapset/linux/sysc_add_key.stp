@@ -1,0 +1,61 @@
+# add_key ____________________________________________________
+# long sys_add_key(const char __user *_type,
+#             const char __user *_description,
+#             const void __user *_payload,
+#             size_t plen,
+#             key_serial_t ringid)
+#
+
+@define _SYSCALL_ADD_KEY_NAME
+%(
+	name = "add_key"
+%)
+
+@define _SYSCALL_ADD_KEY_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %u, %d",
+	                 user_string_quoted(type_uaddr),
+	                 user_string_quoted(description_uaddr),
+	                 user_buffer_quoted(payload_uaddr, plen, syscall_string_trunc),
+	                 plen, ringid)
+%)
+
+probe syscall.add_key = dw_syscall.add_key !, nd_syscall.add_key ? {}
+probe syscall.add_key.return = dw_syscall.add_key.return !, nd_syscall.add_key.return ? {}
+
+# dw_add_key _____________________________________________________
+
+probe dw_syscall.add_key = kernel.function("sys_add_key").call ?
+{
+	@_SYSCALL_ADD_KEY_NAME
+	type_uaddr = $_type
+	description_uaddr = $_description
+	payload_uaddr = $_payload
+	plen = __ulong($plen)
+	ringid = __int32($ringid)
+	@_SYSCALL_ADD_KEY_ARGSTR
+}
+probe dw_syscall.add_key.return = kernel.function("sys_add_key").return ?
+{
+	@_SYSCALL_ADD_KEY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_add_key _____________________________________________________
+
+probe nd_syscall.add_key = kprobe.function("sys_add_key") ?
+{
+	@_SYSCALL_ADD_KEY_NAME
+	asmlinkage()
+	type_uaddr = pointer_arg(1)
+	description_uaddr = pointer_arg(2)
+	payload_uaddr = pointer_arg(3)
+	plen = ulong_arg(4)
+	ringid = int_arg(5)
+	@_SYSCALL_ADD_KEY_ARGSTR
+}
+probe nd_syscall.add_key.return = kprobe.function("sys_add_key").return ?
+{
+	@_SYSCALL_ADD_KEY_NAME
+	retstr = returnstr(1)
+}

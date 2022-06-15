@@ -1,0 +1,54 @@
+# stime ______________________________________________________
+#
+# long sys_stime(time_t __user *tptr)
+# long compat_sys_stime(compat_time_t __user *tptr)
+#
+
+@define _SYSCALL_STIME_NAME
+%(
+	name = "stime"
+%)
+
+@define _SYSCALL_STIME_ARGSTR
+%(
+	argstr = sprintf("%p", t_uaddr)
+%)
+
+probe syscall.stime = dw_syscall.stime !, nd_syscall.stime ? {}
+probe syscall.stime.return = dw_syscall.stime.return !,
+                             nd_syscall.stime.return ? {}
+
+# dw_stime _____________________________________________________
+
+probe dw_syscall.stime = kernel.function("compat_sys_stime").call ?,
+                      kernel.function("sys_stime").call ?
+{
+	@_SYSCALL_STIME_NAME
+	t_uaddr = $tptr
+	/* FIXME. Decode time */
+	@_SYSCALL_STIME_ARGSTR
+}
+probe dw_syscall.stime.return = kernel.function("compat_sys_stime").return ?,
+                             kernel.function("sys_stime").return ?
+{
+	@_SYSCALL_STIME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_stime _____________________________________________________
+
+probe nd_syscall.stime = kprobe.function("compat_sys_stime") ?,
+                         kprobe.function("sys_stime") ?
+{
+	@_SYSCALL_STIME_NAME
+	asmlinkage()
+	t_uaddr = pointer_arg(1)
+	/* FIXME. Decode time */
+	@_SYSCALL_STIME_ARGSTR
+}
+probe nd_syscall.stime.return = kprobe.function("compat_sys_stime").return ?,
+                                kprobe.function("sys_stime").return ?
+{
+	@_SYSCALL_STIME_NAME
+	retstr = returnstr(1)
+}

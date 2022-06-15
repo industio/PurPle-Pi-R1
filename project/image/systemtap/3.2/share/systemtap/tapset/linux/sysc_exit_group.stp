@@ -1,0 +1,38 @@
+# exit_group _________________________________________________
+# void sys_exit_group(int error_code)
+#
+# sys_exit_group() never returns, and is blacklisted for return probes,
+# so no alias here.  See bz6588.
+# NB: the explicit .call ensures that alias suffixes can't infer .return
+
+@define _SYSCALL_EXIT_GROUP_NAME
+%(
+	name = "exit_group"
+%)
+
+@define _SYSCALL_EXIT_GROUP_ARGSTR
+%(
+	argstr = sprint(status)
+%)
+
+probe syscall.exit_group = dw_syscall.exit_group !, nd_syscall.exit_group ? {}
+probe syscall.exit_group.return = dw_syscall.exit_group.return !, nd_syscall.exit_group.return ? {}
+
+# dw_exit_group _____________________________________________________
+
+probe dw_syscall.exit_group = kernel.function("sys_exit_group").call
+{
+	@_SYSCALL_EXIT_GROUP_NAME
+	status = __int32($error_code)
+	@_SYSCALL_EXIT_GROUP_ARGSTR
+}
+
+# nd_exit_group _____________________________________________________
+
+probe nd_syscall.exit_group = kprobe.function("sys_exit_group").call ?
+{
+	@_SYSCALL_EXIT_GROUP_NAME
+	asmlinkage()
+	status = int_arg(1)
+	@_SYSCALL_EXIT_GROUP_ARGSTR
+}

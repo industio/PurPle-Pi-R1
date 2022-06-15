@@ -1,0 +1,57 @@
+# statfs64 ___________________________________________________
+#
+# long sys_statfs64(const char __user *path, size_t sz, struct statfs64 __user *buf)
+# long compat_sys_statfs64(const char __user *path, compat_size_t sz, struct compat_statfs64 __user *buf)
+#
+
+@define _SYSCALL_STATFS64_NAME
+%(
+	name = "statfs64"
+%)
+
+@define _SYSCALL_STATFS64_ARGSTR
+%(
+	argstr = sprintf("%s, %u, %p", path, sz, buf_uaddr)
+%)
+
+probe syscall.statfs64 = dw_syscall.statfs64 !, nd_syscall.statfs64 ? {}
+probe syscall.statfs64.return = dw_syscall.statfs64.return !,
+                                nd_syscall.statfs64.return ? {}
+
+# dw_statfs64 _____________________________________________________
+
+probe dw_syscall.statfs64 = kernel.function("sys_statfs64").call ?,
+	kernel.function("compat_sys_statfs64").call ?
+{
+	@_SYSCALL_STATFS64_NAME
+	path = user_string_quoted(@__pointer(@choose_defined($pathname, $path)))
+	sz = __ulong($sz)
+	buf_uaddr = @__pointer($buf)
+	@_SYSCALL_STATFS64_ARGSTR
+}
+probe dw_syscall.statfs64.return = kernel.function("sys_statfs64").return ?,
+	kernel.function("compat_sys_statfs64").return ?
+{
+	@_SYSCALL_STATFS64_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_statfs64 _____________________________________________________
+
+probe nd_syscall.statfs64 = kprobe.function("sys_statfs64") ?,
+	kprobe.function("compat_sys_statfs64") ?
+{
+	@_SYSCALL_STATFS64_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+	sz = ulong_arg(2)
+	buf_uaddr = pointer_arg(3)
+	@_SYSCALL_STATFS64_ARGSTR
+}
+probe nd_syscall.statfs64.return =
+	kprobe.function("sys_statfs64").return ?,
+	kprobe.function("compat_sys_statfs64").return ?
+{
+	@_SYSCALL_STATFS64_NAME
+	retstr = returnstr(1)
+}

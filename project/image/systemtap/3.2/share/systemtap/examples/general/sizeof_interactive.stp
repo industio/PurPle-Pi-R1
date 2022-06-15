@@ -1,0 +1,23 @@
+#! /usr/bin/env stap
+
+# Usage:  
+#          TYPENAME
+#          TYPENAME kernelmodule
+#          TYPENAME /usr/bin/executable
+#          TYPENAME kernel<include/linux/someheader.h>
+#          TYPENAME </usr/include/someheader.h>
+
+global cmd = " 'probe oneshot { println(\"type \", @1, %( $# > 1 %? \" in \", @2, %) \" byte-size: \",     %( $# > 1 %? @cast_module_sizeof(@2, @1) %: @cast_sizeof(@1) %)) }' "
+
+probe begin {
+	println("Ready")
+}
+
+probe input.char {
+	print(char)
+}
+
+probe input.line {
+	if (tokenize(line, " \n") == "") next
+        system("stap -e" . cmd . line)
+}

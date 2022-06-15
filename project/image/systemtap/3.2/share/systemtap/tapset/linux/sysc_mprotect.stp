@@ -1,0 +1,51 @@
+# mprotect ___________________________________________________
+# long sys_mprotect(unsigned long start, size_t len, unsigned long prot)
+#
+
+@define _SYSCALL_MPROTECT_NAME
+%(
+	name = "mprotect"
+%)
+
+@define _SYSCALL_MPROTECT_ARGSTR
+%(
+	argstr = sprintf("%p, %d, %s", addr, len, prot_str)
+%)
+
+probe syscall.mprotect = dw_syscall.mprotect !, nd_syscall.mprotect ? {}
+probe syscall.mprotect.return = dw_syscall.mprotect.return !, nd_syscall.mprotect.return ? {}
+
+# dw_mprotect _____________________________________________________
+
+probe dw_syscall.mprotect = kernel.function("sys_mprotect").call ?
+{
+	@_SYSCALL_MPROTECT_NAME
+	addr = $start
+	len = $len
+	prot = $prot
+	prot_str = _mprotect_prot_str(prot)
+	@_SYSCALL_MPROTECT_ARGSTR
+}
+probe dw_syscall.mprotect.return = kernel.function("sys_mprotect").return ?
+{
+	@_SYSCALL_MPROTECT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mprotect _____________________________________________________
+
+probe nd_syscall.mprotect = kprobe.function("sys_mprotect") ?
+{
+	@_SYSCALL_MPROTECT_NAME
+	asmlinkage()
+	addr = ulong_arg(1)
+	len = ulong_arg(2)
+	prot = ulong_arg(3)
+	prot_str = _mprotect_prot_str(prot)
+	@_SYSCALL_MPROTECT_ARGSTR
+}
+probe nd_syscall.mprotect.return = kprobe.function("sys_mprotect").return ?
+{
+	@_SYSCALL_MPROTECT_NAME
+	retstr = returnstr(1)
+}

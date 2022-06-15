@@ -1,0 +1,48 @@
+# sysctl _____________________________________________________
+#
+# long sys32_sysctl(struct sysctl_ia32 __user *args32)
+#
+
+@define _SYSCALL_SYSCTL32_NAME
+%(
+	name = "sysctl"
+%)
+
+@define _SYSCALL_SYSCTL32_ARGSTR
+%(
+	argstr = sprintf("%p", args)
+%)
+
+probe syscall.sysctl32 = dw_syscall.sysctl32 !, nd_syscall.sysctl32 ? {}
+probe syscall.sysctl32.return = dw_syscall.sysctl32.return !,
+                                nd_syscall.sysctl32.return ? {}
+
+# dw_sysctl32 _____________________________________________________
+
+probe dw_syscall.sysctl32 = kernel.function("sys32_sysctl") ?
+{
+	@_SYSCALL_SYSCTL32_NAME
+	args = $args32
+	@_SYSCALL_SYSCTL32_ARGSTR
+}
+probe dw_syscall.sysctl32.return = kernel.function("sys32_sysctl").return ?
+{
+	@_SYSCALL_SYSCTL32_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sysctl32 _____________________________________________________
+
+probe nd_syscall.sysctl32 = kprobe.function("sys32_sysctl") ?
+{
+	@_SYSCALL_SYSCTL32_NAME
+	asmlinkage()
+	args = pointer_arg(1)
+	@_SYSCALL_SYSCTL32_ARGSTR
+}
+probe nd_syscall.sysctl32.return = kprobe.function("sys32_sysctl").return ?
+{
+	@_SYSCALL_SYSCTL32_NAME
+	retstr = returnstr(1)
+}
+

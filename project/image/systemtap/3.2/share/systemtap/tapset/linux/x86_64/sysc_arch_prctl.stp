@@ -1,0 +1,59 @@
+# arch_prctl _________________________________________________
+# long sys_arch_prctl(int code, unsigned long addr)
+# SYSCALL_DEFINE2(arch_prctl, int, option, unsigned long, arg2)
+# COMPAT_SYSCALL_DEFINE2(arch_prctl, int, option, unsigned long, arg2)
+#
+# NOTE: x86_64 only.
+#
+
+@define _SYSCALL_ARCH_PRCTL_NAME
+%(
+	name = "arch_prctl"
+%)
+
+@define _SYSCALL_ARCH_PRCTL_ARGSTR
+%(
+	argstr = sprintf("%s, %u", code_str, addr)
+%)
+
+probe syscall.arch_prctl = dw_syscall.arch_prctl !,
+                           nd_syscall.arch_prctl {}
+probe syscall.arch_prctl.return = dw_syscall.arch_prctl.return !,
+                                  nd_syscall.arch_prctl.return {}
+
+# dw_arch_prctl _____________________________________________________
+
+probe dw_syscall.arch_prctl = kernel.function("sys_arch_prctl").call,
+	kernel.function("compat_sys_arch_prctl").call ?
+{
+	@_SYSCALL_ARCH_PRCTL_NAME
+	code = __int32(@choose_defined($code, $option))
+	code_str = _stp_arch_prctl_func_str(code)
+	addr = __ulong(@choose_defined($addr, $arg2))
+	@_SYSCALL_ARCH_PRCTL_ARGSTR
+}
+probe dw_syscall.arch_prctl.return = kernel.function("sys_arch_prctl").return,
+	kernel.function("compat_sys_arch_prctl").return ?
+{
+	@_SYSCALL_ARCH_PRCTL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_arch_prctl _____________________________________________________
+
+probe nd_syscall.arch_prctl = kprobe.function("sys_arch_prctl"),
+	kprobe.function("compat_sys_arch_prctl") ?
+{
+	@_SYSCALL_ARCH_PRCTL_NAME
+	// NB: no asmlinkage()
+	code = int_arg(1)
+	code_str = _stp_arch_prctl_func_str(code)
+	addr = ulong_arg(2)
+	@_SYSCALL_ARCH_PRCTL_ARGSTR
+}
+probe nd_syscall.arch_prctl.return = kprobe.function("sys_arch_prctl").return,
+	kprobe.function("compat_sys_arch_prctl").return ?
+{
+	@_SYSCALL_ARCH_PRCTL_NAME
+	retstr = returnstr(1)
+}

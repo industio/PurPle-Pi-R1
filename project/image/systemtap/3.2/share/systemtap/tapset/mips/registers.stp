@@ -1,0 +1,301 @@
+/* Dwarfless register access for mips */
+
+global _reg_offsets, _stp_regs_registered
+
+function _stp_register_regs() {
+	offset_acx = 0
+%( CONFIG_64BIT == "y" %?
+        /* n32/n64 registers naming scheme */
+	/* Same order as struct pt_regs */
+	_reg_offsets["zero"] = 0
+	_reg_offsets["at"] = 8
+	_reg_offsets["v0"] = 16
+	_reg_offsets["v1"] = 24
+	_reg_offsets["a0"] = 32
+	_reg_offsets["a1"] = 40
+	_reg_offsets["a2"] = 48
+	_reg_offsets["a3"] = 56
+	_reg_offsets["a4"] = 64
+	_reg_offsets["a5"] = 72
+	_reg_offsets["a6"] = 80
+	_reg_offsets["a7"] = 88
+	_reg_offsets["t0"] = 96
+	_reg_offsets["t1"] = 104
+	_reg_offsets["t2"] = 112
+	_reg_offsets["t3"] = 120
+	_reg_offsets["s0"] = 128
+	_reg_offsets["s1"] = 136
+	_reg_offsets["s2"] = 144
+	_reg_offsets["s3"] = 152
+	_reg_offsets["s4"] = 160
+	_reg_offsets["s5"] = 168
+	_reg_offsets["s6"] = 176
+	_reg_offsets["s7"] = 184
+	_reg_offsets["t8"] = 192
+	_reg_offsets["t9"] = 200
+	_reg_offsets["k0"] = 208
+	_reg_offsets["k1"] = 216
+	_reg_offsets["gp"] = 224
+	_reg_offsets["sp"] = 232
+	_reg_offsets["s8"] = 240       _reg_offsets["fp"] = 240
+	_reg_offsets["ra"] = 248
+
+	_reg_offsets["status"] = 256
+	_reg_offsets["hi"] = 264
+	_reg_offsets["lo"] = 272
+
+%( CONFIG_CPU_HAS_SMARTMIPS == "y" %?
+	_reg_offsets["acx"] = 280
+	offset_acx = 8
+%)
+	_reg_offsets["badvaddr"] = 280 + offset_acx
+	_reg_offsets["cause"] = 288 + offset_acx
+	_reg_offsets["epc"] = 296 + offset_acx
+
+        /* no cp0_tcstatus register for now */
+%( CONFIG_CPU_CAVIUM_OCTEON == "y" %?
+	_reg_offsets["mpl0"] = 304 + offset_acx
+	_reg_offsets["mpl1"] = 310 + offset_acx
+	_reg_offsets["mpl2"] = 318 + offset_acx
+	_reg_offsets["mtp0"] = 316 + offset_acx
+	_reg_offsets["mtp1"] = 324 + offset_acx
+	_reg_offsets["mtp2"] = 330 + offset_acx
+%)
+
+%:
+        /* o32 registers naming scheme */
+	/* Same order as struct pt_regs */
+	_reg_offsets["zero"] = 24
+	_reg_offsets["at"] = 28
+	_reg_offsets["v0"] = 32
+	_reg_offsets["v1"] = 36
+	_reg_offsets["a0"] = 40
+	_reg_offsets["a1"] = 44
+	_reg_offsets["a2"] = 48
+	_reg_offsets["a3"] = 52
+	_reg_offsets["t0"] = 56
+	_reg_offsets["t1"] = 60
+	_reg_offsets["t2"] = 64
+	_reg_offsets["t3"] = 68
+	_reg_offsets["t4"] = 72
+	_reg_offsets["t5"] = 76
+	_reg_offsets["t6"] = 80
+	_reg_offsets["t7"] = 84
+	_reg_offsets["s0"] = 88
+	_reg_offsets["s1"] = 92
+	_reg_offsets["s2"] = 96
+	_reg_offsets["s3"] = 100
+	_reg_offsets["s4"] = 104
+	_reg_offsets["s5"] = 108
+	_reg_offsets["s6"] = 112
+	_reg_offsets["s7"] = 116
+	_reg_offsets["t8"] = 120
+	_reg_offsets["t9"] = 124
+	_reg_offsets["k0"] = 128
+	_reg_offsets["k1"] = 132
+	_reg_offsets["gp"] = 136
+	_reg_offsets["sp"] = 140
+	_reg_offsets["s8"] = 144     _reg_offsets["fp"] = 144
+	_reg_offsets["ra"] = 148
+
+	_reg_offsets["status"] = 152
+	_reg_offsets["hi"] = 156
+	_reg_offsets["lo"] = 160
+
+%( CONFIG_CPU_HAS_SMARTMIPS == "y" %?
+	_reg_offsets["acx"] = 164
+	offset_acx = 4
+%)
+	_reg_offsets["badvaddr"] = 164 + offset_acx
+	_reg_offsets["cause"] = 168 + offset_acx
+	_reg_offsets["epc"] = 172 + offset_acx
+
+        /* no cp0_tcstatus register for now */
+        /* no mpl and mtp registers for now */
+%)
+	_stp_regs_registered = 1
+}
+
+function probing_app_with_32bit_regs() %{ /* pure */
+	struct pt_regs *regs;
+	regs = (CONTEXT->user_mode_p ? CONTEXT->uregs : NULL );
+        THIS->__retvalue = _stp_probing_app_with_32bit_regs(regs);
+%}
+
+function _stp_get_register_by_offset:long (offset:long) %{ /* pure */
+	long value;
+	struct pt_regs *regs;
+	regs = (CONTEXT->user_mode_p ? CONTEXT->uregs : CONTEXT->kregs);
+
+	if (!regs) {
+		CONTEXT->last_error = "No registers available in this context";
+		return;
+	}
+	if (STAP_ARG_offset < 0 || STAP_ARG_offset > sizeof(struct pt_regs) - sizeof(long)) {
+		snprintf(CONTEXT->error_buffer, sizeof(CONTEXT->error_buffer),
+				"Bad register offset: %lld", STAP_ARG_offset);
+		CONTEXT->last_error = CONTEXT->error_buffer;
+		return;
+	}
+	memcpy(&value, ((char *)regs) + STAP_ARG_offset, sizeof(value));
+	THIS->__retvalue = value;
+%}
+
+function _stp_sign_extend32:long (value:long) {
+	if (value & 0x80000000)
+		value |= (0xffffffff << 32)
+	return value
+}
+
+function _stp_register:long (name:string, sign_extend:long) {
+	if (!registers_valid()) {
+		error("cannot access CPU registers in this context")
+		return 0
+	}
+	if (!_stp_regs_registered)
+		_stp_register_regs()
+	offset = _reg_offsets[name]
+	if (offset == 0 && !(name in _reg_offsets)) {
+		error("Unknown register: " . name)
+		return 0
+	}
+	value = _stp_get_register_by_offset(offset)
+%( CONFIG_64BIT == "y" %?
+	if (probing_app_with_32bit_regs()) {
+%)
+		if (sign_extend)
+			value = _stp_sign_extend32(value)
+		else
+			value &= 0xffffffff
+%( CONFIG_64BIT == "y" %?
+	}
+%)
+	return value
+}
+
+/* Return the named register value as a signed value. */
+function register:long (name:string) {
+	return _stp_register(name, 1)
+}
+
+/*
+ * Return the named register value as an unsigned value.  Specifically,
+ * don't sign-extend the register value when promoting it to 64 bits.
+ */
+function u_register:long (name:string) {
+	return _stp_register(name, 0)
+}
+
+/*
+ * Return the value of function arg #argnum (1=first arg).
+ * If truncate=1, mask off the top 32 bits.
+ * If sign_extend=1 and (truncate=1 or the probepoint we've hit is in a
+ * 32-bit app), sign-extend the 32-bit value.
+ */
+function _stp_arg:long (argnum:long, sign_extend:long, truncate:long) {
+	val = 0
+	if (argnum < 1 || argnum > 8) {
+		error(sprintf("Cannot access arg(%d)", argnum))
+		return 0
+	}
+
+	if (argnum == 1)
+		val = u_register("a0")
+	else if (argnum == 2)
+		val = u_register("a1")
+	else if (argnum == 3)
+		val = u_register("a2")
+	else if (argnum == 4)
+		val = u_register("a3")
+	else if (argnum == 5)
+		val = u_register("a4")
+	else if (argnum == 6)
+		val = u_register("a5")
+	else if (argnum == 7)
+		val = u_register("a6")
+	else if (argnum == 8)
+		val = u_register("a7")
+
+	if (truncate) {
+		if (sign_extend)
+			val = _stp_sign_extend32(val)
+		else
+			/* High bits may be garbage. */
+			val = (val & 0xffffffff);
+	}
+	return val;
+}
+
+function probing_32bit_app:long() %{ /* pure */
+	STAP_RETVALUE = (CONTEXT->user_mode_p && _stp_is_compat_task());
+%}
+
+function arch_bytes:long() %{ /* pure */
+  STAP_RETVALUE = sizeof(long);
+%}
+
+function uarch_bytes:long() {
+  assert(user_mode(), "requires user mode")
+  return probing_32bit_app() ? 4 : 8
+}
+
+/* Return the value of function arg #argnum (1=first arg) as a signed int. */
+function int_arg:long (argnum:long) {
+	return _stp_arg(argnum, 1, 1)
+}
+
+/* Return the value of function arg #argnum (1=first arg) as an unsigned int. */
+function uint_arg:long (argnum:long) {
+	return _stp_arg(argnum, 0, 1)
+}
+
+function long_arg:long (argnum:long) {
+	return _stp_arg(argnum, 1, 0)
+}
+
+function ulong_arg:long (argnum:long) {
+	return _stp_arg(argnum, 0, 0)
+}
+
+function longlong_arg:long (argnum:long) {
+	if (probing_app_with_32bit_regs()) {
+		lowbits = _stp_arg(argnum, 0, 1)
+		highbits = _stp_arg(argnum+1, 0, 1)
+		return ((highbits << 32) | lowbits)
+	} else
+		return _stp_arg(argnum, 0, 0)
+}
+
+function ulonglong_arg:long (argnum:long) {
+	return longlong_arg(argnum)
+}
+
+function pointer_arg:long (argnum:long) {
+	return _stp_arg(argnum, 0, 0)
+}
+
+function s32_arg:long (argnum:long) {
+	return int_arg(argnum)
+}
+
+function u32_arg:long (argnum:long) {
+	return uint_arg(argnum)
+}
+
+function s64_arg:long (argnum:long) {
+	return longlong_arg(argnum)
+}
+
+function u64_arg:long (argnum:long) {
+	return ulonglong_arg(argnum)
+}
+
+function asmlinkage() %{ /* pure */ %}
+
+function fastcall() %{ /* pure */ %}
+
+function regparm() %{
+	snprintf(CONTEXT->error_buffer, sizeof(CONTEXT->error_buffer),
+		"regparm is invalid on mips.");
+	CONTEXT->last_error = CONTEXT->error_buffer;
+%}

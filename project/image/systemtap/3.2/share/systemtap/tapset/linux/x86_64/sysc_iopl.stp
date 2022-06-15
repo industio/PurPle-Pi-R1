@@ -1,0 +1,47 @@
+# iopl _______________________________________________________
+# long sys_iopl(unsigned int level, struct pt_regs *regs);
+# NOTE. This function is only in i386 and x86_64 and its args vary
+# between those two archs.
+#
+
+@define _SYSCALL_IOPL_NAME
+%(
+	name = "iopl"
+%)
+
+@define _SYSCALL_IOPL_ARGSTR
+%(
+	argstr = sprint(level)
+%)
+
+probe syscall.iopl = dw_syscall.iopl !, nd_syscall.iopl {}
+probe syscall.iopl.return = dw_syscall.iopl.return !, nd_syscall.iopl.return {}
+
+# dw_iopl _____________________________________________________
+
+probe dw_syscall.iopl = kernel.function("sys_iopl")
+{
+	@_SYSCALL_IOPL_NAME
+	level = __uint32(@choose_defined($level, $new_iopl))
+	@_SYSCALL_IOPL_ARGSTR
+}
+probe dw_syscall.iopl.return = kernel.function("sys_iopl").return
+{
+	@_SYSCALL_IOPL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_iopl _____________________________________________________
+
+probe nd_syscall.iopl = kprobe.function("sys_iopl")
+{
+	@_SYSCALL_IOPL_NAME
+	asmlinkage()
+	level = uint_arg(1)
+	@_SYSCALL_IOPL_ARGSTR
+}
+probe nd_syscall.iopl.return = kprobe.function("sys_iopl").return
+{
+	@_SYSCALL_IOPL_NAME
+	retstr = returnstr(1)
+}

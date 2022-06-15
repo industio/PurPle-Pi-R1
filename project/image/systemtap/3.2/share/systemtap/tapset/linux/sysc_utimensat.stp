@@ -1,0 +1,114 @@
+# utimensat ____________________________________________________
+# long sys_utimensat(int dfd, char __user *filename, struct timespec __user *utimes, int flags)
+# long compat_sys_utimensat(unsigned int dfd, char __user *filename, struct compat_timespec __user *t, int flags)
+#
+
+@define _SYSCALL_UTIMENSAT_NAME
+%(
+	name = "utimensat"
+%)
+
+@define _SYSCALL_UTIMENSAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %s", dfd_str, filename, tsp_str, flags_str) 
+%)
+
+probe syscall.utimensat = dw_syscall.utimensat !, nd_syscall.utimensat ? {}
+probe syscall.utimensat.return = dw_syscall.utimensat.return !,
+                                 nd_syscall.utimensat.return ? {}
+
+# dw_utimensat _____________________________________________________
+
+probe dw_syscall.utimensat = kernel.function("sys_utimensat").call ?
+{
+	@_SYSCALL_UTIMENSAT_NAME
+	dfd = __int32($dfd)
+	dfd_str = _dfd_str(__int32($dfd))
+	filename_uaddr = $filename
+	filename = user_string_quoted($filename)
+	tsp_uaddr = $utimes
+	tsp_str = _struct_timespec_u(tsp_uaddr, 2)
+	flags = __int32($flags)
+	flags_str = _at_flag_str(__int32($flags))
+	@_SYSCALL_UTIMENSAT_ARGSTR
+}
+probe dw_syscall.utimensat.return = kernel.function("sys_utimensat").return ?
+{
+	@_SYSCALL_UTIMENSAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_utimensat _____________________________________________________
+
+probe nd_syscall.utimensat = kprobe.function("sys_utimensat") ?
+{
+	@_SYSCALL_UTIMENSAT_NAME
+	asmlinkage()
+	dfd = int_arg(1)
+	dfd_str = _dfd_str(dfd)
+	filename_uaddr = pointer_arg(2)
+	filename = user_string_quoted(filename_uaddr)
+	tsp_uaddr = pointer_arg(3)
+	tsp_str = _struct_timespec_u(tsp_uaddr, 2)
+	flags = int_arg(4)
+	flags_str = _at_flag_str(flags)
+	@_SYSCALL_UTIMENSAT_ARGSTR
+}
+probe nd_syscall.utimensat.return = kprobe.function("sys_utimensat").return ?
+{
+	@_SYSCALL_UTIMENSAT_NAME
+	retstr = returnstr(1)
+}
+
+# compat_utimensat _____________________________________________
+# long sys_utimensat(int dfd, char __user *filename, struct timespec __user *utimes, int flags)
+# long compat_sys_utimensat(unsigned int dfd, char __user *filename, struct compat_timespec __user *t, int flags)
+#
+
+probe syscall.compat_utimensat = dw_syscall.compat_utimensat !,
+                                 nd_syscall.compat_utimensat ? {}
+probe syscall.compat_utimensat.return = dw_syscall.compat_utimensat.return !,
+                                        nd_syscall.compat_utimensat.return ? {}
+
+# dw_compat_utimensat _____________________________________________________
+
+probe dw_syscall.compat_utimensat = kernel.function("compat_sys_utimensat").call ?
+{
+	@_SYSCALL_UTIMENSAT_NAME
+	dfd = __int32($dfd)
+	dfd_str = _dfd_str(__int32($dfd))
+	filename_uaddr = @__pointer($filename)
+	filename = user_string_quoted(filename_uaddr)
+	tsp_uaddr = @__pointer($t)
+	tsp_str = _struct_compat_timespec_u(tsp_uaddr, 2)
+	flags = __int32($flags)
+	flags_str = _at_flag_str(__int32($flags))
+	@_SYSCALL_UTIMENSAT_ARGSTR
+}
+probe dw_syscall.compat_utimensat.return =  kernel.function("compat_sys_utimensat").return ?
+{
+	@_SYSCALL_UTIMENSAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_utimensat _____________________________________________________
+
+probe nd_syscall.compat_utimensat = kprobe.function("compat_sys_utimensat") ?
+{
+	@_SYSCALL_UTIMENSAT_NAME
+	asmlinkage()
+	dfd = int_arg(1)
+	dfd_str = _dfd_str(dfd)
+	filename_uaddr = pointer_arg(2)
+	filename = user_string_quoted(filename_uaddr)
+	tsp_uaddr = pointer_arg(3)
+	tsp_str = _struct_compat_timespec_u(tsp_uaddr, 2)
+	flags = int_arg(4)
+	flags_str = _at_flag_str(flags)
+	@_SYSCALL_UTIMENSAT_ARGSTR
+}
+probe nd_syscall.compat_utimensat.return = kprobe.function("compat_sys_utimensat").return ?
+{
+	@_SYSCALL_UTIMENSAT_NAME
+	retstr = returnstr(1)
+}

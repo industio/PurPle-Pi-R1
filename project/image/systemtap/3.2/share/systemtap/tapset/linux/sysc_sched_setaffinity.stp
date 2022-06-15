@@ -1,0 +1,61 @@
+# sched_setaffinity __________________________________________
+# long sys_sched_setaffinity(pid_t pid,
+#	unsigned int len,
+#	unsigned long __user *user_mask_ptr)
+#
+
+@define _SYSCALL_SCHED_SETAFFINITY_NAME
+%(
+	name = "sched_setaffinity"
+%)
+
+@define _SYSCALL_SCHED_SETAFFINITY_ARGSTR
+%(
+	argstr = sprintf("%d, %u, %p", pid, len, mask_uaddr)
+%)
+
+probe syscall.sched_setaffinity = dw_syscall.sched_setaffinity !,
+                                  nd_syscall.sched_setaffinity ? {}
+probe syscall.sched_setaffinity.return = dw_syscall.sched_setaffinity.return !,
+                                         nd_syscall.sched_setaffinity.return ? {}
+
+# dw_sched_setaffinity _____________________________________________________
+
+probe dw_syscall.sched_setaffinity =
+	kernel.function("sys_sched_setaffinity").call ?,
+	kernel.function("compat_sys_sched_setaffinity").call ?
+{
+	@_SYSCALL_SCHED_SETAFFINITY_NAME
+	pid = __int32($pid)
+	len = __uint32(@choose_defined($len, 0))
+	mask_uaddr = @__pointer($user_mask_ptr)
+	@_SYSCALL_SCHED_SETAFFINITY_ARGSTR
+}
+probe dw_syscall.sched_setaffinity.return =
+	kernel.function("sys_sched_setaffinity").return ?,
+	kernel.function("compat_sys_sched_setaffinity").return ?
+{
+	@_SYSCALL_SCHED_SETAFFINITY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sched_setaffinity _____________________________________________________
+
+probe nd_syscall.sched_setaffinity =
+	kprobe.function("sys_sched_setaffinity") ?,
+	kprobe.function("compat_sys_sched_setaffinity") ?
+{
+	@_SYSCALL_SCHED_SETAFFINITY_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	len = uint_arg(2)
+	mask_uaddr = pointer_arg(3)
+	@_SYSCALL_SCHED_SETAFFINITY_ARGSTR
+}
+probe nd_syscall.sched_setaffinity.return =
+	kprobe.function("sys_sched_setaffinity").return ?,
+	kprobe.function("compat_sys_sched_setaffinity").return ?
+{
+	@_SYSCALL_SCHED_SETAFFINITY_NAME
+	retstr = returnstr(1)
+}

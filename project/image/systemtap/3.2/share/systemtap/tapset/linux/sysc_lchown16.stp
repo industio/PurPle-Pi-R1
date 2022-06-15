@@ -1,0 +1,50 @@
+# lchown16 ___________________________________________________
+# long sys_lchown16(const char __user * filename, old_uid_t user,
+#			old_gid_t group)
+#
+
+@define _SYSCALL_LCHOWN16_NAME
+%(
+	name = "lchown16"
+%)
+
+@define _SYSCALL_LCHOWN16_ARGSTR
+%(
+	argstr = sprintf("%s, %d, %d", path, owner, group)
+%)
+
+probe syscall.lchown16 = dw_syscall.lchown16 !, nd_syscall.lchown16 ? {}
+probe syscall.lchown16.return = dw_syscall.lchown16.return !, nd_syscall.lchown16.return ? {}
+
+# dw_lchown16 _____________________________________________________
+
+probe dw_syscall.lchown16 = kernel.function("sys_lchown16").call ?
+{
+	@_SYSCALL_LCHOWN16_NAME
+	path = user_string_quoted($filename)
+	owner = __short($user)
+	group = __short($group)
+	@_SYSCALL_LCHOWN16_ARGSTR
+}
+probe dw_syscall.lchown16.return = kernel.function("sys_lchown16").return ?
+{
+	@_SYSCALL_LCHOWN16_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_lchown16 _____________________________________________________
+
+probe nd_syscall.lchown16 = kprobe.function("sys_lchown16") ?
+{
+	@_SYSCALL_LCHOWN16_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+	owner = __short(uint_arg(2))
+	group = __short(uint_arg(3))
+	@_SYSCALL_LCHOWN16_ARGSTR
+}
+probe nd_syscall.lchown16.return = kprobe.function("sys_lchown16").return ?
+{
+	@_SYSCALL_LCHOWN16_NAME
+	retstr = returnstr(1)
+}

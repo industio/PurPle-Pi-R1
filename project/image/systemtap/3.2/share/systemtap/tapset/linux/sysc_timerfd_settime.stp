@@ -1,0 +1,103 @@
+# timerfd_settime ____________________________________________
+#
+# SYSCALL_DEFINE4(timerfd_settime, int, ufd, int, flags,
+#		const struct itimerspec __user *, utmr,
+#		struct itimerspec __user *, otmr)
+# COMPAT_SYSCALL_DEFINE4(timerfd_settime, int, ufd, int, flags,
+#		const struct compat_itimerspec __user *, utmr,
+#		struct compat_itimerspec __user *, otmr)
+
+@define _SYSCALL_TIMERFD_SETTIME_NAME
+%(
+	name = "timerfd_settime"
+%)
+
+@define _SYSCALL_TIMERFD_SETTIME_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %s, %p", fd, flags_str,
+	                 value_str, ovalue_uaddr)
+%)
+
+probe syscall.timerfd_settime = dw_syscall.timerfd_settime !,
+                                nd_syscall.timerfd_settime ? {}
+probe syscall.timerfd_settime.return = dw_syscall.timerfd_settime.return !,
+                                       nd_syscall.timerfd_settime.return ? {}
+
+# dw_timerfd_settime _____________________________________________________
+
+probe dw_syscall.timerfd_settime = __syscall.timerfd_settime ?,
+	kernel.function("compat_sys_timerfd_settime").call ?
+{
+	@_SYSCALL_TIMERFD_SETTIME_NAME
+	fd = __int32($ufd)
+	flags = __int32($flags)
+	flags_str = _stp_timerfd_flags_str(flags)
+	value_uaddr = @__pointer($utmr)
+	ovalue_uaddr = @__pointer($otmr)
+%( CONFIG_COMPAT == "y" %?
+	value_str = (@__compat_task ? _struct_compat_itimerspec_u(value_uaddr)
+	             : _struct_itimerspec_u(value_uaddr))
+%:
+	value_str = _struct_itimerspec_u(value_uaddr)
+%)
+	@_SYSCALL_TIMERFD_SETTIME_ARGSTR
+}
+probe __syscall.timerfd_settime = kernel.function("sys_timerfd_settime").call ?
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.timerfd_settime.return = __syscall.timerfd_settime.return ?,
+	kernel.function("compat_sys_timerfd_settime").return ?
+{
+	@_SYSCALL_TIMERFD_SETTIME_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.timerfd_settime.return =
+	kernel.function("sys_timerfd_settime").return ?
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_timerfd_settime _____________________________________________________
+
+probe nd_syscall.timerfd_settime = __nd_syscall.timerfd_settime ?,
+	__nd_syscall.compat_timerfd_settime ?
+{
+	@_SYSCALL_TIMERFD_SETTIME_NAME
+}
+probe __nd_syscall.timerfd_settime =
+	kprobe.function("sys_timerfd_settime").call ?
+{
+	@__syscall_gate_compat_simple
+	asmlinkage()
+	fd = int_arg(1)
+	flags = int_arg(2)
+	flags_str = _stp_timerfd_flags_str(flags)
+	value_uaddr = pointer_arg(3)
+	value_str = _struct_itimerspec_u(value_uaddr)
+	ovalue_uaddr = pointer_arg(4)
+	@_SYSCALL_TIMERFD_SETTIME_ARGSTR
+}
+probe __nd_syscall.compat_timerfd_settime =
+	kprobe.function("compat_sys_timerfd_settime").call ?
+{
+	asmlinkage()
+	fd = int_arg(1)
+	flags = int_arg(2)
+	flags_str = _stp_timerfd_flags_str(flags)
+	value_uaddr = pointer_arg(3)
+	value_str = _struct_compat_itimerspec_u(value_uaddr)
+	ovalue_uaddr = pointer_arg(4)
+	@_SYSCALL_TIMERFD_SETTIME_ARGSTR
+}
+probe nd_syscall.timerfd_settime.return = __nd_syscall.timerfd_settime.return ?,
+	kprobe.function("compat_sys_timerfd_settime").return ?
+{
+	@_SYSCALL_TIMERFD_SETTIME_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.timerfd_settime.return =
+	kprobe.function("sys_timerfd_settime").return ?
+{
+	@__syscall_gate_compat_simple
+}

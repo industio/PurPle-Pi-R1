@@ -1,0 +1,47 @@
+# shmdt ______________________________________________________
+#
+# long sys_shmdt(char __user *shmaddr)
+#
+
+@define _SYSCALL_SHMDT_NAME
+%(
+	name = "shmdt"
+%)
+
+@define _SYSCALL_SHMDT_ARGSTR
+%(
+	argstr = sprintf("%p", shmaddr_uaddr)
+%)
+
+probe syscall.shmdt = dw_syscall.shmdt !, nd_syscall.shmdt ? {}
+probe syscall.shmdt.return = dw_syscall.shmdt.return !,
+                             nd_syscall.shmdt.return ? {}
+
+# dw_shmdt _____________________________________________________
+
+probe dw_syscall.shmdt = kernel.function("sys_shmdt").call ?
+{
+	@_SYSCALL_SHMDT_NAME
+	shmaddr_uaddr = $shmaddr
+	@_SYSCALL_SHMDT_ARGSTR
+}
+probe dw_syscall.shmdt.return = kernel.function("sys_shmdt").return ?
+{
+	@_SYSCALL_SHMDT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_shmdt _____________________________________________________
+
+probe nd_syscall.shmdt = kprobe.function("sys_shmdt") ?
+{
+	@_SYSCALL_SHMDT_NAME
+	asmlinkage()
+	shmaddr_uaddr = pointer_arg(1)
+	@_SYSCALL_SHMDT_ARGSTR
+}
+probe nd_syscall.shmdt.return = kprobe.function("sys_shmdt").return ?
+{
+	@_SYSCALL_SHMDT_NAME
+	retstr = returnstr(1)
+}

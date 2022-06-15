@@ -1,0 +1,48 @@
+# flistxattr _________________________________________________
+# ssize_t sys_flistxattr(int fd, char __user *list, size_t size)
+
+@define _SYSCALL_FLISTXATTR_NAME
+%(
+	name = "flistxattr"
+%)
+
+@define _SYSCALL_FLISTXATTR_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u", filedes, list_uaddr, size)
+%)
+
+probe syscall.flistxattr = dw_syscall.flistxattr !, nd_syscall.flistxattr ? {}
+probe syscall.flistxattr.return = dw_syscall.flistxattr.return !, nd_syscall.flistxattr.return ? {}
+
+# dw_flistxattr _____________________________________________________
+
+probe dw_syscall.flistxattr = kernel.function("sys_flistxattr").call
+{
+	@_SYSCALL_FLISTXATTR_NAME
+	filedes = __int32($fd)
+	list_uaddr = $list
+	size = __ulong($size)
+	@_SYSCALL_FLISTXATTR_ARGSTR
+}
+probe dw_syscall.flistxattr.return = kernel.function("sys_flistxattr").return
+{
+	@_SYSCALL_FLISTXATTR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_flistxattr _____________________________________________________
+
+probe nd_syscall.flistxattr = kprobe.function("sys_flistxattr") ?
+{
+	@_SYSCALL_FLISTXATTR_NAME
+	asmlinkage()
+	filedes = int_arg(1)
+	list_uaddr = pointer_arg(2)
+	size = ulong_arg(3)
+	@_SYSCALL_FLISTXATTR_ARGSTR
+}
+probe nd_syscall.flistxattr.return = kprobe.function("sys_flistxattr").return ?
+{
+	@_SYSCALL_FLISTXATTR_NAME
+	retstr = returnstr(1)
+}

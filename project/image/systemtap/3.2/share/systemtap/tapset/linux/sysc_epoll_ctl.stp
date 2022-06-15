@@ -1,0 +1,87 @@
+# epoll_ctl __________________________________________________
+#
+# long sys_epoll_ctl(int epfd, int op, int fd, struct epoll_event __user *event)
+# long compat_sys_epoll_ctl(int epfd, int op, int fd,
+#			struct compat_epoll_event __user *event)
+#
+
+@define _SYSCALL_EPOLL_CTL_NAME
+%(
+	name = "epoll_ctl"
+%)
+
+@define _SYSCALL_EPOLL_CTL_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %d, %p", epfd, op_str, fd, event_uaddr)
+%)
+
+@define _SYSCALL_GATE
+%(
+%( arch == "s390" && kernel_v >= "3.15" %?
+	# s390 switched from assembly compat wrappers to C-based
+	# wrappers in kernel 3.15.
+	@__syscall_gate_compat_simple
+%)
+%)
+
+probe syscall.epoll_ctl = dw_syscall.epoll_ctl !, nd_syscall.epoll_ctl ? {}
+probe syscall.epoll_ctl.return = dw_syscall.epoll_ctl.return !, nd_syscall.epoll_ctl.return ? {}
+
+# dw_epoll_ctl _____________________________________________________
+
+probe dw_syscall.epoll_ctl = kernel.function("compat_sys_epoll_ctl").call ?,
+			     __syscall.epoll_ctl ?
+{
+	@_SYSCALL_EPOLL_CTL_NAME
+	epfd = __int32($epfd)
+	op = $op
+	op_str = _opoll_op_str($op)
+	fd = __int32($fd)
+	event_uaddr = @__pointer($event)
+	@_SYSCALL_EPOLL_CTL_ARGSTR
+}
+probe __syscall.epoll_ctl = kernel.function("sys_epoll_ctl").call ?
+{
+	@_SYSCALL_GATE
+}
+probe dw_syscall.epoll_ctl.return =
+	kernel.function("compat_sys_epoll_ctl").return ?,
+	__syscall.epoll_ctl.return ?
+{
+	@_SYSCALL_EPOLL_CTL_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.epoll_ctl.return = kernel.function("sys_epoll_ctl").return ?
+{
+	@_SYSCALL_GATE
+}
+
+# nd_epoll_ctl _____________________________________________________
+
+probe nd_syscall.epoll_ctl = kprobe.function("compat_sys_epoll_ctl") ?,
+                             __nd_syscall.epoll_ctl ?
+{
+	@_SYSCALL_EPOLL_CTL_NAME
+	asmlinkage()
+	epfd = int_arg(1)
+	op = int_arg(2)
+	op_str = _opoll_op_str(op)
+	fd = int_arg(3)
+	event_uaddr = pointer_arg(4)
+	@_SYSCALL_EPOLL_CTL_ARGSTR
+}
+probe __nd_syscall.epoll_ctl = kprobe.function("sys_epoll_ctl") ?
+{
+	@_SYSCALL_GATE
+}
+probe nd_syscall.epoll_ctl.return =
+	kprobe.function("compat_sys_epoll_ctl").return ?,
+	__nd_syscall.epoll_ctl.return ?
+{
+	@_SYSCALL_EPOLL_CTL_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.epoll_ctl.return = kprobe.function("sys_epoll_ctl").return ?
+{
+	@_SYSCALL_GATE
+}

@@ -1,0 +1,120 @@
+# ftruncate __________________________________________________
+# long sys_ftruncate(unsigned int fd, unsigned long length)
+# COMPAT_SYSCALL_DEFINE2(ftruncate, unsigned int, fd, compat_ulong_t, length)
+#
+
+@define _SYSCALL_FTRUNCATE_NAME
+%(
+	name = "ftruncate"
+%)
+
+@define _SYSCALL_FTRUNCATE_ARGSTR
+%(
+	argstr = sprintf("%d, %d", fd, length)
+%)
+
+@define _SYSCALL_GATE
+%(
+    %( arch == "x86_64" || arch == "s390" %?
+	// On x86_64 and s390x RHL6 kernels, the 32-bit compat
+	// ftruncate syscall is hooked up directly to sys_ftruncate(),
+	// instead of going through compat_sys_ftruncate().
+	@__syscall_compat_gate(@const("__NR_ftruncate"),
+			       @const("__NR_compat_ftruncate"))
+    %:
+	@__syscall_gate_compat_simple
+    %)
+%)
+
+probe syscall.ftruncate = dw_syscall.ftruncate !, nd_syscall.ftruncate ? {}
+probe syscall.ftruncate.return = dw_syscall.ftruncate.return !, nd_syscall.ftruncate.return ? {}
+
+# dw_ftruncate _____________________________________________________
+
+probe dw_syscall.ftruncate = __syscall.ftruncate,
+	kernel.function("compat_sys_ftruncate").call ?
+{
+	@_SYSCALL_FTRUNCATE_NAME
+	fd = __int32($fd)
+	length = @__compat_long($length)
+	@_SYSCALL_FTRUNCATE_ARGSTR
+}
+probe __syscall.ftruncate = kernel.function("sys_ftruncate").call
+{
+	@_SYSCALL_GATE
+}
+probe dw_syscall.ftruncate.return = __syscall.ftruncate.return,
+	kernel.function("compat_sys_ftruncate").return ?
+{
+	@_SYSCALL_FTRUNCATE_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.ftruncate.return = kernel.function("sys_ftruncate").return
+{
+	@_SYSCALL_GATE
+}
+
+# nd_ftruncate _____________________________________________________
+
+probe nd_syscall.ftruncate = __nd_syscall.ftruncate,
+	kprobe.function("compat_sys_ftruncate").call?
+{
+	@_SYSCALL_FTRUNCATE_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	length = long_arg(2)
+	@_SYSCALL_FTRUNCATE_ARGSTR
+}
+probe __nd_syscall.ftruncate = kprobe.function("sys_ftruncate").call
+{
+	@_SYSCALL_GATE
+}
+
+probe nd_syscall.ftruncate.return = __nd_syscall.ftruncate.return,
+	kprobe.function("compat_sys_ftruncate").return ?
+{
+	@_SYSCALL_FTRUNCATE_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.ftruncate.return = kprobe.function("sys_ftruncate").return
+{
+	@_SYSCALL_GATE
+}
+
+# ftruncate64 ________________________________________________
+# long sys_ftruncate64(unsigned int fd, loff_t length)
+
+probe syscall.ftruncate64 = dw_syscall.ftruncate64 !, nd_syscall.ftruncate64 ? {}
+probe syscall.ftruncate64.return = dw_syscall.ftruncate64.return !, nd_syscall.ftruncate64.return ? {}
+
+# dw_ftruncate64 _____________________________________________________
+
+probe dw_syscall.ftruncate64 = kernel.function("sys_ftruncate64").call ?
+{
+	@_SYSCALL_FTRUNCATE_NAME
+	fd = __int32($fd)
+	length = $length
+	@_SYSCALL_FTRUNCATE_ARGSTR
+}
+probe dw_syscall.ftruncate64.return = kernel.function("sys_ftruncate64").return ?
+{
+	@_SYSCALL_FTRUNCATE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ftruncate64 _____________________________________________________
+
+probe nd_syscall.ftruncate64 = kprobe.function("sys_ftruncate64") ?
+{
+	@_SYSCALL_FTRUNCATE_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	length = longlong_arg(2)
+	@_SYSCALL_FTRUNCATE_ARGSTR
+}
+probe nd_syscall.ftruncate64.return =
+	kprobe.function("sys_ftruncate64").return ?
+{
+	@_SYSCALL_FTRUNCATE_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,150 @@
+# fadvise64 __________________________________________________
+# long sys_fadvise64(int fd, loff_t offset, size_t len,  int advice)
+#
+
+@define _SYSCALL_FADVISE64_NAME
+%(
+	name = "fadvise64"
+%)
+
+@define _SYSCALL_FADVISE64_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %d, %s", fd, offset, len, _fadvice_advice_str(advice))
+%)
+
+probe syscall.fadvise64 = dw_syscall.fadvise64 !, nd_syscall.fadvise64 ? {}
+probe syscall.fadvise64.return = dw_syscall.fadvise64.return !, nd_syscall.fadvise64.return ? {}
+
+# dw_fadvise64 _____________________________________________________
+
+probe dw_syscall.fadvise64 = kernel.function("sys_fadvise64").call ?
+{
+	@_SYSCALL_FADVISE64_NAME
+	@__syscall_gate_compat_simple
+	fd = __int32(@choose_defined($fd, 0))
+	offset = @choose_defined($offset, 0)
+	len = __long(@choose_defined($len, 0))
+	advice = __int32(@choose_defined($advice, 0))
+	advice_str = _fadvice_advice_str(advice)
+	@_SYSCALL_FADVISE64_ARGSTR
+}
+probe dw_syscall.fadvise64.return = kernel.function("sys_fadvise64").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_FADVISE64_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fadvise64 _____________________________________________________
+
+probe nd_syscall.fadvise64 = kprobe.function("sys_fadvise64") ?
+{
+	asmlinkage()
+	@__syscall_gate_compat_simple
+	@_SYSCALL_FADVISE64_NAME
+	fd = int_arg(1)
+%( CONFIG_64BIT == "y" %?
+	offset = longlong_arg(2)
+	len = long_arg(3)
+	advice = int_arg(4)
+%:
+	# On a 32-bit kernel, 'long long' arguments take the space of
+	# 2 arguments, so we have to adjust the following argument
+	# numbers.
+	offset = longlong_arg(2)
+	len = long_arg(4)
+	advice = int_arg(5)
+%)
+	advice_str = _fadvice_advice_str(advice)
+	@_SYSCALL_FADVISE64_ARGSTR
+}
+probe nd_syscall.fadvise64.return = kprobe.function("sys_fadvise64").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_FADVISE64_NAME
+	retstr = returnstr(1)
+}
+
+# fadvise64_64 _______________________________________________
+# long sys_fadvise64_64(int fd, loff_t offset, loff_t len,  int advice)
+#
+
+probe syscall.fadvise64_64 = dw_syscall.fadvise64_64 !, nd_syscall.fadvise64_64 ? {}
+probe syscall.fadvise64_64.return = dw_syscall.fadvise64_64.return !, nd_syscall.fadvise64_64.return ? {}
+
+# dw_fadvise64_64 _____________________________________________________
+
+probe dw_syscall.fadvise64_64 = kernel.function("sys_fadvise64_64").call ?
+{
+	@__syscall_gate_compat_simple
+%( arch != "s390" && arch != "ia64" && arch != "arm" && arch != "arm64" %?
+	# s390x/ia64/arm/arm64 has sys_fadvise64_64() mapped to
+        # __NR_fadvise64 (instead of __NR_fadvise64_64)
+	@__syscall_gate(@const("__NR_fadvise64_64"))
+%)
+	@_SYSCALL_FADVISE64_NAME
+	fd = __int32(@choose_defined($fd, 0))
+	offset = @choose_defined($offset, 0)
+	len = @choose_defined($len, 0)
+	advice = __int32(@choose_defined($advice, 0))
+	advice_str = _fadvice_advice_str(advice)
+	@_SYSCALL_FADVISE64_ARGSTR
+}
+probe dw_syscall.fadvise64_64.return =
+	kernel.function("sys_fadvise64_64").return ?
+{
+	@__syscall_gate_compat_simple
+%( arch != "s390" && arch != "ia64" && arch != "arm" && arch != "arm64" %?
+	@__syscall_gate(@const("__NR_fadvise64_64"))
+%)
+	@_SYSCALL_FADVISE64_NAME
+        # sys_fadvise64_64 appears to miss dwarf on kernels such as 4.3.0-0.rc3.git4.1.fc24.x86_64
+        # and symbol-table-based .return probes don't resolve $return
+        if (@defined($return)) { retstr = return_str(1, $return) } else { retstr = returnstr(1) }
+}
+
+# nd_fadvise64_64 _____________________________________________________
+
+probe nd_syscall.fadvise64_64 = kprobe.function("sys_fadvise64_64") ?
+{
+	asmlinkage()
+	@__syscall_gate_compat_simple
+%( arch != "s390" && arch != "ia64" && arch != "arm" && arch != "arm64" %?
+	# s390x/ia64/arm/arm64 has sys_fadvise64_64() mapped to
+        # __NR_fadvise64 (instead of __NR_fadvise64_64)
+	@__syscall_gate(@const("__NR_fadvise64_64"))
+%)
+	@_SYSCALL_FADVISE64_NAME
+	fd = int_arg(1)
+%( CONFIG_64BIT == "y" %?
+	offset = longlong_arg(2)
+	len = longlong_arg(3)
+	advice = int_arg(4)
+%:
+%( arch == "arm" %?
+	# arm has some odd rules regarding long long arguments.
+	offset = longlong_arg(3)
+	len = longlong_arg(5)
+	advice = int_arg(7)
+%:
+	# On a 32-bit kernel, 'long long' arguments take the space of
+	# 2 arguments, so we have to adjust the following argument
+	# numbers.
+	offset = longlong_arg(2)
+	len = longlong_arg(4)
+	advice = int_arg(6)
+%)
+%)
+	advice_str = _fadvice_advice_str(advice)
+	@_SYSCALL_FADVISE64_ARGSTR
+}
+probe nd_syscall.fadvise64_64.return =
+	kprobe.function("sys_fadvise64_64").return ?
+{
+	@__syscall_gate_compat_simple
+%( arch != "s390" && arch != "ia64" && arch != "arm" && arch != "arm64" %?
+	@__syscall_gate(@const("__NR_fadvise64_64"))
+%)
+	@_SYSCALL_FADVISE64_NAME
+	retstr = returnstr(1)
+}

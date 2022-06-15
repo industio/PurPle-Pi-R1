@@ -1,0 +1,100 @@
+# In kernels < 2.6.33, mmap()/mmap2() was handled by arch-specific
+# code.  In kernels >= 2.6.33, the arch-specific code just calls
+# generic sys_mmap_pgoff().
+%( kernel_v < "2.6.33" %?
+# mmap _________________________________________________
+# long old_mmap(struct mmap_arg_struct __user *arg)
+# long old32_mmap(struct mmap_arg_struct_emu31 __user *arg)
+#
+
+@define _SYSCALL_MMAP_NAME
+%(
+	name = "mmap"
+%)
+
+@define _SYSCALL_MMAP_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s, %s, %d, %d", start, len,
+	                 prot_str, flags_str, fd, offset)
+%)
+
+probe syscall.mmap = dw_syscall.mmap !, nd_syscall.mmap ? {}
+probe syscall.mmap.return = dw_syscall.mmap.return !, nd_syscall.mmap.return ? {}
+
+# dw_mmap _____________________________________________________
+
+probe dw_syscall.mmap = __syscall.mmap ?, __syscall.mmap32 ?
+{
+	@_SYSCALL_MMAP_NAME
+	prot_str = _mprotect_prot_str(prot)
+	flags_str = _mmap_flags(flags)
+	@_SYSCALL_MMAP_ARGSTR
+}
+probe __syscall.mmap = kernel.function("old_mmap") ?,
+		       kernel.function("SyS_s390_old_mmap") ?
+{
+	start = user_long(&@cast($arg, "mmap_arg_struct")->addr)
+	len = user_ulong(&@cast($arg, "mmap_arg_struct")->len)
+	prot = user_long(&@cast($arg, "mmap_arg_struct")->prot)
+	flags = user_long(&@cast($arg, "mmap_arg_struct")->flags)
+	fd = user_long(&@cast($arg, "mmap_arg_struct")->fd)
+	offset = user_long(&@cast($arg, "mmap_arg_struct")->offset)
+}
+probe __syscall.mmap32 = kernel.function("old32_mmap")
+{
+	start = user_int(&@cast($arg, "mmap_arg_struct_emu31")->addr)
+	len = user_uint32(&@cast($arg, "mmap_arg_struct_emu31")->len)
+	prot = user_int(&@cast($arg, "mmap_arg_struct_emu31")->prot)
+	flags = user_int(&@cast($arg, "mmap_arg_struct_emu31")->flags)
+	fd = user_int(&@cast($arg, "mmap_arg_struct_emu31")->fd)
+	offset = user_int(&@cast($arg, "mmap_arg_struct_emu31")->offset)
+}
+
+probe dw_syscall.mmap.return = kernel.function("old_mmap").return ?,
+                            kernel.function("old32_mmap").return ?,
+                            kernel.function("SyS_s390_old_mmap").return ?
+{
+        @_SYSCALL_MMAP_NAME
+        retstr = return_str(2, $return)
+}
+
+# nd_mmap _____________________________________________________
+
+probe nd_syscall.mmap = __nd_syscall.mmap ?, __nd_syscall.mmap32 ?
+{
+	@_SYSCALL_MMAP_NAME
+	prot_str = _mprotect_prot_str(prot)
+	flags_str = _mmap_flags(flags)
+	@_SYSCALL_MMAP_ARGSTR
+}
+probe __nd_syscall.mmap = kprobe.function("old_mmap") ?,
+			  kprobe.function("SyS_s390_old_mmap") ?
+{
+	asmlinkage()
+	__args = &@ulong_cast(pointer_arg(1))
+	start = user_ulong(&(__args)[0])
+	len = user_ulong(&(__args)[1])
+	prot = user_ulong(&(__args)[2])
+	flags = user_ulong(&(__args)[3])
+	fd = user_long(&(__args)[4])
+	offset = user_ulong(&(__args)[5])
+}
+probe __nd_syscall.mmap32 = kprobe.function("old32_mmap")
+{
+	asmlinkage()
+	__args = &@uint_cast(pointer_arg(1))
+	start = user_uint32(&(__args)[0])
+	len = user_uint32(&(__args)[1])
+	prot = user_uint32(&(__args)[2])
+	flags = user_uint32(&(__args)[3])
+	fd = user_int(&(__args)[4])
+	offset = user_uint32(&(__args)[5])
+}
+probe nd_syscall.mmap.return = kprobe.function("old_mmap").return ?,
+                               kprobe.function("old32_mmap").return ?,
+                               kprobe.function("SyS_s390_old_mmap").return ?
+{
+	@_SYSCALL_MMAP_NAME
+	retstr = returnstr(2)
+}
+%)

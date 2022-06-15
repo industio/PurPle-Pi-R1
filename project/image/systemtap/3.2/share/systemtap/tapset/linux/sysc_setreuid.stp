@@ -1,0 +1,117 @@
+# setreuid ___________________________________________________
+# long sys_setreuid(uid_t ruid, uid_t euid)
+#
+
+@define _SYSCALL_SETREUID_NAME
+%(
+	name = "setreuid"
+%)
+
+@define _SYSCALL_SETREUID_ARGSTR
+%(
+	argstr = sprintf("%d, %d", ruid, euid)
+%)
+
+@define _SYSCALL_GATE
+%(
+    %( arch == "x86_64" %?
+	// There are actually 3 x86_64 setreuid syscall numbers (which
+	// get mapped to 2 syscall functions:
+	//   - __NR_setreuid which gets mapped to sys_setreuid()
+	//   - __NR_ia32_setreuid32 which also gets mapped to
+	//     sys_setreuid() 
+	//   - __NR_ia32_setreuid which gets mapped to sys_setreuid16()
+	//     (which is a wrapper around sys_setreuid())
+	// So, we need to avoid sys_setreuid() calls that come from
+	// sys_setreuid16().
+	@__syscall_compat_gate(@const("__NR_setreuid"),
+			       @const("__NR_ia32_setreuid32"))
+    %:
+	%( arch == "i386" %?
+	    // On i386, there are 2 setreuid syscall numbers:
+	    //   - __NR_setreuid which gets mapped to sys_setreuid16
+	    //   - __NR_setreuid32 which gets mapped to sys_setreuid
+	    // Since this gets called from a probe on sys_setreuid, we'll
+	    // make sure this is really __NR_setreuid32.
+	    @__syscall_nr_gate(@const("__NR_setreuid32"))
+	%)
+    %)
+%)
+
+probe syscall.setreuid = dw_syscall.setreuid !, nd_syscall.setreuid ? {}
+probe syscall.setreuid.return = dw_syscall.setreuid.return !,
+                                nd_syscall.setreuid.return ? {}
+
+# dw_setreuid _____________________________________________________
+
+probe dw_syscall.setreuid = kernel.function("sys_setreuid").call
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_SETREUID_NAME
+	ruid = __int32($ruid)
+	euid = __int32($euid)
+	@_SYSCALL_SETREUID_ARGSTR
+}
+probe dw_syscall.setreuid.return = kernel.function("sys_setreuid").return
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_SETREUID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setreuid _____________________________________________________
+
+probe nd_syscall.setreuid = kprobe.function("sys_setreuid") ?
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_SETREUID_NAME
+	asmlinkage()
+	ruid = __int32(uint_arg(1))
+	euid = __int32(uint_arg(2))
+	@_SYSCALL_SETREUID_ARGSTR
+}
+probe nd_syscall.setreuid.return = kprobe.function("sys_setreuid").return ?
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_SETREUID_NAME
+	retstr = returnstr(1)
+}
+
+# setreuid16 _________________________________________________
+# long sys_setreuid16(old_uid_t ruid, old_uid_t euid)
+#
+
+probe syscall.setreuid16 = dw_syscall.setreuid16 !, nd_syscall.setreuid16 ? {}
+probe syscall.setreuid16.return = dw_syscall.setreuid16.return !,
+                                  nd_syscall.setreuid16.return ? {}
+
+# dw_setreuid16 _____________________________________________________
+
+probe dw_syscall.setreuid16 = kernel.function("sys_setreuid16").call ?
+{
+	@_SYSCALL_SETREUID_NAME
+	ruid = __short($ruid)
+	euid = __short($euid)
+	@_SYSCALL_SETREUID_ARGSTR
+}
+probe dw_syscall.setreuid16.return = kernel.function("sys_setreuid16").return ?
+{
+	@_SYSCALL_SETREUID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setreuid16 _____________________________________________________
+
+probe nd_syscall.setreuid16 = kprobe.function("sys_setreuid16") ?
+{
+	@_SYSCALL_SETREUID_NAME
+	asmlinkage()
+	ruid = __short(uint_arg(1))
+	euid = __short(uint_arg(2))
+	@_SYSCALL_SETREUID_ARGSTR
+}
+probe nd_syscall.setreuid16.return = kprobe.function("sys_setreuid16").return ?
+{
+	@_SYSCALL_SETREUID_NAME
+	retstr = returnstr(1)
+}

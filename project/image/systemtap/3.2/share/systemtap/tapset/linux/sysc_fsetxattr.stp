@@ -1,0 +1,74 @@
+# fsetxattr __________________________________________________
+/*
+ * asmlinkage long
+ * sys_fsetxattr(int fd,
+ *               char __user *name,
+ *               void __user *value,
+ *               size_t size,
+ *               int flags)
+ */
+
+@define _SYSCALL_FSETXATTR_NAME
+%(
+	name = "fsetxattr"
+%)
+
+@define _SYSCALL_FSETXATTR_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %s, %u, %s", filedes, name_str, value_str,
+	                 size, flags_str)
+%)
+
+probe syscall.fsetxattr = dw_syscall.fsetxattr !, nd_syscall.fsetxattr ? {}
+probe syscall.fsetxattr.return = dw_syscall.fsetxattr.return !, nd_syscall.fsetxattr.return ? {}
+
+# dw_fsetxattr _____________________________________________________
+
+probe dw_syscall.fsetxattr = kernel.function("sys_fsetxattr").call
+{
+	@_SYSCALL_FSETXATTR_NAME
+	filedes = __int32($fd)
+# 'name2' should have been 'name_str'.  Deprecate the old name.
+%(systemtap_v <= "1.4" %?
+	name2 = user_string_quoted($name)
+%)
+	name_uaddr = $name
+	name_str = user_string_quoted($name)
+	value_uaddr = $value
+	size = __ulong($size)
+	value_str = _stp_xattr_val_str($value, size)
+	flags = __int32($flags)
+	flags_str = _stp_xattr_flags_str(__int32($flags))
+	@_SYSCALL_FSETXATTR_ARGSTR
+}
+probe dw_syscall.fsetxattr.return = kernel.function("sys_fsetxattr").return
+{
+	@_SYSCALL_FSETXATTR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fsetxattr _____________________________________________________
+
+probe nd_syscall.fsetxattr = kprobe.function("sys_fsetxattr") ?
+{
+	@_SYSCALL_FSETXATTR_NAME
+	asmlinkage()
+	filedes = int_arg(1)
+# 'name2' should have been 'name_str'.  Deprecate the old name.
+%(systemtap_v <= "1.4" %?
+	name2 = user_string_quoted(pointer_arg(2))
+%)
+	name_uaddr = pointer_arg(2)
+	name_str = user_string_quoted(pointer_arg(2))
+	value_uaddr = pointer_arg(3)
+	size = ulong_arg(4)
+	value_str = _stp_xattr_val_str(value_uaddr, size)
+	flags = int_arg(5)
+	flags_str = _stp_xattr_flags_str(flags)
+	@_SYSCALL_FSETXATTR_ARGSTR
+}
+probe nd_syscall.fsetxattr.return = kprobe.function("sys_fsetxattr").return ?
+{
+	@_SYSCALL_FSETXATTR_NAME
+	retstr = returnstr(1)
+}

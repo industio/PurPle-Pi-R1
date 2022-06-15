@@ -1,0 +1,48 @@
+# mkdir ______________________________________________________
+# long sys_mkdir(const char __user * pathname, int mode)
+
+@define _SYSCALL_MKDIR_NAME
+%(
+	name = "mkdir"
+%)
+
+@define _SYSCALL_MKDIR_ARGSTR
+%(
+	argstr = sprintf("%s, %#o", pathname, mode)
+%)
+
+probe syscall.mkdir = dw_syscall.mkdir !, nd_syscall.mkdir ? {}
+probe syscall.mkdir.return = dw_syscall.mkdir.return !, nd_syscall.mkdir.return ? {}
+
+# dw_mkdir _____________________________________________________
+
+probe dw_syscall.mkdir = kernel.function("sys_mkdir").call
+{
+	@_SYSCALL_MKDIR_NAME
+	pathname_uaddr = $pathname
+	pathname = user_string_quoted($pathname)
+	mode = __uint32($mode)
+	@_SYSCALL_MKDIR_ARGSTR
+}
+probe dw_syscall.mkdir.return = kernel.function("sys_mkdir").return
+{
+	@_SYSCALL_MKDIR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mkdir _____________________________________________________
+
+probe nd_syscall.mkdir = kprobe.function("sys_mkdir") ?
+{
+	@_SYSCALL_MKDIR_NAME
+	asmlinkage()
+	pathname_uaddr = pointer_arg(1)
+	pathname = user_string_quoted(pathname_uaddr)
+	mode = uint_arg(2)
+	@_SYSCALL_MKDIR_ARGSTR
+}
+probe nd_syscall.mkdir.return = kprobe.function("sys_mkdir").return ?
+{
+	@_SYSCALL_MKDIR_NAME
+	retstr = returnstr(1)
+}

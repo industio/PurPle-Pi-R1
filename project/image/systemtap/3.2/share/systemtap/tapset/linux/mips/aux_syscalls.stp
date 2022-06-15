@@ -1,0 +1,44 @@
+# arch-specific requests of ptrace ___________________________
+#
+function _arch_ptrace_argstr(request, pid, addr, data)
+{
+	if (request == %{ PTRACE_GETREGS %})
+		// TODO: Retrieve *data in .return
+		return sprintf ("PTRACE_GETREGS, %d, data=%p", pid, data)
+	if (request == %{ PTRACE_SETREGS %})
+		// TODO: Retrieve *data here
+		return sprintf ("PTRACE_SETREGS, %d, data=%p", pid, data)
+	if (request == %{ PTRACE_GETFPREGS %})
+		// TODO: Retrieve *data in .return
+		return sprintf ("PTRACE_GETFPREGS, %d, data=%p", pid, data)
+	if (request == %{ PTRACE_SETFPREGS %})
+		// TODO: Retrieve *data here
+		return sprintf ("PTRACE_SETFPREGS, %d, data=%p", pid, data)
+	if (request == %{ PTRACE_PEEKTEXT_3264 %})
+		// TODO: Retrieve *data in .return
+		return sprintf ("PTRACE_PEEKTEXT_3264, %d, *addr=%p, data=%p", pid, user_long(addr), data)
+	if (request == %{ PTRACE_PEEKDATA_3264 %})
+		// TODO: Retrieve *data in .return
+		return sprintf ("PTRACE_PEEKDATA_3264, %d, *addr=%p, data=%p", pid, user_long(addr), data)
+	if (request == %{ PTRACE_POKETEXT_3264 %})
+		return sprintf ("PTRACE_POKETEXT_3264, %d, *addr=%p, data=%p", pid, user_long(addr), data)
+	if (request == %{ PTRACE_POKEDATA_3264 %})
+		return sprintf ("PTRACE_POKEDATA_3264, %d, *addr=%p, data=%p", pid, user_long(addr), data)
+	if (request == %{ PTRACE_GET_THREAD_AREA %})
+		// TODO: Retrieve *data in .return
+		return sprintf ("PTRACE_GET_THREAD_AREA, %d, index=%d, data=%p", pid, addr, data)
+	if (request == %{ PTRACE_GET_THREAD_AREA_3264 %})
+		// TODO: Retrieve *data in .return
+		return sprintf ("PTRACE_GET_THREAD_AREA_3264, %d, index=%d, data=%p", pid, addr, data)
+	if (request == %{ PTRACE_GET_WATCH_REGS %})
+		// TODO: Retrieve *data in .return
+		return sprintf ("PTRACE_GET_WATCH_REGS, %d, data=%p", pid, data)
+	if (request == %{ PTRACE_SET_WATCH_REGS %})
+		// TODO: Retrieve *data here
+		return sprintf ("PTRACE_SET_WATCH_REGS, %d, data=%p", pid, data)
+}
+
+function _ptrace_return_arch_prctl_addr:long(request:long, addr:long, data:long)
+{
+	return 0
+}

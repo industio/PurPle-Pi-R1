@@ -1,0 +1,52 @@
+# bpf ________________________________________________________
+# SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr,
+#                 unsigned int, size)
+
+@define _SYSCALL_BPF_NAME
+%(
+	name = "bpf"
+%)
+
+@define _SYSCALL_BPF_ARGSTR
+%(
+	argstr = sprintf("%s, %p, %u", cmd_str, attr_uaddr, size)
+%)
+
+probe syscall.bpf = dw_syscall.bpf !, nd_syscall.bpf ? {}
+probe syscall.bpf.return = dw_syscall.bpf.return !, nd_syscall.bpf.return ? {}
+
+# dw_bpf _____________________________________________________
+
+probe dw_syscall.bpf = kernel.function("sys_bpf") ?
+{
+	@_SYSCALL_BPF_NAME
+	cmd = __int32($cmd)
+	cmd_str = _bpf_cmd_str(cmd)
+	attr_uaddr = $uattr
+	size = __uint32($size)
+	@_SYSCALL_BPF_ARGSTR
+}
+probe dw_syscall.bpf.return = kernel.function("sys_bpf").return ?
+{
+	@_SYSCALL_BPF_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_bpf _____________________________________________________
+
+probe nd_syscall.bpf = kprobe.function("sys_bpf") ?
+{
+	@_SYSCALL_BPF_NAME
+	asmlinkage()
+	cmd = int_arg(1)
+	cmd_str = _bpf_cmd_str(cmd)
+	attr_uaddr = pointer_arg(2)
+	size = uint_arg(3)
+	@_SYSCALL_BPF_ARGSTR
+
+}
+probe nd_syscall.bpf.return = kprobe.function("sys_bpf").return ?
+{
+	@_SYSCALL_BPF_NAME
+	retstr = returnstr(1)
+}

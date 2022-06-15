@@ -1,0 +1,80 @@
+# getitimer __________________________________________________
+# sys_getitimer(int which, struct itimerval __user *value)
+#
+
+@define _SYSCALL_GETITIMER_NAME
+%(
+	name = "getitimer"
+%)
+
+@define _SYSCALL_GETITIMER_ARGSTR
+%(
+	argstr = sprintf("%s, %p", _itimer_which_str(which), value_uaddr)
+%)
+
+probe syscall.getitimer = dw_syscall.getitimer !, nd_syscall.getitimer ? {}
+probe syscall.getitimer.return = dw_syscall.getitimer.return !,
+                                 nd_syscall.getitimer.return ? {}
+
+probe syscall.compat_getitimer = dw_syscall.compat_getitimer !,
+                                 nd_syscall.compat_getitimer ? {}
+probe syscall.compat_getitimer.return = dw_syscall.compat_getitimer.return !,
+                                        nd_syscall.compat_getitimer.return ? {}
+
+# dw_getitimer _____________________________________________________
+
+probe dw_syscall.getitimer = kernel.function("sys_getitimer").call
+{
+	@_SYSCALL_GETITIMER_NAME
+	which = __int32($which)
+	value_uaddr = $value
+	@_SYSCALL_GETITIMER_ARGSTR
+}
+probe dw_syscall.getitimer.return = kernel.function("sys_getitimer").return
+{
+	@_SYSCALL_GETITIMER_NAME
+	retstr = return_str(1, $return)
+}
+# long compat_sys_getitimer(int which, struct compat_itimerval __user *it
+probe dw_syscall.compat_getitimer = kernel.function("compat_sys_getitimer").call ?
+{
+	@_SYSCALL_GETITIMER_NAME
+	which = __int32($which)
+	value_uaddr = @__pointer($it)
+	@_SYSCALL_GETITIMER_ARGSTR
+}
+probe dw_syscall.compat_getitimer.return = kernel.function("compat_sys_getitimer").return ?
+{
+	@_SYSCALL_GETITIMER_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getitimer _____________________________________________________
+
+probe nd_syscall.getitimer = kprobe.function("sys_getitimer") ?
+{
+	@_SYSCALL_GETITIMER_NAME
+	asmlinkage()
+	which = int_arg(1)
+	value_uaddr = pointer_arg(2)
+	@_SYSCALL_GETITIMER_ARGSTR
+}
+probe nd_syscall.getitimer.return = kprobe.function("sys_getitimer").return ?
+{
+	@_SYSCALL_GETITIMER_NAME
+	retstr = returnstr(1)
+}
+# long compat_sys_getitimer(int which, struct compat_itimerval __user *it
+probe nd_syscall.compat_getitimer = kprobe.function("compat_sys_getitimer") ?
+{
+	@_SYSCALL_GETITIMER_NAME
+	asmlinkage()
+	which = int_arg(1)
+	value_uaddr = pointer_arg(2)
+	@_SYSCALL_GETITIMER_ARGSTR
+}
+probe nd_syscall.compat_getitimer.return = kprobe.function("compat_sys_getitimer").return ?
+{
+	@_SYSCALL_GETITIMER_NAME
+	retstr = returnstr(1)
+}

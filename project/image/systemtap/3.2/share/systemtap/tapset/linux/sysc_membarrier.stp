@@ -1,0 +1,49 @@
+# membarrier _______________________________________________________
+# SYSCALL_DEFINE2(membarrier, int, cmd, int, flags)
+
+@define _SYSCALL_MEMBARRIER_NAME
+%(
+	name = "membarrier"
+%)
+
+@define _SYSCALL_MEMBARRIER_ARGSTR
+%(
+	argstr = sprintf("%s, %d", cmd_str, flags)
+%)
+
+probe syscall.membarrier = dw_syscall.membarrier !, nd_syscall.membarrier ? {}
+probe syscall.membarrier.return = dw_syscall.membarrier.return !,
+                                  nd_syscall.membarrier.return ? {}
+
+# dw_membarrier _____________________________________________________
+
+probe dw_syscall.membarrier = kernel.function("sys_membarrier").call ?
+{
+	@_SYSCALL_MEMBARRIER_NAME
+	cmd = __int32($cmd)
+	cmd_str = _membarrier_cmd_str(cmd)
+	flags = __int32($flags)
+	@_SYSCALL_MEMBARRIER_ARGSTR
+}
+probe dw_syscall.membarrier.return = kernel.function("sys_membarrier").return ?
+{
+	@_SYSCALL_MEMBARRIER_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_membarrier _____________________________________________________
+
+probe nd_syscall.membarrier = kprobe.function("sys_membarrier").call ?
+{
+	@_SYSCALL_MEMBARRIER_NAME
+	asmlinkage()
+	cmd = int_arg(1)
+	cmd_str = _membarrier_cmd_str(cmd)
+	flags = int_arg(2)
+	@_SYSCALL_MEMBARRIER_ARGSTR
+}
+probe nd_syscall.membarrier.return = kprobe.function("sys_membarrier").return ?
+{
+	@_SYSCALL_MEMBARRIER_NAME
+	retstr = returnstr(1)
+}

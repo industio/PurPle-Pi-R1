@@ -1,0 +1,9 @@
+// note, plain '@sizeof` may become a builtin syntax, PR18191
+
+@define cast_sizeof(type) %(
+    ( & @cast(0, @type) [1] )
+%)
+
+@define cast_module_sizeof(module, type) %(
+    ( & @cast(0, @type, @module) [1] )
+%)

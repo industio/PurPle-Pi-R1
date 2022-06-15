@@ -1,0 +1,52 @@
+# sysinfo ____________________________________________________
+#
+# long sys_sysinfo(struct sysinfo __user *info)
+# long compat_sys_sysinfo(struct compat_sysinfo __user *info)
+
+@define _SYSCALL_SYSINFO_NAME
+%(
+	name = "sysinfo"
+%)
+
+@define _SYSCALL_SYSINFO_ARGSTR
+%(
+	argstr = sprintf("%s", info_str)
+%)
+
+probe syscall.sysinfo = dw_syscall.sysinfo !, nd_syscall.sysinfo ? {}
+probe syscall.sysinfo.return = dw_syscall.sysinfo.return !, nd_syscall.sysinfo.return ? {}
+
+# dw_sysinfo _____________________________________________________
+
+probe dw_syscall.sysinfo = kernel.function("compat_sys_sysinfo").call ?,
+                        kernel.function("sys_sysinfo").call
+{
+	@_SYSCALL_SYSINFO_NAME
+	info_uaddr = $info
+	info_str = _struct_sysinfo_u(info_uaddr)
+	@_SYSCALL_SYSINFO_ARGSTR
+}
+probe dw_syscall.sysinfo.return = kernel.function("compat_sys_sysinfo").return ?,
+                               kernel.function("sys_sysinfo").return
+{
+	@_SYSCALL_SYSINFO_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sysinfo _____________________________________________________
+
+probe nd_syscall.sysinfo = kprobe.function("compat_sys_sysinfo") ?,
+                           kprobe.function("sys_sysinfo") ?
+{
+	@_SYSCALL_SYSINFO_NAME
+	asmlinkage()
+	info_uaddr = pointer_arg(1)
+	info_str = _struct_sysinfo_u(info_uaddr)
+	@_SYSCALL_SYSINFO_ARGSTR
+}
+probe nd_syscall.sysinfo.return = kprobe.function("compat_sys_sysinfo").return ?,
+                                  kprobe.function("sys_sysinfo").return ?
+{
+	@_SYSCALL_SYSINFO_NAME
+	retstr = returnstr(1)
+}

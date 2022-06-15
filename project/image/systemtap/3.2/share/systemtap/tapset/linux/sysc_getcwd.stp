@@ -1,0 +1,46 @@
+# getcwd _____________________________________________________
+# long sys_getcwd(char __user *buf, unsigned long size)
+
+@define _SYSCALL_GETCWD_NAME
+%(
+	name = "getcwd"
+%)
+
+@define _SYSCALL_GETCWD_ARGSTR
+%(
+	argstr = sprintf("%p, %d", buf_uaddr, size)
+%)
+
+probe syscall.getcwd = dw_syscall.getcwd !, nd_syscall.getcwd ? {}
+probe syscall.getcwd.return = dw_syscall.getcwd.return !, nd_syscall.getcwd.return ? {}
+
+# dw_getcwd _____________________________________________________
+# long sys_getcwd(char __user *buf, unsigned long size)
+probe dw_syscall.getcwd = kernel.function("sys_getcwd").call
+{
+	@_SYSCALL_GETCWD_NAME
+	buf_uaddr = $buf
+	size = $size
+	@_SYSCALL_GETCWD_ARGSTR
+}
+probe dw_syscall.getcwd.return = kernel.function("sys_getcwd").return
+{
+	@_SYSCALL_GETCWD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getcwd _____________________________________________________
+# long sys_getcwd(char __user *buf, unsigned long size)
+probe nd_syscall.getcwd = kprobe.function("sys_getcwd") ?
+{
+	@_SYSCALL_GETCWD_NAME
+	asmlinkage()
+	buf_uaddr = pointer_arg(1)
+	size = ulong_arg(2)
+	@_SYSCALL_GETCWD_ARGSTR
+}
+probe nd_syscall.getcwd.return = kprobe.function("sys_getcwd").return ?
+{
+	@_SYSCALL_GETCWD_NAME
+	retstr = returnstr(1)
+}

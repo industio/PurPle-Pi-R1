@@ -1,0 +1,107 @@
+# futimesat _____________________________________________________
+#
+# long sys_futimesat(int dfd, char __user *filename, struct timeval __user *utimes)
+# long compat_sys_futimesat(unsigned int dfd, char __user *filename, struct compat_timeval __user *t)
+#
+
+
+@define _SYSCALL_FUTIMESAT_NAME
+%(
+	name = "futimesat"
+%)
+
+@define _SYSCALL_FUTIMESAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s", dirfd_str, filename, tvp_str)
+%)
+
+probe syscall.futimesat = dw_syscall.futimesat !, nd_syscall.futimesat ? {}
+probe syscall.futimesat.return = dw_syscall.futimesat.return !,
+                                 nd_syscall.futimesat.return ? {}
+
+probe syscall.compat_futimesat = dw_syscall.compat_futimesat !,
+                                 nd_syscall.compat_futimesat ? {}
+probe syscall.compat_futimesat.return = dw_syscall.compat_futimesat.return !,
+                                        nd_syscall.compat_futimesat.return ? {}
+
+
+# dw_futimesat _____________________________________________________
+
+probe dw_syscall.futimesat = kernel.function("sys_futimesat").call ?
+{
+	@__syscall_gate(@const("__NR_futimesat"))
+	@_SYSCALL_FUTIMESAT_NAME
+	dirfd = __int32($dfd)
+	dirfd_str = _dfd_str(__int32($dfd))
+	filename_uaddr = $filename
+	filename = user_string_quoted($filename)
+	tvp_uaddr = $utimes
+	tvp_str = _struct_timeval_u(tvp_uaddr, 2)
+	@_SYSCALL_FUTIMESAT_ARGSTR
+}
+probe dw_syscall.compat_futimesat = kernel.function("compat_sys_futimesat").call ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_futimesat"))
+	@_SYSCALL_FUTIMESAT_NAME
+	dirfd = __int32($dfd)
+	dirfd_str = _dfd_str(__int32($dfd))
+	filename_uaddr = @__pointer($filename)
+	filename = user_string_quoted($filename)
+	tvp_uaddr = @__pointer($t)
+	tvp_str = _struct_compat_timeval_u(tvp_uaddr, 2)
+	@_SYSCALL_FUTIMESAT_ARGSTR
+}
+probe dw_syscall.futimesat.return = kernel.function("sys_futimesat").return ?
+{
+	@__syscall_gate(@const("__NR_futimesat"))
+	@_SYSCALL_FUTIMESAT_NAME
+	retstr = return_str(1, $return)
+}
+probe dw_syscall.compat_futimesat.return =
+	kernel.function("compat_sys_futimesat").return ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_futimesat"))
+	@_SYSCALL_FUTIMESAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_futimesat _____________________________________________________
+
+probe nd_syscall.futimesat = kprobe.function("sys_futimesat") ?
+{
+	asmlinkage()
+	@__syscall_gate(@const("__NR_futimesat"))
+	@_SYSCALL_FUTIMESAT_NAME
+	dirfd = int_arg(1)
+	dirfd_str = _dfd_str(dirfd)
+	filename_uaddr = pointer_arg(2)
+	filename = user_string_quoted(filename_uaddr)
+	tvp_uaddr = pointer_arg(3)
+	tvp_str = _struct_timeval_u(tvp_uaddr, 2)
+	@_SYSCALL_FUTIMESAT_ARGSTR
+}
+probe nd_syscall.compat_futimesat = kprobe.function("compat_sys_futimesat") ?
+{
+	asmlinkage()
+	@__compat_syscall_gate(@const("__NR_compat_futimesat"))
+	@_SYSCALL_FUTIMESAT_NAME
+	dirfd = int_arg(1)
+	dirfd_str = _dfd_str(dirfd)
+	filename_uaddr = pointer_arg(2)
+	filename = user_string_quoted(pointer_arg(2))
+	tvp_uaddr = pointer_arg(3)
+	tvp_str = _struct_compat_timeval_u(tvp_uaddr, 2)
+	@_SYSCALL_FUTIMESAT_ARGSTR
+}
+probe nd_syscall.futimesat.return = kprobe.function("sys_futimesat").return ?
+{
+	@__syscall_gate(@const("__NR_futimesat"))
+	@_SYSCALL_FUTIMESAT_NAME
+	retstr = returnstr(1)
+}
+probe nd_syscall.compat_futimesat.return = kprobe.function("compat_sys_futimesat").return ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_futimesat"))
+	@_SYSCALL_FUTIMESAT_NAME
+	retstr = returnstr(1)
+}

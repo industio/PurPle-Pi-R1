@@ -1,0 +1,54 @@
+# sys32_rt_sigqueueinfo ________________________________________
+#
+# long sys32_rt_sigqueueinfo(u32 pid, u32 sig, compat_siginfo_t __user *uinfo)
+#
+
+@define _SYSCALL_SYS32_RT_SIGQUEUEINFO_NAME
+%(
+	name = "sys32_rt_sigqueueinfo"
+%)
+
+@define _SYSCALL_SYS32_RT_SIGQUEUEINFO_ARGSTR
+%(
+	argstr = sprintf("%p, %s, %p", pid, sig_str, uinfo_uaddr)
+%)
+
+probe syscall.sys32_rt_sigqueueinfo = dw_syscall.sys32_rt_sigqueueinfo !,
+                                      nd_syscall.sys32_rt_sigqueueinfo ? {}
+probe syscall.sys32_rt_sigqueueinfo.return = dw_syscall.sys32_rt_sigqueueinfo.return !,
+                                             nd_syscall.sys32_rt_sigqueueinfo.return ? {}
+
+# dw_sys32_rt_sigqueueinfo _____________________________________________________
+
+probe dw_syscall.sys32_rt_sigqueueinfo = kernel.function("sys32_rt_sigqueueinfo") ?
+{
+	@_SYSCALL_SYS32_RT_SIGQUEUEINFO_NAME
+	pid = $pid
+	sig = $sig
+	sig_str = _signal_name(sig)
+	uinfo_uaddr = $uinfo
+	@_SYSCALL_SYS32_RT_SIGQUEUEINFO_ARGSTR
+}
+probe dw_syscall.sys32_rt_sigqueueinfo.return = kernel.function("sys32_rt_sigqueueinfo").return ?
+{
+	@_SYSCALL_SYS32_RT_SIGQUEUEINFO_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_rt_sigqueueinfo _____________________________________________________
+
+probe nd_syscall.sys32_rt_sigqueueinfo = kprobe.function("sys32_rt_sigqueueinfo") ?
+{
+	@_SYSCALL_SYS32_RT_SIGQUEUEINFO_NAME
+	asmlinkage()
+	pid = uint_arg(1)
+	sig = uint_arg(2)
+	sig_str = _signal_name(sig)
+	uinfo_uaddr = pointer_arg(3)
+	@_SYSCALL_SYS32_RT_SIGQUEUEINFO_ARGSTR
+}
+probe nd_syscall.sys32_rt_sigqueueinfo.return = kprobe.function("sys32_rt_sigqueueinfo").return ?
+{
+	@_SYSCALL_SYS32_RT_SIGQUEUEINFO_NAME
+	retstr = returnstr(1)
+}

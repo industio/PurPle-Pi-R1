@@ -1,0 +1,89 @@
+# timer_create _______________________________________________
+#
+# long sys_timer_create(clockid_t which_clock,
+#			struct sigevent __user *timer_event_spec,
+#			timer_t __user * created_timer_id)
+# long compat_sys_timer_create(clockid_t which_clock,
+#			struct sigevent __user *timer_event_spec,
+#			timer_t __user * created_timer_id)
+#
+
+@define _SYSCALL_TIMER_CREATE_NAME
+%(
+	name = "timer_create"
+%)
+
+@define _SYSCALL_TIMER_CREATE_ARGSTR
+%(
+	argstr = sprintf("%s, %p, %p", clockid_str, evp_uaddr, timerid_uaddr)
+%)
+
+probe syscall.timer_create = dw_syscall.timer_create !, nd_syscall.timer_create ? {}
+probe syscall.timer_create.return = dw_syscall.timer_create.return !,
+                                    nd_syscall.timer_create.return ? {}
+
+# dw_timer_create _____________________________________________________
+
+probe dw_syscall.timer_create = __syscall.timer_create,
+                             kernel.function("compat_sys_timer_create").call ?
+{
+	@_SYSCALL_TIMER_CREATE_NAME
+	clockid = __int32($which_clock)
+	clockid_str = _get_wc_str(__int32($which_clock))
+	evp_uaddr = @__pointer($timer_event_spec)
+	timerid_uaddr = @__pointer($created_timer_id)
+	@_SYSCALL_TIMER_CREATE_ARGSTR
+}
+probe __syscall.timer_create = kernel.function("sys_timer_create").call
+{
+	@__syscall_gate(@const("__NR_timer_create"))
+}
+probe dw_syscall.timer_create.return =
+	__syscall.timer_create.return,
+	kernel.function("compat_sys_timer_create").return ?
+{
+	@_SYSCALL_TIMER_CREATE_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.timer_create.return = kernel.function("sys_timer_create").return
+{
+	@__syscall_gate(@const("__NR_timer_create"))
+}
+
+# nd_timer_create _____________________________________________________
+
+probe nd_syscall.timer_create = __nd_syscall.timer_create,
+                                __nd_syscall.compat_timer_create ?
+{
+	@_SYSCALL_TIMER_CREATE_NAME
+}
+probe __nd_syscall.timer_create = kprobe.function("sys_timer_create")
+{
+	@__syscall_gate(@const("__NR_timer_create"))
+	asmlinkage()
+	clockid = int_arg(1)
+	clockid_str = _get_wc_str(clockid)
+	evp_uaddr = pointer_arg(2)
+	timerid_uaddr = pointer_arg(3)
+	@_SYSCALL_TIMER_CREATE_ARGSTR
+}
+probe __nd_syscall.compat_timer_create = kprobe.function("compat_sys_timer_create") ?
+{
+	asmlinkage()
+	clockid = int_arg(1)
+	clockid_str = _get_wc_str(clockid)
+	evp_uaddr = pointer_arg(2)
+	timerid_uaddr = pointer_arg(3)
+	@_SYSCALL_TIMER_CREATE_ARGSTR
+}
+probe nd_syscall.timer_create.return =
+	__nd_syscall.timer_create.return,
+	kprobe.function("compat_sys_timer_create").return ?
+{
+	@_SYSCALL_TIMER_CREATE_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.timer_create.return = kprobe.function("sys_timer_create").return
+{
+	@__syscall_gate(@const("__NR_timer_create"))
+}

@@ -1,0 +1,18 @@
+/**
+ * function exit - 
+ *
+ * Description: Set exit flag.
+ */
+function _set_exit_status:long ()
+%{ /* bpf */ /* unprivileged */ 
+    0x118, 1, 0, 0, 0;          /* BPF_LD_MAP_FD(r1, map0) */
+    0x7a, 10, 0, -8, 1; 	/* *(u64 *)(r10 - 8) = 1 (map value) */
+    0xbf, 3, 10, 0, 0;  	/* r3 = r10 */
+    0x07, 3, 0, 0, -8; 		/* r3 += -8 */
+    0x62, 10, 0, -12, 0;  	/* *(u32 *)(r10 - 12) = 0 (map key) */ 
+    0xbf, 2, 10, 0, 0;  	/* r2 = r10 */ 
+    0x07, 2, 0, 0, -12;  	/* r2 += -12 */
+    0xb7, 4, 0, 0, 0;		/* r4 = 0 (flags) */ 
+    0x85, 0, 0, 0, 2;   	/* call bpf_map_update_elem */ 
+    0xbf, $$, 0, 0, 0           /* return r0 */
+%}

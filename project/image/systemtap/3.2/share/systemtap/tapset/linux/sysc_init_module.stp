@@ -1,0 +1,53 @@
+# init_module ________________________________________________
+# long sys_init_module(void __user *umod,
+#		unsigned long len,
+#		const char __user *uargs)
+#
+
+@define _SYSCALL_INIT_MODULE_NAME
+%(
+	name = "init_module"
+%)
+
+@define _SYSCALL_INIT_MODULE_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s", umod_uaddr, len, uargs)
+%)
+
+probe syscall.init_module = dw_syscall.init_module !, nd_syscall.init_module ? {}
+probe syscall.init_module.return = dw_syscall.init_module.return !,
+                                   nd_syscall.init_module.return ? {}
+
+# dw_init_module _____________________________________________________
+
+probe dw_syscall.init_module = kernel.function("sys_init_module").call ?
+{
+	@_SYSCALL_INIT_MODULE_NAME
+	umod_uaddr = $umod
+	len = __ulong($len)
+	uargs = user_string_quoted($uargs)
+	@_SYSCALL_INIT_MODULE_ARGSTR
+}
+probe dw_syscall.init_module.return = kernel.function("sys_init_module").return ?
+{
+	@_SYSCALL_INIT_MODULE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_init_module _____________________________________________________
+
+probe nd_syscall.init_module = kprobe.function("sys_init_module") ?
+{
+	@_SYSCALL_INIT_MODULE_NAME
+	asmlinkage()
+	umod_uaddr = pointer_arg(1)
+	len = ulong_arg(2)
+	uargs = user_string_quoted(pointer_arg(3))
+	@_SYSCALL_INIT_MODULE_ARGSTR
+}
+probe nd_syscall.init_module.return =
+	kprobe.function("sys_init_module").return ?
+{
+	@_SYSCALL_INIT_MODULE_NAME
+	retstr = returnstr(1)
+}

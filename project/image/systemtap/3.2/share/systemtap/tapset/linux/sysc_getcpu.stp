@@ -1,0 +1,53 @@
+# getcpu _____________________________________________________
+# getcpu() was added in kernel 2.6.19 for x86_64 and i386.
+# Note that the 'tcache' argument is unused since Linux 2.6.24.
+#
+# SYSCALL_DEFINE3(getcpu, unsigned __user *, cpup, unsigned __user *, nodep,
+#		  struct getcpu_cache __user *, unused)
+
+@define _SYSCALL_GETCPU_NAME
+%(
+	name = "getcpu"
+%)
+
+@define _SYSCALL_GETCPU_ARGSTR
+%(
+	argstr = sprintf("%p, %p, %p", cpu_uaddr, node_uaddr, tcache_uaddr)
+%)
+
+probe syscall.getcpu = dw_syscall.getcpu !, nd_syscall.getcpu ? {}
+probe syscall.getcpu.return = dw_syscall.getcpu.return !, nd_syscall.getcpu.return ? {}
+
+# dw_getcpu _____________________________________________________
+
+probe dw_syscall.getcpu = kernel.function("sys_getcpu").call ?
+{
+	@_SYSCALL_GETCPU_NAME
+	cpu_uaddr = $cpup
+	node_uaddr = $nodep
+	tcache_uaddr = @choose_defined($unused, $cache)
+	@_SYSCALL_GETCPU_ARGSTR
+}
+probe dw_syscall.getcpu.return = kernel.function("sys_getcpu").return ?
+{
+	@_SYSCALL_GETCPU_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getcpu _____________________________________________________
+
+probe nd_syscall.getcpu = kprobe.function("sys_getcpu") ?
+{
+	@_SYSCALL_GETCPU_NAME
+	asmlinkage()
+	cpu_uaddr = pointer_arg(1)
+	node_uaddr = pointer_arg(2)
+	tcache_uaddr = pointer_arg(3)
+	@_SYSCALL_GETCPU_ARGSTR
+}
+probe nd_syscall.getcpu.return = kprobe.function("sys_getcpu").return ?
+{
+	@_SYSCALL_GETCPU_NAME
+	retstr = returnstr(1)
+}
+

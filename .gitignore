@@ -50,3 +50,5 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+./project/image/rootfs/rootfs.tar.gz
+./project/image/rootfs/rootfs_route.tar.gz

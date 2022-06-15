@@ -1,0 +1,49 @@
+# sys32_adjtimex ________________________________________
+#
+# long sys32_adjtimex(struct timex32 __user *utp)
+#
+
+@define _SYSCALL_SYS32_ADJTIMEX_NAME
+%(
+	name = "sys32_adjtimex"
+%)
+
+@define _SYSCALL_SYS32_ADJTIMEX_ARGSTR
+%(
+	argstr = sprintf("%p", utp)
+%)
+
+probe syscall.sys32_adjtimex = dw_syscall.sys32_adjtimex !,
+                               nd_syscall.sys32_adjtimex ? {}
+probe syscall.sys32_adjtimex.return = dw_syscall.sys32_adjtimex.return !,
+                                      nd_syscall.sys32_adjtimex.return ? {}
+
+# dw_sys32_adjtimex _____________________________________________________
+
+probe dw_syscall.sys32_adjtimex = kernel.function("sys32_adjtimex") ?
+{
+	@_SYSCALL_SYS32_ADJTIMEX_NAME
+	utp = $utp
+	@_SYSCALL_SYS32_ADJTIMEX_ARGSTR
+}
+probe dw_syscall.sys32_adjtimex.return = kernel.function("sys32_adjtimex").return ?
+{
+	@_SYSCALL_SYS32_ADJTIMEX_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_adjtimex _____________________________________________________
+
+probe nd_syscall.sys32_adjtimex = kprobe.function("sys32_adjtimex") ?
+{
+	@_SYSCALL_SYS32_ADJTIMEX_NAME
+	asmlinkage()
+	utp = pointer_arg(1)
+	@_SYSCALL_SYS32_ADJTIMEX_ARGSTR
+}
+probe nd_syscall.sys32_adjtimex.return = kprobe.function("sys32_adjtimex").return ?
+{
+	@_SYSCALL_SYS32_ADJTIMEX_NAME
+	retstr = returnstr(1)
+}
+

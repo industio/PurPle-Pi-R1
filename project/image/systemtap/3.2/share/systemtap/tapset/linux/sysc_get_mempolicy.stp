@@ -1,0 +1,88 @@
+# get_mempolicy ______________________________________________
+# long sys_get_mempolicy(int __user *policy,
+#                   unsigned long __user *nmask,
+#                   unsigned long maxnode,
+#                   unsigned long addr,
+#                   unsigned long flags)
+# long compat_sys_get_mempolicy(int __user *policy,
+#		     compat_ulong_t __user *nmask,
+#		     compat_ulong_t maxnode,
+#		     compat_ulong_t addr, compat_ulong_t flags)
+#
+
+@define _SYSCALL_GET_MEMPOLICY_NAME
+%(
+	name = "get_mempolicy"
+%)
+
+@define _SYSCALL_GET_MEMPOLICY_ARGSTR
+%(
+	argstr = sprintf("%p, %p, %u, %p, %s", policy_uaddr, nmask_uaddr,
+	                 maxnode, addr, _mempolicy_flags_str(flags))
+%)
+
+probe syscall.get_mempolicy = dw_syscall.get_mempolicy !, nd_syscall.get_mempolicy ? {}
+probe syscall.get_mempolicy.return = dw_syscall.get_mempolicy.return !, nd_syscall.get_mempolicy.return ? {}
+
+# dw_get_mempolicy _____________________________________________________
+
+probe dw_syscall.get_mempolicy = __syscall.get_mempolicy ?,
+	kernel.function("compat_sys_get_mempolicy").call ?
+{
+	@_SYSCALL_GET_MEMPOLICY_NAME
+	policy_uaddr = $policy
+	nmask_uaddr = $nmask
+	maxnode = $maxnode
+	addr = $addr
+	flags = $flags
+	flags_str = _mempolicy_flags_str($flags)
+	@_SYSCALL_GET_MEMPOLICY_ARGSTR
+}
+probe __syscall.get_mempolicy = kernel.function("sys_get_mempolicy").call ?
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.get_mempolicy.return = __syscall.get_mempolicy.return ?,
+	kernel.function("compat_sys_get_mempolicy").return ?
+{
+	@_SYSCALL_GET_MEMPOLICY_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.get_mempolicy.return =
+	kernel.function("sys_get_mempolicy").return ?
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_get_mempolicy _____________________________________________________
+
+probe nd_syscall.get_mempolicy = __nd_syscall.get_mempolicy ?,
+	kprobe.function("compat_sys_get_mempolicy") ?
+{
+	@_SYSCALL_GET_MEMPOLICY_NAME
+	asmlinkage()
+	policy_uaddr = pointer_arg(1)
+	nmask_uaddr = pointer_arg(2)
+	maxnode = ulong_arg(3)
+	addr = ulong_arg(4)
+	flags = ulong_arg(5)
+	flags_str = _mempolicy_flags_str(flags)
+	@_SYSCALL_GET_MEMPOLICY_ARGSTR
+}
+probe __nd_syscall.get_mempolicy = kprobe.function("sys_get_mempolicy") ?
+{
+	asmlinkage()
+	@__syscall_gate_compat_simple
+}
+probe nd_syscall.get_mempolicy.return = __nd_syscall.get_mempolicy.return ?,
+	kprobe.function("compat_sys_get_mempolicy").return ?
+{
+	@_SYSCALL_GET_MEMPOLICY_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.get_mempolicy.return =
+	kprobe.function("sys_get_mempolicy").return ?
+{
+	asmlinkage()
+	@__syscall_gate_compat_simple
+}

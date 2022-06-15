@@ -1,0 +1,48 @@
+# memfd_create _____________________________________________________
+# long sys_memfd_create (const char __user* uname, unsigned int flags)
+
+@define _SYSCALL_MEMFD_CREATE_NAME
+%(
+	name = "memfd_create"
+%)
+
+@define _SYSCALL_MEMFD_CREATE_ARGSTR
+%(
+	argstr = sprintf("%s, %s", uname, flags_str)
+%)
+
+probe syscall.memfd_create = dw_syscall.memfd_create !, nd_syscall.memfd_create ? {}
+probe syscall.memfd_create.return = dw_syscall.memfd_create.return !, nd_syscall.memfd_create.return ? {}
+
+# dw_memfd_create _____________________________________________________
+
+probe dw_syscall.memfd_create = kernel.function("sys_memfd_create").call ?
+{
+	@_SYSCALL_MEMFD_CREATE_NAME
+	uname = user_string_quoted($uname)
+	flags = $flags
+	flags_str = _mfd_flags_str($flags)
+	@_SYSCALL_MEMFD_CREATE_ARGSTR
+}
+probe dw_syscall.memfd_create.return = kernel.function("sys_memfd_create").return ?
+{
+	@_SYSCALL_MEMFD_CREATE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_memfd_create _____________________________________________________
+
+probe nd_syscall.memfd_create = kprobe.function("sys_memfd_create") ?
+{
+	@_SYSCALL_MEMFD_CREATE_NAME
+	asmlinkage()
+	uname = user_string_quoted(pointer_arg(1))
+	flags = uint_arg(2)
+	flags_str = _mfd_flags_str(uint_arg(2))
+	@_SYSCALL_MEMFD_CREATE_ARGSTR
+}
+probe nd_syscall.memfd_create.return = kprobe.function("sys_memfd_create").return ?
+{
+	@_SYSCALL_MEMFD_CREATE_NAME
+	retstr = returnstr(1)
+}

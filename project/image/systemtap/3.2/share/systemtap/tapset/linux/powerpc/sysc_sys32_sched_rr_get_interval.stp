@@ -1,0 +1,51 @@
+# sys32_sched_rr_get_interval ________________________________________
+#
+# asmlinkage long sys32_sched_rr_get_interval(u32 pid,
+#		struct compat_timespec __user *interval)
+#
+
+@define _SYSCALL_SYS32_SCHED_RR_GET_INTERVAL_NAME
+%(
+	name = "sys32_sched_rr_get_interval"
+%)
+
+@define _SYSCALL_SYS32_SCHED_RR_GET_INTERVAL_ARGSTR
+%(
+	argstr = sprintf("%d, %p", pid, interval_uaddr)
+%)
+
+probe syscall.sys32_sched_rr_get_interval = dw_syscall.sys32_sched_rr_get_interval !,
+                                            nd_syscall.sys32_sched_rr_get_interval ? {}
+probe syscall.sys32_sched_rr_get_interval.return = dw_syscall.sys32_sched_rr_get_interval.return !,
+                                                   nd_syscall.sys32_sched_rr_get_interval.return ? {}
+
+# dw_sys32_sched_rr_get_interval _____________________________________________________
+
+probe dw_syscall.sys32_sched_rr_get_interval = kernel.function("sys32_sched_rr_get_interval") ?
+{
+	@_SYSCALL_SYS32_SCHED_RR_GET_INTERVAL_NAME
+	pid = $pid
+	interval_uaddr = $interval
+	@_SYSCALL_SYS32_SCHED_RR_GET_INTERVAL_ARGSTR
+}
+probe dw_syscall.sys32_sched_rr_get_interval.return = kernel.function("sys32_sched_rr_get_interval").return ?
+{
+	@_SYSCALL_SYS32_SCHED_RR_GET_INTERVAL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_sched_rr_get_interval _____________________________________________________
+
+probe nd_syscall.sys32_sched_rr_get_interval = kprobe.function("sys32_sched_rr_get_interval") ?
+{
+	@_SYSCALL_SYS32_SCHED_RR_GET_INTERVAL_NAME
+	asmlinkage()
+	pid = uint_arg(1)
+	interval_uaddr = pointer_arg(2)
+	@_SYSCALL_SYS32_SCHED_RR_GET_INTERVAL_ARGSTR
+}
+probe nd_syscall.sys32_sched_rr_get_interval.return = kprobe.function("sys32_sched_rr_get_interval").return ?
+{
+	@_SYSCALL_SYS32_SCHED_RR_GET_INTERVAL_NAME
+	retstr = returnstr(1)
+}

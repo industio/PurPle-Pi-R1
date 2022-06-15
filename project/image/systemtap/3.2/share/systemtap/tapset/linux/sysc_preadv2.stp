@@ -1,0 +1,93 @@
+# preadv2 __________________________________________________
+#
+# SYSCALL_DEFINE6(preadv2, unsigned long, fd, const struct iovec __user *, vec,
+#		unsigned long, vlen, unsigned long, pos_l, unsigned long, pos_h,
+#		int, flags)
+#COMPAT_SYSCALL_DEFINE6(preadv2, compat_ulong_t, fd,
+#		const struct compat_iovec __user *,vec,
+#		compat_ulong_t, vlen, u32, pos_low, u32, pos_high,
+#		int, flags)
+
+@define _SYSCALL_PREADV2_NAME
+%(
+	name = "preadv2"
+%)
+
+@define _SYSCALL_PREADV2_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d, 0x%x, %s", fd, vector_uaddr, count,
+	                 offset, flags_str)
+%)
+
+probe syscall.preadv2 = dw_syscall.preadv2 !, nd_syscall.preadv2 ? {}
+probe syscall.preadv2.return = dw_syscall.preadv2.return !,
+                               nd_syscall.preadv2.return ? {}
+
+# dw_preadv2 _____________________________________________________
+
+probe dw_syscall.preadv2 = __syscall.preadv2 ?, __syscall.compat_preadv2 ?
+{
+	@_SYSCALL_PREADV2_NAME
+}
+probe __syscall.preadv2 = kernel.function("sys_preadv2").call ?
+{
+	fd = __int32($fd)
+	vector_uaddr = $vec
+	count = __int32($vlen)
+	offset = @__pos_from_hilo($pos_h, $pos_l)
+	flags = $flags
+	flags_str = _preadv2_flags_str(flags)
+	@_SYSCALL_PREADV2_ARGSTR
+}
+probe __syscall.compat_preadv2 = kernel.function("compat_sys_preadv2").call ?
+{
+	fd = __int32($fd)
+	vector_uaddr = $vec
+	count = __int32($vlen)
+	offset = ($pos_high << 32) + __uint32($pos_low)
+	flags = $flags
+	flags_str = _preadv2_flags_str(flags)
+	@_SYSCALL_PREADV2_ARGSTR
+}
+probe dw_syscall.preadv2.return = kernel.function("sys_preadv2").return ?,
+	kernel.function("compat_sys_preadv2").return ?
+{
+	@_SYSCALL_PREADV2_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_preadv2 _____________________________________________________
+
+probe nd_syscall.preadv2 = __nd_syscall.preadv2 ?,
+	__nd_syscall.compat_preadv2 ?
+{
+	@_SYSCALL_PREADV2_NAME
+}
+probe __nd_syscall.preadv2 = kprobe.function("sys_preadv2")
+{
+	asmlinkage()
+	fd = int_arg(1)
+	vector_uaddr = pointer_arg(2)
+	count = int_arg(3)
+	offset = @__pos_from_hilo(ulong_arg(5), ulong_arg(4))
+	flags = int_arg(6)
+	flags_str = _preadv2_flags_str(flags)
+	@_SYSCALL_PREADV2_ARGSTR
+}
+probe __nd_syscall.compat_preadv2 = kprobe.function("compat_sys_preadv2")
+{
+	asmlinkage()
+	fd = int_arg(1)
+	vector_uaddr = pointer_arg(2)
+	count = int_arg(3)
+	offset = (u32_arg(5) << 32) + u32_arg(4)
+	flags = int_arg(6)
+	flags_str = _preadv2_flags_str(flags)
+	@_SYSCALL_PREADV2_ARGSTR
+}
+probe nd_syscall.preadv2.return = kprobe.function("sys_preadv2").return ?,
+	kprobe.function("compat_sys_preadv2").return ?
+{
+	@_SYSCALL_PREADV2_NAME
+	retstr = returnstr(1)
+}

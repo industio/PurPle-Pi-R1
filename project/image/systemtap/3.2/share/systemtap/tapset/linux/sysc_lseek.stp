@@ -1,0 +1,105 @@
+# lseek ______________________________________________________
+# off_t sys_lseek(unsigned int fd, off_t offset, unsigned int whence)
+# COMPAT_SYSCALL_DEFINE3(lseek, unsigned int, fd, compat_off_t, offset,
+#			 unsigned int, whence)
+# long sys32_lseek(unsigned int fd, int offset, unsigned int whence)
+#
+
+@define _SYSCALL_LSEEK_NAME
+%(
+	name = "lseek"
+%)
+
+@define _SYSCALL_LSEEK_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %s", fildes, offset, whence_str)
+%)
+
+@define _SYSCALL_GATE
+%(
+    %( arch == "s390" %?
+	// On s390x, older kernels used sys32_lseek_wrapper() as the
+	// lseek compat function. Since sys32_lseek_wrapper() was
+	// written in assembly language, we can't probe it. So, on
+	// those kernels, we'll probe sys_lseek().
+	%( kernel_v >= "3.10" %?
+		@__syscall_gate_compat_simple
+	%)
+    %:
+	@__syscall_gate_compat_simple
+    %)
+%)
+
+probe syscall.lseek = dw_syscall.lseek !, nd_syscall.lseek ? {}
+probe syscall.lseek.return = dw_syscall.lseek.return !, nd_syscall.lseek.return ? {}
+
+# dw_lseek _____________________________________________________
+
+probe dw_syscall.lseek = __syscall.lseek ?,
+%( arch == "powerpc" %?
+			 kernel.function("ppc32_lseek").call ?,
+%)
+			 kernel.function("compat_sys_lseek").call ?,
+			 kernel.function("sys32_lseek").call ?
+{
+	@_SYSCALL_LSEEK_NAME
+	fildes = __int32($fd)
+	offset = @__compat_long($offset)
+	whence = @__compat_ulong(@choose_defined($whence, $origin))
+	whence_str = _seek_whence_str(whence)
+	@_SYSCALL_LSEEK_ARGSTR
+}
+probe __syscall.lseek = kernel.function("sys_lseek").call ?
+{
+	@_SYSCALL_GATE
+}
+probe dw_syscall.lseek.return = __syscall.lseek.return ?,
+%( arch == "powerpc" %?
+				kernel.function("ppc32_lseek").return ?,
+%)
+				kernel.function("compat_sys_lseek").return ?,
+				kernel.function("sys32_lseek").return ?
+{
+	@_SYSCALL_LSEEK_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.lseek.return = kernel.function("sys_lseek").return ?
+{
+	@_SYSCALL_GATE
+}
+
+# nd_lseek _____________________________________________________
+
+probe nd_syscall.lseek = __nd_syscall.lseek ?,
+%( arch == "powerpc" %?
+			 kprobe.function("ppc32_lseek") ?,
+%)
+                         kprobe.function("compat_sys_lseek") ?,
+			 kprobe.function("sys32_lseek") ?
+{
+	@_SYSCALL_LSEEK_NAME
+	asmlinkage()
+	fildes = int_arg(1)
+	offset = long_arg(2)
+	whence = uint_arg(3)
+	whence_str = _seek_whence_str(whence)
+	@_SYSCALL_LSEEK_ARGSTR
+}
+probe __nd_syscall.lseek = kprobe.function("sys_lseek") ?
+{
+	@_SYSCALL_GATE
+}
+probe nd_syscall.lseek.return = __nd_syscall.lseek.return ?,
+%( arch == "powerpc" %?
+				kprobe.function("ppc32_lseek").return ?,
+%)
+				kprobe.function("compat_sys_lseek").return ?,
+				kprobe.function("sys32_lseek").return ?
+{
+	@_SYSCALL_LSEEK_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.lseek.return = kprobe.function("sys_lseek").return ?
+{
+	@_SYSCALL_GATE
+}

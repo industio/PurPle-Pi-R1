@@ -1,0 +1,84 @@
+# sync_file_range ____________________________________________
+#
+# Why is there a 'sync_file_range' and a 'sync_file_range2'? As the
+# man page says:
+#
+#   Some architectures (e.g., PowerPC, ARM) need 64-bit arguments to be
+#   aligned in a suitable pair of registers. On such architectures, the
+#   call signature of sync_file_range()... would force a register to be
+#   be wasted as padding between the 'fd' and 'offset' arguments.
+#
+# SYSCALL_DEFINE4(sync_file_range, int, fd, loff_t, offset, loff_t, nbytes,
+#				unsigned int, flags)
+# SYSCALL_DEFINE4(sync_file_range2, int, fd, unsigned int, flags,
+#				 loff_t, offset, loff_t, nbytes)
+#
+# But, sync_file_range2() is just a wrapper around sync_file_range, so
+# we can just probe that.
+
+@define _SYSCALL_SYNC_FILE_RANGE_NAME
+%(
+	name = "sync_file_range"
+%)
+
+@define _SYSCALL_SYNC_FILE_RANGE_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %d, %s", fd, offset, nbytes, flags_str)
+%)
+
+probe syscall.sync_file_range = dw_syscall.sync_file_range !,
+                                nd_syscall.sync_file_range ? {}
+probe syscall.sync_file_range.return = dw_syscall.sync_file_range.return !,
+                                       nd_syscall.sync_file_range.return ? {}
+
+# dw_sync_file_range _____________________________________________________
+
+probe dw_syscall.sync_file_range = kernel.function("sys_sync_file_range").call ?
+{
+	@_SYSCALL_SYNC_FILE_RANGE_NAME
+	fd = __int32($fd)
+	offset = $offset
+	nbytes = $nbytes
+	flags = __uint32($flags)
+	flags_str = _sync_file_range_flags_str(flags)
+	@_SYSCALL_SYNC_FILE_RANGE_ARGSTR
+}
+probe dw_syscall.sync_file_range.return =
+	kernel.function("sys_sync_file_range").return ?
+{
+	@_SYSCALL_SYNC_FILE_RANGE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sync_file_range _____________________________________________________
+
+probe nd_syscall.sync_file_range = kprobe.function("sys_sync_file_range") ?
+{
+	asmlinkage()
+	@_SYSCALL_SYNC_FILE_RANGE_NAME
+	fd = int_arg(1)
+%( CONFIG_64BIT == "y" %?
+	offset = longlong_arg(2)
+	nbytes = longlong_arg(3)
+	flags = uint_arg(4)
+%:
+%( arch == "arm" %?
+	# arm has some odd rules regarding long long arguments.
+	offset = longlong_arg(3)
+	nbytes = longlong_arg(5)
+	flags = uint_arg(7)
+%:
+	offset = longlong_arg(2)
+	nbytes = longlong_arg(4)
+	flags = uint_arg(6)
+%)
+%)
+	flags_str = _sync_file_range_flags_str(flags)
+	@_SYSCALL_SYNC_FILE_RANGE_ARGSTR
+}
+probe nd_syscall.sync_file_range.return =
+	kprobe.function("sys_sync_file_range").return ?
+{
+	@_SYSCALL_SYNC_FILE_RANGE_NAME
+	retstr = returnstr(1)
+}

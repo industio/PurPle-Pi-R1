@@ -1,0 +1,63 @@
+# lookup_dcookie _____________________________________________
+# long sys_lookup_dcookie(u64 cookie64, char __user * buf, size_t len)
+#
+
+@define _SYSCALL_LOOKUP_DCOOKIE_NAME
+%(
+	name = "lookup_dcookie"
+%)
+
+@define _SYSCALL_LOOKUP_DCOOKIE_ARGSTR
+%(
+	argstr = sprintf("%#lx, %p, %#x", cookie, buffer_uaddr, len)
+%)
+
+probe syscall.lookup_dcookie = dw_syscall.lookup_dcookie !, nd_syscall.lookup_dcookie ? {}
+probe syscall.lookup_dcookie.return = dw_syscall.lookup_dcookie.return !,
+                                      nd_syscall.lookup_dcookie.return ? {}
+
+# dw_lookup_dcookie _____________________________________________________
+
+probe dw_syscall.lookup_dcookie = kernel.function("sys_lookup_dcookie").call ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_LOOKUP_DCOOKIE_NAME
+	cookie = $cookie64
+	buffer_uaddr = $buf
+	len = __ulong($len)
+	@_SYSCALL_LOOKUP_DCOOKIE_ARGSTR
+}
+probe dw_syscall.lookup_dcookie.return = kernel.function("sys_lookup_dcookie").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_LOOKUP_DCOOKIE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_lookup_dcookie _____________________________________________________
+
+probe nd_syscall.lookup_dcookie = kprobe.function("sys_lookup_dcookie") ?
+{
+	@_SYSCALL_LOOKUP_DCOOKIE_NAME
+	asmlinkage()
+%( CONFIG_64BIT == "y" %?
+	@__syscall_gate_compat_simple
+	cookie = ulonglong_arg(1)
+	buffer_uaddr = pointer_arg(2)
+	len = ulong_arg(3)
+%:
+	# On a 32-bit kernel, 'long long' arguments take the space of
+	# 2 arguments, so we have to adjust the following argument
+	# numbers.
+	cookie = ulonglong_arg(1)
+	buffer_uaddr = pointer_arg(3)
+	len = ulong_arg(4)
+%)
+	@_SYSCALL_LOOKUP_DCOOKIE_ARGSTR
+}
+probe nd_syscall.lookup_dcookie.return = kprobe.function("sys_lookup_dcookie").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_LOOKUP_DCOOKIE_NAME
+	retstr = returnstr(1)
+}

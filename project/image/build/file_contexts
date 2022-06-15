@@ -1,0 +1,19 @@
+#############################
+# tv partition files
+#
+/tvconfig(/.*)?                             u:object_r:rootfs:s0
+/tvcustomer(/.*)?                           u:object_r:cache_file:s0
+/tvdatabase(/.*)?                           u:object_r:cache_file:s0
+/tvservice(/.*)?                            u:object_r:rootfs:s0
+# mi
+/tvservice/applications/bin/bootvideo       u:object_r:bootvideo_exec:s0
+/tvservice/applications/bin/cus_sys_set     u:object_r:cussysset_exec:s0
+/tvservice/applications/bin/MiMwCcSrv       u:object_r:cc_exec:s0
+/tvservice/applications/bin/MiMwTtxSrv      u:object_r:ttx_exec:s0
+/tvservice/applications/bin/MiMwTvosSrv     u:object_r:mitvos_exec:s0
+/tvservice/applications/bin/MiSysSrv        u:object_r:misys_exec:s0
+# tee
+/tvservice/applications/secure_daemon       u:object_r:tee_exec:s0
+/tvservice/applications/bin/tee-supplicant  u:object_r:tee_exec:s0
+# tvos
+/tvservice/applications/bin/tvos            u:object_r:tvos_exec:s0

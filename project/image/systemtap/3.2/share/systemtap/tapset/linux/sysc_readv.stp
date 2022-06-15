@@ -1,0 +1,62 @@
+# readv ______________________________________________________
+#
+# ssize_t sys_readv(unsigned long fd,
+#		const struct iovec __user *vec,
+#		unsigned long vlen)
+# ssize_t compat_sys_readv(unsigned long fd,
+#		const struct compat_iovec __user *vec,
+#		unsigned long vlen)
+#
+
+@define _SYSCALL_READV_NAME
+%(
+	name = "readv"
+%)
+
+@define _SYSCALL_READV_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d", fd, vector_uaddr, count)
+%)
+
+probe syscall.readv = dw_syscall.readv !, nd_syscall.readv ? {}
+probe syscall.readv.return = dw_syscall.readv.return !,
+                             nd_syscall.readv.return ? {}
+
+# dw_readv _____________________________________________________
+
+probe dw_syscall.readv = kernel.function("compat_sys_readv").call ?,
+                      kernel.function("sys_readv").call
+{
+	@_SYSCALL_READV_NAME
+	vector_uaddr = $vec
+	count = __int32($vlen)
+	# Although the kernel gets an unsigned long fd, on the
+	# user-side it is a signed int.  Fix this.
+	fd = __int32($fd)
+	@_SYSCALL_READV_ARGSTR
+}
+probe dw_syscall.readv.return = kernel.function("compat_sys_readv").return ?,
+                             kernel.function("sys_readv").return
+{
+	@_SYSCALL_READV_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_readv _____________________________________________________
+
+probe nd_syscall.readv = kprobe.function("compat_sys_readv") ?,
+                         kprobe.function("sys_readv") ?
+{
+	@_SYSCALL_READV_NAME
+	asmlinkage()
+	vector_uaddr = pointer_arg(2)
+	count = int_arg(3)
+	fd = int_arg(1)
+	@_SYSCALL_READV_ARGSTR
+}
+probe nd_syscall.readv.return = kprobe.function("compat_sys_readv").return ?,
+                                kprobe.function("sys_readv").return ?
+{
+	@_SYSCALL_READV_NAME
+	retstr = returnstr(1)
+}

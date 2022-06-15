@@ -1,0 +1,74 @@
+# fchown _____________________________________________________
+# long sys_fchown(unsigned int fd, uid_t user, gid_t group)
+
+@define _SYSCALL_FCHOWN_NAME
+%(
+	name = "fchown"
+%)
+
+@define _SYSCALL_FCHOWN_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %d", fd, owner, group)
+%)
+
+probe syscall.fchown = dw_syscall.fchown !, nd_syscall.fchown ? {}
+probe syscall.fchown.return = dw_syscall.fchown.return !, nd_syscall.fchown.return ? {}
+
+# dw_fchown _____________________________________________________
+
+probe dw_syscall.fchown = kernel.function("sys_fchown").call
+{
+	// Avoid fchown16() calling fchown().
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_fchown"), @const("__NR_ia32_fchown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_fchown32"))
+%)
+	@_SYSCALL_FCHOWN_NAME
+	fd = __int32($fd)
+	owner = __int32($user)
+	group = __int32($group)
+	@_SYSCALL_FCHOWN_ARGSTR
+}
+probe dw_syscall.fchown.return = kernel.function("sys_fchown").return
+{
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_fchown"), @const("__NR_ia32_fchown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_fchown32"))
+%)
+	@_SYSCALL_FCHOWN_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fchown _____________________________________________________
+
+probe nd_syscall.fchown = kprobe.function("sys_fchown") ?
+{
+	// Avoid fchown16() calling fchown().
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_fchown"), @const("__NR_ia32_fchown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_fchown32"))
+%)
+	@_SYSCALL_FCHOWN_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	owner = __int32(uint_arg(2))
+	group = __int32(uint_arg(3))
+	@_SYSCALL_FCHOWN_ARGSTR
+}
+probe nd_syscall.fchown.return = kprobe.function("sys_fchown").return ?
+{
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_fchown"), @const("__NR_ia32_fchown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_fchown32"))
+%)
+	@_SYSCALL_FCHOWN_NAME
+	retstr = returnstr(1)
+}

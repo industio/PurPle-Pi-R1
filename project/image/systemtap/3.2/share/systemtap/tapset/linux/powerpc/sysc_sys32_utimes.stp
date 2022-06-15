@@ -1,0 +1,52 @@
+# sys32_utimes ________________________________________
+#
+# asmlinkage long sys32_utimes(char __user *filename,
+#			struct compat_timeval __user *tvs)
+#
+
+@define _SYSCALL_SYS32_UTIMES_NAME
+%(
+	name = "sys32_utimes"
+%)
+
+@define _SYSCALL_SYS32_UTIMES_ARGSTR
+%(
+	argstr = sprintf("%s, %p", path, tvp_uaddr)
+%)
+
+probe syscall.sys32_utimes = dw_syscall.sys32_utimes !, nd_syscall.sys32_utimes ? {}
+probe syscall.sys32_utimes.return = dw_syscall.sys32_utimes.return !,
+                                    nd_syscall.sys32_utimes.return ? {}
+
+# dw_sys32_utimes _____________________________________________________
+
+probe dw_syscall.sys32_utimes = kernel.function("sys32_utimes") ?
+{
+	@_SYSCALL_SYS32_UTIMES_NAME
+	filename_uaddr = $filename
+	path = user_string_quoted($filename)
+	tvp_uaddr = $tvs
+	@_SYSCALL_SYS32_UTIMES_ARGSTR
+}
+probe dw_syscall.sys32_utimes.return = kernel.function("sys32_utimes").return ?
+{
+	@_SYSCALL_SYS32_UTIMES_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_utimes _____________________________________________________
+
+probe nd_syscall.sys32_utimes = kprobe.function("sys32_utimes") ?
+{
+	@_SYSCALL_SYS32_UTIMES_NAME
+	asmlinkage()
+	filename_uaddr = pointer_arg(1)
+	path = user_string_quoted(filename_uaddr)
+	tvp_uaddr = pointer_arg(2)
+	@_SYSCALL_SYS32_UTIMES_ARGSTR
+}
+probe nd_syscall.sys32_utimes.return = kprobe.function("sys32_utimes").return ?
+{
+	@_SYSCALL_SYS32_UTIMES_NAME
+	retstr = returnstr(1)
+}

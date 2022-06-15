@@ -1,0 +1,44 @@
+# fchdir _____________________________________________________
+# long sys_fchdir(unsigned int fd)
+
+@define _SYSCALL_FCHDIR_NAME
+%(
+	name = "fchdir"
+%)
+
+@define _SYSCALL_FCHDIR_ARGSTR
+%(
+	argstr = sprint(fd)
+%)
+
+probe syscall.fchdir = dw_syscall.fchdir !, nd_syscall.fchdir ? {}
+probe syscall.fchdir.return = dw_syscall.fchdir.return !, nd_syscall.fchdir.return ? {}
+
+# dw_fchdir _____________________________________________________
+
+probe dw_syscall.fchdir = kernel.function("sys_fchdir").call
+{
+	@_SYSCALL_FCHDIR_NAME
+	fd = __int32($fd)
+	@_SYSCALL_FCHDIR_ARGSTR
+}
+probe dw_syscall.fchdir.return = kernel.function("sys_fchdir").return
+{
+	@_SYSCALL_FCHDIR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fchdir _____________________________________________________
+
+probe nd_syscall.fchdir = kprobe.function("sys_fchdir") ?
+{
+	@_SYSCALL_FCHDIR_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	@_SYSCALL_FCHDIR_ARGSTR
+}
+probe nd_syscall.fchdir.return = kprobe.function("sys_fchdir").return ?
+{
+	@_SYSCALL_FCHDIR_NAME
+	retstr = returnstr(1)
+}

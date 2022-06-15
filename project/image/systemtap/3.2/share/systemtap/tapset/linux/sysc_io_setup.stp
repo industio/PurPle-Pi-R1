@@ -1,0 +1,76 @@
+# io_setup ___________________________________________________
+# long sys_io_setup(unsigned nr_events, aio_context_t __user *ctxp)
+# long compat_sys_io_setup(unsigned nr_reqs, u32 __user *ctx32p)
+#
+
+@define _SYSCALL_IO_SETUP_NAME
+%(
+	name = "io_setup"
+%)
+
+@define _SYSCALL_IO_SETUP_ARGSTR
+%(
+	argstr = sprintf("%u, %p", maxevents, ctxp_uaddr)
+%)
+
+probe syscall.io_setup = dw_syscall.io_setup !, nd_syscall.io_setup ? {}
+probe syscall.io_setup.return = dw_syscall.io_setup.return !, nd_syscall.io_setup.return ? {}
+
+# dw_io_setup _____________________________________________________
+
+probe dw_syscall.io_setup = __syscall.io_setup,
+	__syscall.compat_io_setup ?
+{
+	@_SYSCALL_IO_SETUP_NAME
+
+}
+probe __syscall.io_setup = kernel.function("sys_io_setup").call
+{
+	@__syscall_gate(@const("__NR_io_setup"))
+	maxevents = __uint32($nr_events)
+	ctxp_uaddr = $ctxp
+	@_SYSCALL_IO_SETUP_ARGSTR
+}
+probe __syscall.compat_io_setup = kernel.function("compat_sys_io_setup").call
+{
+	maxevents = __uint32(@choose_defined($nr_reqs,$nr_events))
+	ctxp_uaddr = $ctx32p
+	@_SYSCALL_IO_SETUP_ARGSTR
+}
+probe dw_syscall.io_setup.return = __syscall.io_setup.return,
+	kernel.function("compat_sys_io_setup").return ?
+{
+	@_SYSCALL_IO_SETUP_NAME
+	retstr = return_str(1, $return)
+}
+
+probe __syscall.io_setup.return = kernel.function("sys_io_setup").return
+{
+	@__syscall_gate(@const("__NR_io_setup"))
+}
+
+# nd_io_setup _____________________________________________________
+
+probe nd_syscall.io_setup = __nd_syscall.io_setup,
+	kprobe.function("compat_sys_io_setup") ?
+{
+	asmlinkage()
+	@_SYSCALL_IO_SETUP_NAME
+	maxevents = uint_arg(1)
+	ctxp_uaddr = pointer_arg(2)
+	@_SYSCALL_IO_SETUP_ARGSTR
+}
+probe __nd_syscall.io_setup = kprobe.function("sys_io_setup") ?
+{
+	@__syscall_gate(@const("__NR_io_setup"))
+}
+probe nd_syscall.io_setup.return = __nd_syscall.io_setup.return,
+	kprobe.function("compat_sys_io_setup").return ?
+{
+	@_SYSCALL_IO_SETUP_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.io_setup.return = kprobe.function("sys_io_setup").return ?
+{
+	@__syscall_gate(@const("__NR_io_setup"))
+}

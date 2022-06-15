@@ -1,0 +1,5 @@
+# <- this is for comment / total file size must be less than 4KB
+setenv bootargs console=ttyS0,115200 root=/dev/mtdblock2 rootfstype=squashfs ro init=/linuxrc LX_MEM=0x7fc6000 mma_heap=mma_heap_name0,miu=0,sz=0x5000000 mma_memblock_remove=1
+saveenv
+reset
+% <- this is end of file symbol

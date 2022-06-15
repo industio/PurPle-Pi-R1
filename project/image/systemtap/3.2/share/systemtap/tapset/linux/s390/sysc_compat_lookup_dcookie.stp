@@ -1,0 +1,60 @@
+# lookup_dcookie _____________________________________________
+# long sys_lookup_dcookie(u64 cookie64, char __user * buf, size_t len)
+# there is compat_SyS_lookup_dcookie on thel7, but not on older distros,
+# in this case probing for sys_lookup_dcookie seems safe
+
+@define _SYSCALL_COMPAT_LOOKUP_DCOOKIE_NAME
+%(
+	name = "lookup_dcookie"
+%)
+
+@define _SYSCALL_COMPAT_LOOKUP_DCOOKIE_ARGSTR
+%(
+	argstr = sprintf("%#lx, %p, %#x", cookie, buffer_uaddr, len)
+%)
+
+probe syscall.compat_lookup_dcookie = dw_syscall.compat_lookup_dcookie !,
+                                      nd_syscall.compat_lookup_dcookie ? {}
+probe syscall.compat_lookup_dcookie.return = dw_syscall.compat_lookup_dcookie.return !,
+                                             nd_syscall.compat_lookup_dcookie.return ? {}
+
+# dw_compat_lookup_dcookie _____________________________________________________
+
+probe dw_syscall.compat_lookup_dcookie = kernel.function("sys_lookup_dcookie").call ?
+{
+	@__syscall_gate_noncompat_simple
+	@_SYSCALL_COMPAT_LOOKUP_DCOOKIE_NAME
+	cookie = $cookie64
+	buffer_uaddr = $buf
+	len = __ulong($len)
+	@_SYSCALL_COMPAT_LOOKUP_DCOOKIE_ARGSTR
+}
+probe dw_syscall.compat_lookup_dcookie.return = kernel.function("sys_lookup_dcookie").return ?
+{
+	@__syscall_gate_noncompat_simple
+	@_SYSCALL_COMPAT_LOOKUP_DCOOKIE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_lookup_dcookie _____________________________________________________
+
+probe nd_syscall.compat_lookup_dcookie =
+		kprobe.function("compat_sys_lookup_dcookie") ?,
+		kprobe.function("sys32_lookup_dcookie_wrapper") ?
+{
+	@__syscall_gate_noncompat_simple
+        @_SYSCALL_COMPAT_LOOKUP_DCOOKIE_NAME
+        asmlinkage()
+        cookie = ((uint_arg(1) << 32) | uint_arg(2))
+        buffer_uaddr = pointer_arg(3)
+        len = ulong_arg(4)
+        @_SYSCALL_COMPAT_LOOKUP_DCOOKIE_ARGSTR
+}
+probe nd_syscall.compat_lookup_dcookie.return =
+		kprobe.function("compat_sys_lookup_dcookie").return ?,
+		kprobe.function("sys32_lookup_dcookie_wrapper").return ?
+{
+	@__syscall_gate_noncompat_simple
+        @_SYSCALL_COMPAT_LOOKUP_DCOOKIE_NAME
+        retstr = returnstr(1)
+}

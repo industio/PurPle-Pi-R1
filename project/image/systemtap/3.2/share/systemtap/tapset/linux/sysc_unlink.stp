@@ -1,0 +1,48 @@
+# unlink _____________________________________________________
+# long sys_unlink(const char __user * pathname)
+#
+
+@define _SYSCALL_UNLINK_NAME
+%(
+	name = "unlink"
+%)
+
+@define _SYSCALL_UNLINK_ARGSTR
+%(
+	argstr = pathname
+%)
+
+probe syscall.unlink = dw_syscall.unlink !, nd_syscall.unlink ? {}
+probe syscall.unlink.return = dw_syscall.unlink.return !,
+                              nd_syscall.unlink.return ? {}
+
+# dw_unlink _____________________________________________________
+
+probe dw_syscall.unlink = kernel.function("sys_unlink").call
+{
+	@_SYSCALL_UNLINK_NAME
+	pathname_uaddr = $pathname
+	pathname = user_string_quoted($pathname)
+	@_SYSCALL_UNLINK_ARGSTR
+}
+probe dw_syscall.unlink.return = kernel.function("sys_unlink").return
+{
+	@_SYSCALL_UNLINK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_unlink _____________________________________________________
+
+probe nd_syscall.unlink = kprobe.function("sys_unlink") ?
+{
+	@_SYSCALL_UNLINK_NAME
+	asmlinkage()
+	pathname_uaddr = pointer_arg(1)
+	pathname = user_string_quoted(pathname_uaddr)
+	@_SYSCALL_UNLINK_ARGSTR
+}
+probe nd_syscall.unlink.return = kprobe.function("sys_unlink").return ?
+{
+	@_SYSCALL_UNLINK_NAME
+	retstr = returnstr(1)
+}

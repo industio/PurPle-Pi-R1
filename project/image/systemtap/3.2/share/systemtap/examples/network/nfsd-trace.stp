@@ -1,0 +1,22 @@
+#! /usr/bin/env stap
+
+// Copyright (c) 2017 Red Hat Inc.
+//
+// This file is part of systemtap, and is free software.  You can
+// redistribute it and/or modify it under the terms of the GNU General
+// Public License (GPL); either version 2, or (at your option) any
+// later version.
+
+
+probe nfsd.proc.entries {
+  printf("%s %s %s %s ", tz_ctime(gettimeofday_s()), client_ip, name, argstr);
+  filename .= "" // ensure this var exists for all nfsd probes
+  if (fh)
+    printf("%s%s%s",
+           task_dentry_path(task_current(),
+                            fh->fh_dentry,
+                            fh->fh_export->ex_path->mnt),
+           (filename == "") ? "" : "/",
+           filename)
+  printf("\n")
+}

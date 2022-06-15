@@ -1,0 +1,163 @@
+# semctl _____________________________________________________
+# long sys_semctl (int semid,
+#		 int semnum,
+#		 int cmd,
+#		 union semun arg)
+#
+
+@define _SYSCALL_SEMCTL_NAME
+%(
+	name = "semctl"
+%)
+
+@define _SYSCALL_SEMCTL_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %s, %p", semid, semnum, cmdstr, arg)
+%)
+
+probe syscall.semctl = dw_syscall.semctl !, nd_syscall.semctl ? {}
+probe syscall.semctl.return = dw_syscall.semctl.return !,
+                              nd_syscall.semctl.return ? {}
+
+# dw_semctl _____________________________________________________
+
+probe dw_syscall.semctl = kernel.function("sys_semctl").call ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_SEMCTL_NAME
+	semid = __int32($semid)
+	semnum = __int32($semnum)
+	cmd = __int32($cmd)
+	cmdstr = _semctl_cmd($cmd)
+	arg = @choose_defined($arg->buf, $arg)
+	@_SYSCALL_SEMCTL_ARGSTR
+}
+probe dw_syscall.semctl.return = kernel.function("sys_semctl").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_SEMCTL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_semctl _____________________________________________________
+
+probe nd_syscall.semctl = kprobe.function("sys_semctl") ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_SEMCTL_NAME
+	asmlinkage()
+	semid = int_arg(1)
+	semnum = int_arg(2)
+	cmd = int_arg(3)
+	cmdstr = _semctl_cmd(cmd)
+	arg = pointer_arg(4)
+	@_SYSCALL_SEMCTL_ARGSTR
+}
+probe nd_syscall.semctl.return = kprobe.function("sys_semctl").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_SEMCTL_NAME
+	retstr = returnstr(1)
+}
+
+# compat_sys_semctl ________________________________________
+#
+# long compat_sys_semctl(int first, int second, int third, void __user *uptr)
+# COMPAT_SYSCALL_DEFINE4(semctl, int, semid, int, semnum, int, cmd, int, arg)
+# COMPAT_SYSCALL_DEFINE6(ipc, u32, call, int, first, int, second,
+#	u32, third, compat_uptr_t, ptr, u32, fifth)
+#
+
+probe syscall.compat_sys_semctl = dw_syscall.compat_sys_semctl !,
+                                  nd_syscall.compat_sys_semctl ? {}
+probe syscall.compat_sys_semctl.return = dw_syscall.compat_sys_semctl.return !,
+                                         nd_syscall.compat_sys_semctl.return ? {}
+
+# dw_compat_sys_semctl _____________________________________________________
+
+probe dw_syscall.compat_sys_semctl = __syscall.compat_semctl ?,
+	__syscall.compat_ipc.semctl ?
+{
+	@_SYSCALL_SEMCTL_NAME
+	cmdstr = _semctl_cmd(cmd)
+	@_SYSCALL_SEMCTL_ARGSTR
+}
+probe __syscall.compat_semctl = kernel.function("compat_sys_semctl").call ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+	semid = __int32(@choose_defined($semid, $first))
+	semnum = __int32(@choose_defined($semnum, $second))
+	cmd = __int32(@choose_defined($cmd, $third))
+	arg = @choose_defined($uptr, $arg)
+}
+probe __syscall.compat_ipc.semctl = kernel.function("compat_sys_ipc").call ?,
+	kernel.function("sys32_ipc").call ?
+{
+	if ($call != @const("SEMCTL")) next;
+	semid = __int32($first)
+	semnum = __int32($second)
+	cmd = __int32($third)
+	arg = $ptr
+}
+probe dw_syscall.compat_sys_semctl.return = __syscall.compat_semctl.return ?,
+	__syscall.compat_ipc.semctl.return ?
+{
+	@_SYSCALL_SEMCTL_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.compat_semctl.return =
+	kernel.function("compat_sys_semctl").return ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+}
+probe __syscall.compat_ipc.semctl.return =
+	kernel.function("compat_sys_ipc").return ?,
+	kernel.function("sys32_ipc").return ?
+{
+	if (@entry($call) != @const("SEMCTL")) next;
+}
+
+# nd_compat_sys_semctl _____________________________________________________
+
+probe nd_syscall.compat_sys_semctl = __nd_syscall.compat_semctl ?,
+	__nd_syscall.compat_ipc.semctl ?
+{
+	@_SYSCALL_SEMCTL_NAME
+	cmdstr = _semctl_cmd(cmd)
+	@_SYSCALL_SEMCTL_ARGSTR
+}
+probe __nd_syscall.compat_semctl = kprobe.function("compat_sys_semctl") ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+	semid = int_arg(1)
+	semnum = int_arg(2)
+	cmd =  int_arg(3)
+	arg = pointer_arg(4)
+}
+probe __nd_syscall.compat_ipc.semctl = kprobe.function("compat_sys_ipc") ?,
+	kprobe.function("sys32_ipc") ?
+{
+	if (int_arg(1) != @const("SEMCTL")) next;
+	semid = int_arg(2)
+	semnum = int_arg(3)
+	cmd = int_arg(4)
+	arg = pointer_arg(5)
+}
+probe nd_syscall.compat_sys_semctl.return =
+	__nd_syscall.compat_semctl.return ?,
+	__nd_syscall.compat_ipc.semctl.return ?
+{
+	@_SYSCALL_SEMCTL_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.compat_semctl.return =
+	kprobe.function("compat_sys_semctl").return ?
+{
+	@__compat_syscall_gate_negative(@const("__NR_compat_ipc"))
+}
+probe __nd_syscall.compat_ipc.semctl.return =
+	kprobe.function("compat_sys_ipc").return ?,
+	kprobe.function("sys32_ipc").return ?
+{
+	if (@entry(int_arg(1)) != @const("SEMCTL")) next;
+}

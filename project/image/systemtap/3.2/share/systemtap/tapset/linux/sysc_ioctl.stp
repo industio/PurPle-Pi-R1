@@ -1,0 +1,72 @@
+# ioctl ______________________________________________________
+# long sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
+# long compat_sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
+#
+
+@define _SYSCALL_IOCTL_NAME
+%(
+	name = "ioctl"
+%)
+
+@define _SYSCALL_IOCTL_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %p", fd, request, argp)
+%)
+
+probe syscall.ioctl = dw_syscall.ioctl !, nd_syscall.ioctl ? {}
+probe syscall.ioctl.return = dw_syscall.ioctl.return !, nd_syscall.ioctl.return ? {}
+
+# dw_ioctl _____________________________________________________
+
+probe dw_syscall.ioctl = __syscall.ioctl ?,
+	kernel.function("compat_sys_ioctl").call ?
+{
+	@_SYSCALL_IOCTL_NAME
+	fd = __int32($fd)
+	request = __int32($cmd)
+	argp = @__compat_ulong(@choose_defined($arg, $arg32))
+	@_SYSCALL_IOCTL_ARGSTR
+}
+probe __syscall.ioctl = kernel.function("sys_ioctl").call
+{
+	@__syscall_gate(@const("__NR_ioctl"))
+}
+probe dw_syscall.ioctl.return =
+	__syscall.ioctl.return ?,
+	kernel.function("compat_sys_ioctl").return ?
+{
+	@_SYSCALL_IOCTL_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.ioctl.return = kernel.function("sys_ioctl").return
+{
+	@__syscall_gate(@const("__NR_ioctl"))
+}
+
+# nd_ioctl _____________________________________________________
+
+probe nd_syscall.ioctl = __nd_syscall.ioctl,
+	kprobe.function("compat_sys_ioctl") ?
+{
+	asmlinkage()
+	@_SYSCALL_IOCTL_NAME
+	fd = int_arg(1)
+	request = int_arg(2)
+	argp = ulong_arg(3)
+	@_SYSCALL_IOCTL_ARGSTR
+}
+probe __nd_syscall.ioctl = kprobe.function("sys_ioctl")
+{
+	@__syscall_gate(@const("__NR_ioctl"))
+}
+probe nd_syscall.ioctl.return =
+	__nd_syscall.ioctl.return,
+	kprobe.function("compat_sys_ioctl").return ?
+{
+	@_SYSCALL_IOCTL_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.ioctl.return = kprobe.function("sys_ioctl").return
+{
+	@__syscall_gate(@const("__NR_ioctl"))
+}

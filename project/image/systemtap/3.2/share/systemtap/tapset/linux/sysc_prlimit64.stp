@@ -1,0 +1,58 @@
+# prlimit64 ____________________________________________________
+#
+# SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
+#		const struct rlimit64 __user *, new_rlim,
+#		struct rlimit64 __user *, old_rlim)
+
+@define _SYSCALL_PRLIMIT64_NAME
+%(
+	name = "prlimit64"
+%)
+
+@define _SYSCALL_PRLIMIT64_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %s, %p", pid, resource_str, new_rlim_str, old_rlim_uaddr) 
+%)
+
+probe syscall.prlimit64 = dw_syscall.prlimit64 !, nd_syscall.prlimit64 ? {}
+probe syscall.prlimit64.return = dw_syscall.prlimit64.return !,
+                                 nd_syscall.prlimit64.return ? {}
+
+# dw_prlimit64 _____________________________________________________
+
+probe dw_syscall.prlimit64 = kernel.function("sys_prlimit64").call ?
+{
+	@_SYSCALL_PRLIMIT64_NAME
+	pid = __int32($pid)
+	resource = __int32($resource)
+	resource_str = _rlimit_resource_str(resource)
+	new_rlim_uaddr = $new_rlim
+	new_rlim_str = _struct_rlimit_u(new_rlim_uaddr)
+	old_rlim_uaddr = $old_rlim
+	@_SYSCALL_PRLIMIT64_ARGSTR
+}
+probe dw_syscall.prlimit64.return = kernel.function("sys_prlimit64").return ?
+{
+	@_SYSCALL_PRLIMIT64_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_prlimit64 _____________________________________________________
+
+probe nd_syscall.prlimit64 = kprobe.function("sys_prlimit64") ?
+{
+	@_SYSCALL_PRLIMIT64_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	resource = int_arg(2)
+	resource_str = _rlimit_resource_str(resource)
+	new_rlim_uaddr = pointer_arg(3)
+	new_rlim_str = _struct_rlimit_u(new_rlim_uaddr)
+	old_rlim_uaddr = pointer_arg(4)
+	@_SYSCALL_PRLIMIT64_ARGSTR
+}
+probe nd_syscall.prlimit64.return = kprobe.function("sys_prlimit64").return ?
+{
+	@_SYSCALL_PRLIMIT64_NAME
+	retstr = returnstr(1)
+}

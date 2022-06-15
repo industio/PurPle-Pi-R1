@@ -1,0 +1,94 @@
+# setuid _____________________________________________________
+#
+# long sys_setuid(uid_t uid)
+# long sys_setuid16(old_uid_t uid)
+#
+
+@define _SYSCALL_SETUID_NAME
+%(
+	name = "setuid"
+%)
+
+@define _SYSCALL_SETUID_ARGSTR
+%(
+	argstr = sprint(uid)
+%)
+
+@define _SYSCALL_GATE
+%(
+    %( arch == "x86_64" %?
+	// There are actually 3 x86_64 setuid syscall numbers (which
+	// get mapped to 2 syscall functions:
+	//   - __NR_setuid which gets mapped to sys_setuid()
+	//   - __NR_ia32_setuid32 which also gets mapped to
+	//     sys_setuid() 
+	//   - __NR_ia32_setuid which gets mapped to sys_setuid16()
+	//     (which is a wrapper around sys_setuid())
+	// So, we need to avoid sys_setuid() calls that come from
+	// sys_setuid16().
+	@__syscall_compat_gate(@const("__NR_setuid"),
+			       @const("__NR_ia32_setuid32"))
+    %:
+	%( arch == "i386" %?
+	    // On i386, there are 2 setuid syscall numbers:
+	    //   - __NR_setuid which gets mapped to sys_setuid16
+	    //   - __NR_setuid32 which gets mapped to sys_setuid
+	    // Since this gets called from a probe on sys_setuid, we'll
+	    // make sure this is really __NR_setuid32.
+	    @__syscall_nr_gate(@const("__NR_setuid32"))
+	%)
+    %)
+%)
+
+probe syscall.setuid = dw_syscall.setuid !, nd_syscall.setuid ? {}
+probe syscall.setuid.return = dw_syscall.setuid.return !,
+                              nd_syscall.setuid.return ? {}
+
+# dw_setuid _____________________________________________________
+
+probe dw_syscall.setuid = kernel.function("sys_setuid16").call ?,
+			  __syscall.setuid ?
+{
+	@_SYSCALL_SETUID_NAME
+	uid = __int32($uid)
+	@_SYSCALL_SETUID_ARGSTR
+}
+probe __syscall.setuid = kernel.function("sys_setuid").call ?
+{
+	@_SYSCALL_GATE
+}
+probe dw_syscall.setuid.return = kernel.function("sys_setuid16").return ?,
+				 __syscall.setuid.return ?
+{
+	@_SYSCALL_SETUID_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.setuid.return = kernel.function("sys_setuid").return ?
+{
+	@_SYSCALL_GATE
+}
+
+# nd_setuid _____________________________________________________
+
+probe nd_syscall.setuid = kprobe.function("sys_setuid16") ?,
+			  __nd_syscall.setuid ?
+{
+	@_SYSCALL_SETUID_NAME
+	asmlinkage()
+	uid = int_arg(1)
+	@_SYSCALL_SETUID_ARGSTR
+}
+probe __nd_syscall.setuid = kprobe.function("sys_setuid") ?
+{
+	@_SYSCALL_GATE
+}
+probe nd_syscall.setuid.return = kprobe.function("sys_setuid16").return ?,
+				 __nd_syscall.setuid.return ?
+{
+	@_SYSCALL_SETUID_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.setuid.return = kprobe.function("sys_setuid").return ?
+{
+	@_SYSCALL_GATE
+}

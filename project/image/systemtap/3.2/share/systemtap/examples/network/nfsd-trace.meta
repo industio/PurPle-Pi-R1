@@ -1,0 +1,7 @@
+title: Trace NFSD requests with file names.
+name: nfsd-trace.stp
+keywords: nfs trace
+subsystem: network
+description: This script traces all nfsd server operations by client_ip address, operation, and complete file name (if possible).
+test_check: stap -p4 nfsd-trace.stp
+test_installcheck: stap nfsd-trace.stp -T 1

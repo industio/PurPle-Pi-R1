@@ -1,0 +1,51 @@
+# compat_clock_settime ________________________________________
+#
+# long compat_clock_settime(clockid_t which_clock,
+#			struct compat_timespec __user *tp)
+#
+
+@define _SYSCALL_COMPAT_CLOCK_SETTIME_NAME
+%(
+	name = "compat_clock_settime"
+%)
+
+@define _SYSCALL_COMPAT_CLOCK_SETTIME_ARGSTR
+%(
+	argstr = sprintf("%d, %p", which_clock, tp_uaddr)
+%)
+
+probe syscall.compat_clock_settime = dw_syscall.compat_clock_settime !,
+                                     nd_syscall.compat_clock_settime ? {}
+probe syscall.compat_clock_settime.return = dw_syscall.compat_clock_settime.return !,
+                                            nd_syscall.compat_clock_settime.return ? {}
+
+# dw_compat_clock_settime _____________________________________________________
+
+probe dw_syscall.compat_clock_settime = kernel.function("compat_clock_settime") ?
+{
+	@_SYSCALL_COMPAT_CLOCK_SETTIME_NAME
+	which_clock = $which_clock
+	tp_uaddr = $tp
+	@_SYSCALL_COMPAT_CLOCK_SETTIME_ARGSTR
+}
+probe dw_syscall.compat_clock_settime.return = kernel.function("compat_clock_settime").return ?
+{
+	@_SYSCALL_COMPAT_CLOCK_SETTIME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_clock_settime _____________________________________________________
+
+probe nd_syscall.compat_clock_settime = kprobe.function("compat_clock_settime") ?
+{
+	@_SYSCALL_COMPAT_CLOCK_SETTIME_NAME
+	asmlinkage()
+	which_clock = int_arg(1)
+	tp_uaddr = pointer_arg(2)
+	@_SYSCALL_COMPAT_CLOCK_SETTIME_ARGSTR
+}
+probe nd_syscall.compat_clock_settime.return = kprobe.function("compat_clock_settime").return ?
+{
+	@_SYSCALL_COMPAT_CLOCK_SETTIME_NAME
+	retstr = returnstr(1)
+}

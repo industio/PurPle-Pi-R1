@@ -1,0 +1,14 @@
+title: Log the kernel collapsing normal pages into a huge page
+name: hugepage_collapse.stp
+version: 1.0
+author: William Cohen
+keywords: memory
+subsystem: memory
+status: production
+exit: user-controlled
+output: sorted-list
+scope: system-wide
+description: The kernel may attempt to group many normal sized pages into a single huge page to improve TLB performance.  This operation may take a significant amount of time and affect program performance.  You can identify if huge page collapse operations are occurring with the systemtap hugepage_collapse.stp script.
+test_support: stap -l 'kernel.function("collapse_huge_page")'
+test_check: stap -p4 hugepage_collapse.stp
+test_installcheck: stap hugepage_collapse.stp -T 1

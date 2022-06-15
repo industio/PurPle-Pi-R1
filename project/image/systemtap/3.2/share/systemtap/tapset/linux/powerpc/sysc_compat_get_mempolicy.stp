@@ -1,0 +1,60 @@
+# compat_get_mempolicy ________________________________________
+#
+# asmlinkage long compat_get_mempolicy(int __user *policy,
+#				compat_ulong_t __user *nmask,
+#				compat_ulong_t maxnode,
+#				compat_ulong_t addr, compat_ulong_t flags)
+#
+
+@define _SYSCALL_COMPAT_GET_MEMPOLICY_NAME
+%(
+	name = "compat_get_mempolicy"
+%)
+
+@define _SYSCALL_COMPAT_GET_MEMPOLICY_ARGSTR
+%(
+	argstr = sprintf("%p, %p, %d, %d", policy_uaddr, nmask_uaddr,
+	                 maxnode, addr)
+%)
+
+probe syscall.compat_get_mempolicy = dw_syscall.compat_get_mempolicy !,
+                                     nd_syscall.compat_get_mempolicy ? {}
+probe syscall.compat_get_mempolicy.return = dw_syscall.compat_get_mempolicy.return !,
+                                            nd_syscall.compat_get_mempolicy.return ? {}
+
+# dw_compat_get_mempolicy _____________________________________________________
+
+probe dw_syscall.compat_get_mempolicy = kernel.function("compat_get_mempolicy") ?
+{
+	@_SYSCALL_COMPAT_GET_MEMPOLICY_NAME
+	policy_uaddr = $policy
+	nmask_uaddr = $nmask
+	maxnode = $maxnode
+	addr = $addr
+	flags = $flags
+	@_SYSCALL_COMPAT_GET_MEMPOLICY_ARGSTR
+}
+probe dw_syscall.compat_get_mempolicy.return = kernel.function("compat_get_mempolicy").return ?
+{
+	@_SYSCALL_COMPAT_GET_MEMPOLICY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_get_mempolicy _____________________________________________________
+
+probe nd_syscall.compat_get_mempolicy = kprobe.function("compat_get_mempolicy") ?
+{
+	@_SYSCALL_COMPAT_GET_MEMPOLICY_NAME
+	asmlinkage()
+	policy_uaddr = int_arg(1)
+	nmask_uaddr = uint_arg(2)
+	maxnode = uint_arg(3)
+	addr = uint_arg(4)
+	flags = uint_arg(5)
+	@_SYSCALL_COMPAT_GET_MEMPOLICY_ARGSTR
+}
+probe nd_syscall.compat_get_mempolicy.return = kprobe.function("compat_get_mempolicy").return ?
+{
+	@_SYSCALL_COMPAT_GET_MEMPOLICY_NAME
+	retstr = returnstr(1)
+}

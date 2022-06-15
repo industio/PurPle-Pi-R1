@@ -1,0 +1,50 @@
+# chown16 ___________________________________________________
+# long sys_chown16(const char __user * filename, old_uid_t user,
+#			old_gid_t group)
+#
+
+@define _SYSCALL_CHOWN16_NAME
+%(
+	name = "chown16"
+%)
+
+@define _SYSCALL_CHOWN16_ARGSTR
+%(
+	argstr = sprintf("%s, %d, %d", path, owner, group)
+%)
+
+probe syscall.chown16 = dw_syscall.chown16 !, nd_syscall.chown16 ? {}
+probe syscall.chown16.return = dw_syscall.chown16.return !, nd_syscall.chown16.return ? {}
+
+# dw_chown16 _____________________________________________________
+
+probe dw_syscall.chown16 = kernel.function("sys_chown16").call ?
+{
+	@_SYSCALL_CHOWN16_NAME
+	path = user_string_quoted($filename)
+	owner = __short($user)
+	group = __short($group)
+	@_SYSCALL_CHOWN16_ARGSTR
+}
+probe dw_syscall.chown16.return = kernel.function("sys_chown16").return ?
+{
+	@_SYSCALL_CHOWN16_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_chown16 _____________________________________________________
+
+probe nd_syscall.chown16 = kprobe.function("sys_chown16") ?
+{
+	@_SYSCALL_CHOWN16_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+	owner = __short(uint_arg(2))
+	group = __short(uint_arg(3))
+	@_SYSCALL_CHOWN16_ARGSTR
+}
+probe nd_syscall.chown16.return = kprobe.function("sys_chown16").return ?
+{
+	@_SYSCALL_CHOWN16_NAME
+	retstr = returnstr(1)
+}

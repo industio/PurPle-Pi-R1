@@ -1,0 +1,48 @@
+# access _____________________________________________________
+# long sys_access(const char __user * filename, int mode)
+
+@define _SYSCALL_ACCESS_NAME
+%(
+	name = "access"
+%)
+
+@define _SYSCALL_ACCESS_ARGSTR
+%(
+	argstr = sprintf("%s, %s", pathname, mode_str)
+%)
+
+probe syscall.access = dw_syscall.access !, nd_syscall.access ? {}
+probe syscall.access.return = dw_syscall.access.return !, nd_syscall.access.return ? {}
+
+# dw_access _____________________________________________________
+
+probe dw_syscall.access = kernel.function("sys_access").call
+{
+	@_SYSCALL_ACCESS_NAME
+	pathname = user_string_quoted($filename)
+	mode = __int32($mode)
+	mode_str = _access_mode_str(__int32($mode))
+	@_SYSCALL_ACCESS_ARGSTR
+}
+probe dw_syscall.access.return = kernel.function("sys_access").return
+{
+	@_SYSCALL_ACCESS_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_access _____________________________________________________
+
+probe nd_syscall.access = kprobe.function("sys_access") ?
+{
+	@_SYSCALL_ACCESS_NAME
+	asmlinkage()
+	pathname = user_string_quoted(pointer_arg(1))
+	mode = int_arg(2)
+	mode_str = _access_mode_str(mode)
+	@_SYSCALL_ACCESS_ARGSTR
+}
+probe nd_syscall.access.return = kprobe.function("sys_access").return ?
+{
+	@_SYSCALL_ACCESS_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,54 @@
+# semget _____________________________________________________
+# long sys_semget (key_t key, int nsems, int semflg)
+#
+
+@define _SYSCALL_SEMGET_NAME
+%(
+	name = "semget"
+%)
+
+@define _SYSCALL_SEMGET_ARGSTR
+%(
+	argstr = sprintf("%s, %d, %s", key_str, nsems, semflg_str)
+%)
+
+probe syscall.semget = dw_syscall.semget !, nd_syscall.semget ? {}
+probe syscall.semget.return = dw_syscall.semget.return !,
+                              nd_syscall.semget.return ? {}
+
+# dw_semget _____________________________________________________
+
+probe dw_syscall.semget = kernel.function("sys_semget").call ?
+{
+	@_SYSCALL_SEMGET_NAME
+	key = __int32($key)
+	key_str = _stp_msgget_key_str(__int32($key))
+	nsems = __int32($nsems)
+	semflg = __int32($semflg)
+	semflg_str = __sem_flags(__int32($semflg))
+	@_SYSCALL_SEMGET_ARGSTR
+}
+probe dw_syscall.semget.return = kernel.function("sys_semget").return ?
+{
+	@_SYSCALL_SEMGET_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_semget _____________________________________________________
+
+probe nd_syscall.semget = kprobe.function("sys_semget") ?
+{
+	@_SYSCALL_SEMGET_NAME
+	asmlinkage()
+	key = int_arg(1)
+	key_str = _stp_msgget_key_str(key)
+	nsems = int_arg(2)
+	semflg = int_arg(3)
+	semflg_str = __sem_flags(semflg)
+	@_SYSCALL_SEMGET_ARGSTR
+}
+probe nd_syscall.semget.return = kprobe.function("sys_semget").return ?
+{
+	@_SYSCALL_SEMGET_NAME
+	retstr = returnstr(1)
+}

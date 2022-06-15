@@ -1,0 +1,48 @@
+# timer_getoverrun ___________________________________________
+#
+# long sys_timer_getoverrun(timer_t timer_id)
+#
+
+@define _SYSCALL_TIMER_GETOVERRUN_NAME
+%(
+	name = "timer_getoverrun"
+%)
+
+@define _SYSCALL_TIMER_GETOVERRUN_ARGSTR
+%(
+	argstr = sprint(timerid)
+%)
+
+probe syscall.timer_getoverrun = dw_syscall.timer_getoverrun !,
+                                 nd_syscall.timer_getoverrun ? {}
+probe syscall.timer_getoverrun.return = dw_syscall.timer_getoverrun.return !,
+                                        nd_syscall.timer_getoverrun.return ? {}
+
+# dw_timer_getoverrun _____________________________________________________
+
+probe dw_syscall.timer_getoverrun = kernel.function("sys_timer_getoverrun").call
+{
+	@_SYSCALL_TIMER_GETOVERRUN_NAME
+	timerid = __int32($timer_id)
+	@_SYSCALL_TIMER_GETOVERRUN_ARGSTR
+}
+probe dw_syscall.timer_getoverrun.return = kernel.function("sys_timer_getoverrun").return
+{
+	@_SYSCALL_TIMER_GETOVERRUN_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_timer_getoverrun _____________________________________________________
+
+probe nd_syscall.timer_getoverrun = kprobe.function("sys_timer_getoverrun") ?
+{
+	@_SYSCALL_TIMER_GETOVERRUN_NAME
+	asmlinkage()
+	timerid = int_arg(1)
+	@_SYSCALL_TIMER_GETOVERRUN_ARGSTR
+}
+probe nd_syscall.timer_getoverrun.return = kprobe.function("sys_timer_getoverrun").return ?
+{
+	@_SYSCALL_TIMER_GETOVERRUN_NAME
+	retstr = returnstr(1)
+}

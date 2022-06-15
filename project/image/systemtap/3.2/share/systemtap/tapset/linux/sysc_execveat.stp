@@ -1,0 +1,139 @@
+# execveat ______________________________________________
+# SYSCALL_DEFINE5(execveat,
+#		int, fd, const char __user *, filename,
+#		const char __user *const __user *, argv,
+#		const char __user *const __user *, envp,
+#		int, flags)
+#
+
+@define _SYSCALL_EXECVEAT_NAME
+%(
+	name = "execveat"
+%)
+
+@define _SYSCALL_EXECVEAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %s, %s", dirfd_str, filename, args,
+	                 env_str, flags_str)
+%)
+
+probe syscall.execveat = dw_syscall.execveat !, nd_syscall.execveat ? {}
+probe syscall.execveat.return = dw_syscall.execveat.return !,
+                                nd_syscall.execveat.return ? {}
+
+probe syscall.compat_execveat = dw_syscall.compat_execveat !,
+                                nd_syscall.compat_execveat ? {}
+probe syscall.compat_execveat.return = dw_syscall.compat_execveat.return !,
+                                       nd_syscall.compat_execveat.return ? {}
+
+# dw_execveat _____________________________________________________
+
+probe dw_syscall.execveat = kernel.function("sys_execveat").call ?
+{
+        @_SYSCALL_EXECVEAT_NAME
+        dirfd = __int32($fd)
+        dirfd_str = _dfd_str(__int32($fd))
+%(systemtap_v <= "2.8" %?
+	# All other "at" syscalls (faccessat, fchmodat, fchownat,
+	# etc.) name their file descriptor argument 'dirfd', so let's
+	# do the same.
+        fd = dirfd
+        fd_str = dirfd_str
+%)
+        filename = user_string_quoted(@__pointer($filename))
+        flags = __int32($flags)
+	flags_str = _at_flag_str(__int32($flags))
+        __argv = @choose_defined($__argv, $argv)
+        args = __get_argv(__argv, 0)
+	__envp = @choose_defined($__envp, $envp)
+	env_str = __get_argv(__envp, 0)
+        @_SYSCALL_EXECVEAT_ARGSTR
+}
+probe dw_syscall.execveat.return = kernel.function("sys_execveat").return ?
+{
+        @_SYSCALL_EXECVEAT_NAME
+        retstr = return_str(1, $return)
+}
+
+probe dw_syscall.compat_execveat = kernel.function("compat_sys_execveat").call ?
+{
+        @_SYSCALL_EXECVEAT_NAME
+        dirfd = __int32($fd)
+        dirfd_str = _dfd_str(__int32($fd))
+%(systemtap_v <= "2.8" %?
+	# All other "at" syscalls (faccessat, fchmodat, fchownat,
+	# etc.) name their file descriptor argument 'dirfd', so let's
+	# do the same.
+        fd = dirfd
+        fd_str = dirfd_str
+%)
+        filename = user_string_quoted(@__pointer($filename))
+        flags = __int32($flags)
+	flags_str = _at_flag_str(__int32($flags))
+        __argv = @__pointer(@choose_defined($__argv, $argv))
+        args = __get_compat_argv(__argv, 0)
+	__envp = @__pointer(@choose_defined($__envp, $envp))
+	env_str = __get_compat_argv(__envp, 0)
+        @_SYSCALL_EXECVEAT_ARGSTR
+}
+probe dw_syscall.compat_execveat.return =
+	kernel.function("compat_sys_execveat").return ?
+{
+        @_SYSCALL_EXECVEAT_NAME
+        retstr = return_str(1, $return)
+}
+
+# nd_execveat _____________________________________________________
+
+probe nd_syscall.execveat = kprobe.function("sys_execveat").call ?
+{
+	asmlinkage()
+	@_SYSCALL_EXECVEAT_NAME
+	dirfd = int_arg(1)
+	dirfd_str = _dfd_str(dirfd)
+%(systemtap_v <= "2.8" %?
+	# All other "at" syscalls (faccessat, fchmodat, fchownat,
+	# etc.) name their file descriptor argument 'dirfd', so let's
+	# do the same.
+        fd = dirfd
+        fd_str = dirfd_str
+%)
+	filename = user_string_quoted(pointer_arg(2))
+	args = __get_argv(pointer_arg(3), 0)
+	env_str = __get_argv(pointer_arg(4), 0)
+	flags = int_arg(5)
+	flags_str = _at_flag_str(flags)
+	@_SYSCALL_EXECVEAT_ARGSTR
+}
+probe nd_syscall.execveat.return = kprobe.function("sys_execveat").return ?
+{
+	@_SYSCALL_EXECVEAT_NAME
+	retstr = returnstr(1)
+}
+
+probe nd_syscall.compat_execveat = kprobe.function("compat_sys_execveat").call ?
+{
+	@_SYSCALL_EXECVEAT_NAME
+	dirfd = int_arg(1)
+	dirfd_str = _dfd_str(dirfd)
+%(systemtap_v <= "2.8" %?
+	# All other "at" syscalls (faccessat, fchmodat, fchownat,
+	# etc.) name their file descriptor argument 'dirfd', so let's
+	# do the same.
+        fd = dirfd
+        fd_str = dirfd_str
+%)
+	filename = user_string_quoted(pointer_arg(2))
+	args = __get_compat_argv(pointer_arg(3), 0)
+	env_str = __get_compat_argv(pointer_arg(4), 0)
+	flags = int_arg(5)
+	flags_str = _at_flag_str(flags)
+	@_SYSCALL_EXECVEAT_ARGSTR
+
+}
+probe nd_syscall.compat_execveat.return =
+	kprobe.function("compat_sys_execveat").return ?
+{
+	@_SYSCALL_EXECVEAT_NAME
+	retstr = returnstr(1)
+}

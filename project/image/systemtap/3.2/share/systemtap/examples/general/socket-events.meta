@@ -1,0 +1,10 @@
+title: Trace Socket Activity of a Process
+name: socket-events.stp
+keywords: socket syscall
+exit: event-ended
+output: trace
+scope: process
+description: Prints the life cycle of all sockets associated with a process. This includes bytes and timing. The timing information that is tracked includes event completion relative to the start of said event and the end of the previous event. Currently tracks read, write, recv, send, connect and close.
+test_check: stap -p4 socket-events.stp
+test_installcheck: stap socket-events.stp
+usage: stap socket-events.stp -x 1235

@@ -1,0 +1,62 @@
+# readahead __________________________________________________
+#
+# asmlinkage ssize_t
+# compat_ssize_t sys32_readahead(int fd, u32 offhi, u32 offlo, s32 count)
+# COMPAT_SYSCALL_DEFINE4(s390_readahead, int, fd, u32, high, u32, low,
+#			 s32, count)
+#
+
+@define _SYSCALL_COMPAT_READAHEAD_NAME
+%(
+	name = "readahead"
+%)
+
+@define _SYSCALL_COMPAT_READAHEAD_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %u", fd, offset, count)
+%)
+
+probe syscall.compat_readahead = dw_syscall.compat_readahead !,
+                                 nd_syscall.compat_readahead ? {}
+probe syscall.compat_readahead.return = dw_syscall.compat_readahead.return !,
+                                        nd_syscall.compat_readahead.return ? {}
+
+# dw_compat_readahead _____________________________________________________
+
+probe dw_syscall.compat_readahead = kernel.function("sys32_readahead").call ?,
+	kernel.function("compat_sys_s390_readahead").call ?
+{
+	@_SYSCALL_COMPAT_READAHEAD_NAME
+	fd = __int32($fd)
+	offset = ((@choose_defined($offhi, $high) << 32)
+		  | __uint32(@choose_defined($offlo, $low)))
+	count = __uint32($count)
+	@_SYSCALL_COMPAT_READAHEAD_ARGSTR
+}
+probe dw_syscall.compat_readahead.return =
+	kernel.function("sys32_readahead").return ?,
+	kernel.function("compat_sys_s390_readahead").return ?
+{
+	@_SYSCALL_COMPAT_READAHEAD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_readahead _____________________________________________________
+
+probe nd_syscall.compat_readahead = kprobe.function("sys32_readahead") ?,
+	kprobe.function("compat_sys_s390_readahead") ?
+{
+	@_SYSCALL_COMPAT_READAHEAD_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	offset = ((uint_arg(2) << 32) | uint_arg(3))
+	count = ulong_arg(4)
+	@_SYSCALL_COMPAT_READAHEAD_ARGSTR
+}
+probe nd_syscall.compat_readahead.return =
+	kprobe.function("sys32_readahead").return ?,
+	kprobe.function("compat_sys_s390_readahead").return ?
+{
+	@_SYSCALL_COMPAT_READAHEAD_NAME
+	retstr = returnstr(1)
+}

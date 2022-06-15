@@ -1,0 +1,55 @@
+# shmget _____________________________________________________
+#
+# long sys_shmget (key_t key,
+#		 size_t size,
+#		 int shmflg)
+#
+
+@define _SYSCALL_SHMGET_NAME
+%(
+	name = "shmget"
+%)
+
+@define _SYSCALL_SHMGET_ARGSTR
+%(
+	argstr = sprintf("%d, %u, %s", key, size, shmflg_str)
+%)
+
+probe syscall.shmget = dw_syscall.shmget !, nd_syscall.shmget ? {}
+probe syscall.shmget.return = dw_syscall.shmget.return !,
+                              nd_syscall.shmget.return ? {}
+
+# dw_shmget _____________________________________________________
+
+probe dw_syscall.shmget = kernel.function("sys_shmget").call ?
+{
+	@_SYSCALL_SHMGET_NAME
+	key = __int32($key)
+	size = __ulong($size)
+	shmflg = __int32($shmflg)
+	shmflg_str = _stp_shmget_flags_str(__int32($shmflg))
+	@_SYSCALL_SHMGET_ARGSTR
+}
+probe dw_syscall.shmget.return = kernel.function("sys_shmget").return ?
+{
+	@_SYSCALL_SHMGET_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_shmget _____________________________________________________
+
+probe nd_syscall.shmget = kprobe.function("sys_shmget") ?
+{
+	@_SYSCALL_SHMGET_NAME
+	asmlinkage()
+	key = int_arg(1)
+	size = ulong_arg(2)
+	shmflg = int_arg(3)
+	shmflg_str = _stp_shmget_flags_str(shmflg)
+	@_SYSCALL_SHMGET_ARGSTR
+}
+probe nd_syscall.shmget.return = kprobe.function("sys_shmget").return ?
+{
+	@_SYSCALL_SHMGET_NAME
+	retstr = returnstr(1)
+}

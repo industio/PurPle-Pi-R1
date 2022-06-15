@@ -1,0 +1,81 @@
+# kexec_load _________________________________________________
+# long sys_kexec_load(unsigned long entry,
+#                unsigned long nr_segments,
+#                struct kexec_segment __user *segments,
+#                unsigned long flags)
+# long compat_sys_kexec_load(unsigned long entry,
+#		unsigned long nr_segments,
+#		struct compat_kexec_segment __user *segments,
+#		unsigned long flags)
+#
+
+@define _SYSCALL_KEXEC_LOAD_NAME
+%(
+	name = "kexec_load"
+%)
+
+@define _SYSCALL_KEXEC_LOAD_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %p, %s", entry, nr_segments, segments_uaddr, flags_str)
+%)
+
+probe syscall.kexec_load = dw_syscall.kexec_load !, nd_syscall.kexec_load ? {}
+probe syscall.kexec_load.return = dw_syscall.kexec_load.return !,
+                                  nd_syscall.kexec_load.return ? {}
+
+# dw_kexec_load _____________________________________________________
+
+probe dw_syscall.kexec_load = __syscall.kexec_load.call ?,
+                           kernel.function("compat_sys_kexec_load").call ?
+{
+	@_SYSCALL_KEXEC_LOAD_NAME
+	entry = @__compat_ulong($entry)
+	nr_segments = __ulong($nr_segments)
+	segments_uaddr = @__pointer($segments)
+	flags = @__compat_ulong($flags)
+	flags_str = _kexec_flags_str(flags)
+	@_SYSCALL_KEXEC_LOAD_ARGSTR
+}
+probe __syscall.kexec_load.call = kernel.function("sys_kexec_load").call
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.kexec_load.return = __syscall.syscall.kexec_load.return ?,
+                                  kernel.function("compat_sys_kexec_load").return ?
+{
+	@_SYSCALL_KEXEC_LOAD_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.syscall.kexec_load.return = kernel.function("sys_kexec_load").return
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_kexec_load _____________________________________________________
+
+probe nd_syscall.kexec_load = __nd_syscall.kexec_load ?,
+                              kprobe.function("compat_sys_kexec_load") ?
+{
+	@_SYSCALL_KEXEC_LOAD_NAME
+	asmlinkage()
+	entry = ulong_arg(1)
+	nr_segments = ulong_arg(2)
+	segments_uaddr = pointer_arg(3)
+	flags = ulong_arg(4)
+	flags_str = _kexec_flags_str(flags)
+	@_SYSCALL_KEXEC_LOAD_ARGSTR
+}
+probe __nd_syscall.kexec_load = kprobe.function("sys_kexec_load")
+{
+	@__syscall_gate_compat_simple
+}
+probe nd_syscall.kexec_load.return = __nd_syscall.kexec_load.return ?,
+                                     kprobe.function("compat_sys_kexec_load").return ?
+{
+	@_SYSCALL_KEXEC_LOAD_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.kexec_load.return = kprobe.function("sys_kexec_load").return
+{
+	@__syscall_gate_compat_simple
+}

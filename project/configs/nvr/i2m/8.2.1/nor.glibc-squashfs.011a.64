@@ -1,0 +1,20 @@
+CHIP = i2m
+BOARD = 011A
+BOARD_NAME = SSC011A-S01A
+PRODUCT = nvr
+TOOLCHAIN = glibc
+TOOLCHAIN_VERSION = 8.2.1
+KERNEL_VERSION = 4.9.84
+LIBC       = libc-2.28
+BUSYBOX    = busybox-1.20.2-arm-linux-gnueabihf-glibc-8.2.1-dynamic
+KERNEL_CONFIG = glibc
+IMAGE_CONFIG = nor.squashfs.p2.partition.boot.config
+CUSTOMER_OPTIONS = 011a.201_options.mk
+CUSTOMER_TAILOR = nvr_i2m_display_glibc_tailor.mk
+MMAP = MMAP_I2M_64M.h
+BOOTLOGO_FILE = sigmastar1024_600.jpg
+BOOTLOGO_ADDR = E_LX_LOGO_RESERVED_FB
+DISP_OUT_NAME = SAT070CP50
+EXBOOTARGS =
+KERNEL_BOOT_ENV = LX_MEM=$(KERNEL_MEMLEN) mma_heap=mma_heap_name0,miu=0,sz=0x1000000 mma_memblock_remove=1 highres=off
+TOOLCHAIN_REL = arm-linux-gnueabihf-

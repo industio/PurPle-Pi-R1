@@ -1,0 +1,54 @@
+# dup3 _______________________________________________________
+# SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
+
+@define _SYSCALL_DUP3_NAME
+%(
+	name = "dup3";
+%)
+
+@define _SYSCALL_DUP3_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %s", oldfd, newfd,  flags_str)
+%)
+
+probe syscall.dup3 = dw_syscall.dup3 !, nd_syscall.dup3 ? {}
+probe syscall.dup3.return = dw_syscall.dup3.return !, nd_syscall.dup3.return ? {}
+
+# dw_dup3 _____________________________________________________
+
+probe dw_syscall.dup3 = kernel.function("sys_dup3").call ?
+{
+	@__syscall_compat_gate(@const("__NR_dup3"), @const("__NR_compat_dup3"))
+	@_SYSCALL_DUP3_NAME
+	oldfd = __int32($oldfd)
+	newfd = __int32($newfd)
+	flags = __int32($flags)
+	flags_str = _dup3_flag_str(flags)
+	@_SYSCALL_DUP3_ARGSTR
+}
+probe dw_syscall.dup3.return = kernel.function("sys_dup3").return ?
+{
+	@__syscall_compat_gate(@const("__NR_dup3"), @const("__NR_compat_dup3"))
+	@_SYSCALL_DUP3_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_dup3 _____________________________________________________
+
+probe nd_syscall.dup3 = kprobe.function("sys_dup3") ?
+{
+	@__syscall_compat_gate(@const("__NR_dup3"), @const("__NR_compat_dup3"))
+	@_SYSCALL_DUP3_NAME
+	asmlinkage()
+	oldfd = int_arg(1)
+	newfd = int_arg(2)
+	flags = int_arg(3)
+	flags_str = _dup3_flag_str(flags)
+	@_SYSCALL_DUP3_ARGSTR
+}
+probe nd_syscall.dup3.return = kprobe.function("sys_dup3").return ?
+{
+	@__syscall_compat_gate(@const("__NR_dup3"), @const("__NR_compat_dup3"))
+	@_SYSCALL_DUP3_NAME
+	retstr = returnstr(1)
+}

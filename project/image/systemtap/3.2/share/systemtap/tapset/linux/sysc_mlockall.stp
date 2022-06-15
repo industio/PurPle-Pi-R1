@@ -1,0 +1,48 @@
+# mlockall ___________________________________________________
+# long sys_mlockall(int flags)
+#
+
+@define _SYSCALL_MLOCKALL_NAME
+%(
+	name = "mlockall"
+%)
+
+@define _SYSCALL_MLOCKALL_ARGSTR
+%(
+	argstr = flags_str
+%)
+
+probe syscall.mlockall = dw_syscall.mlockall !, nd_syscall.mlockall ? {}
+probe syscall.mlockall.return = dw_syscall.mlockall.return !,
+                                nd_syscall.mlockall.return ? {}
+
+# dw_mlockall _____________________________________________________
+
+probe dw_syscall.mlockall = kernel.function("sys_mlockall").call ?
+{
+	@_SYSCALL_MLOCKALL_NAME
+	flags = __int32($flags)
+	flags_str = _mlockall_flags_str(flags)
+	@_SYSCALL_MLOCKALL_ARGSTR
+}
+probe dw_syscall.mlockall.return = kernel.function("sys_mlockall").return ?
+{
+	@_SYSCALL_MLOCKALL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mlockall _____________________________________________________
+
+probe nd_syscall.mlockall = kprobe.function("sys_mlockall") ?
+{
+	@_SYSCALL_MLOCKALL_NAME
+	asmlinkage()
+	flags = int_arg(1)
+	flags_str = _mlockall_flags_str(flags)
+	@_SYSCALL_MLOCKALL_ARGSTR
+}
+probe nd_syscall.mlockall.return = kprobe.function("sys_mlockall").return ?
+{
+	@_SYSCALL_MLOCKALL_NAME
+	retstr = returnstr(1)
+}

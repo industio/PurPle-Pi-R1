@@ -1,0 +1,51 @@
+# rename _____________________________________________________
+#
+# asmlinkage long
+# sys_rename(const char __user * oldname,
+#		const char __user * newname)
+#
+
+@define _SYSCALL_RENAME_NAME
+%(
+	name = "rename"
+%)
+
+@define _SYSCALL_RENAME_ARGSTR
+%(
+	argstr = sprintf("%s, %s", oldpath, newpath)
+%)
+
+probe syscall.rename = dw_syscall.rename !, nd_syscall.rename ? {}
+probe syscall.rename.return = dw_syscall.rename.return !,
+                              nd_syscall.rename.return ? {}
+
+# dw_rename _____________________________________________________
+
+probe dw_syscall.rename = kernel.function("sys_rename").call
+{
+	@_SYSCALL_RENAME_NAME
+	oldpath = user_string_quoted($oldname)
+	newpath = user_string_quoted($newname)
+	@_SYSCALL_RENAME_ARGSTR
+}
+probe dw_syscall.rename.return = kernel.function("sys_rename").return
+{
+	@_SYSCALL_RENAME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_rename _____________________________________________________
+
+probe nd_syscall.rename = kprobe.function("sys_rename") ?
+{
+	@_SYSCALL_RENAME_NAME
+	asmlinkage()
+	oldpath = user_string_quoted(pointer_arg(1))
+	newpath = user_string_quoted(pointer_arg(2))
+	@_SYSCALL_RENAME_ARGSTR
+}
+probe nd_syscall.rename.return = kprobe.function("sys_rename").return ?
+{
+	@_SYSCALL_RENAME_NAME
+	retstr = returnstr(1)
+}

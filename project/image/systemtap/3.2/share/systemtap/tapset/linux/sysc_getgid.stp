@@ -1,0 +1,63 @@
+# getgid _____________________________________________________
+# long sys_getgid(void)
+# long sys32_getgid16(void)
+#
+
+@define _SYSCALL_GETGID_NAME
+%(
+	name = "getgid"
+%)
+
+@define _SYSCALL_GETGID_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.getgid = dw_syscall.getgid !, nd_syscall.getgid ? {}
+probe syscall.getgid.return = dw_syscall.getgid.return !, nd_syscall.getgid.return ? {}
+
+# dw_getgid _____________________________________________________
+
+probe dw_syscall.getgid = kernel.function("sys_getgid16").call ?,
+                       kernel.function("sys32_getgid16").call ?,
+%( arch == "s390" %?
+                       kernel.function("compat_sys_s390_getgid16").call ?,
+%)
+                       kernel.function("sys_getgid").call
+{
+	@_SYSCALL_GETGID_NAME
+	@_SYSCALL_GETGID_ARGSTR
+}
+probe dw_syscall.getgid.return = kernel.function("sys_getgid16").return ?,
+	kernel.function("sys32_getgid16").return ?,
+%( arch == "s390" %?
+	kernel.function("compat_sys_s390_getgid16").return ?,
+%)
+	kernel.function("sys_getgid").return
+{
+	@_SYSCALL_GETGID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getgid _____________________________________________________
+
+probe nd_syscall.getgid = kprobe.function("sys_getgid16") ?,
+                          kprobe.function("sys32_getgid16") ?,
+%( arch == "s390" %?
+                          kprobe.function("compat_sys_s390_getgid16") ?,
+%)
+                          kprobe.function("sys_getgid")
+{
+	@_SYSCALL_GETGID_NAME
+	@_SYSCALL_GETGID_ARGSTR
+}
+probe nd_syscall.getgid.return = kprobe.function("sys_getgid16").return ?,
+	kprobe.function("sys32_getgid16").return ?,
+%( arch == "s390" %?
+	kprobe.function("compat_sys_s390_getgid16").return ?,
+%)
+	kprobe.function("sys_getgid").return
+{
+	@_SYSCALL_GETGID_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,56 @@
+# readahead __________________________________________________
+#
+# compat_ssize_t compat_sys_readahead(int fd, u32 r4, u32 offhi, u32 offlo,
+#                                     u32 count)
+#
+
+@define _SYSCALL_COMPAT_READAHEAD_NAME
+%(
+	name = "readahead"
+%)
+
+@define _SYSCALL_COMPAT_READAHEAD_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %u", fd, offset, count)
+%)
+
+probe syscall.compat_readahead = dw_syscall.compat_readahead !,
+                                 nd_syscall.compat_readahead ? {}
+probe syscall.compat_readahead.return = dw_syscall.compat_readahead.return !,
+                                 nd_syscall.compat_readahead.return ? {}
+
+# dw_compat_readahead _____________________________________________________
+
+probe dw_syscall.compat_readahead = kernel.function("compat_sys_readahead") ?
+{
+	@_SYSCALL_COMPAT_READAHEAD_NAME
+	fd = __int32($fd)
+	offset = (($offhi << 32) | $offlo)
+	count = __uint32($count)
+	@_SYSCALL_COMPAT_READAHEAD_ARGSTR
+}
+probe dw_syscall.compat_readahead.return =
+	kernel.function("compat_sys_readahead").return ?
+{
+	@_SYSCALL_COMPAT_READAHEAD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_readahead _____________________________________________________
+
+probe nd_syscall.compat_readahead = kprobe.function("compat_sys_readahead") ?
+{
+	@_SYSCALL_COMPAT_READAHEAD_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	/* the 2nd parameter (r4) is ignored */
+	offset = ((uint_arg(3) << 32) | uint_arg(4))
+	count = ulong_arg(5)
+	@_SYSCALL_COMPAT_READAHEAD_ARGSTR
+}
+probe nd_syscall.compat_readahead.return =
+	kprobe.function("compat_sys_readahead").return ?
+{
+	@_SYSCALL_COMPAT_READAHEAD_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,99 @@
+# utime ______________________________________________________
+# long sys_utime(char __user * filename, struct utimbuf __user * times)
+
+@define _SYSCALL_UTIME_NAME
+%(
+	name = "utime"
+%)
+
+@define _SYSCALL_UTIME_ARGSTR
+%(
+	argstr = sprintf("%s, [%s, %s]", filename,
+	                 ctime(actime), ctime(modtime))
+%)
+
+probe syscall.utime = dw_syscall.utime !, nd_syscall.utime ? {}
+probe syscall.utime.return = dw_syscall.utime.return !,
+                             nd_syscall.utime.return ? {}
+
+# dw_utime _____________________________________________________
+
+probe dw_syscall.utime = kernel.function("sys_utime").call ?
+{
+	@_SYSCALL_UTIME_NAME
+	filename_uaddr = $filename
+	filename = user_string_quoted($filename)
+	buf_uaddr = $times
+	# On s390, '$times' is a long, so the @cast() is needed.
+	actime = user_long(&@cast($times, "utimbuf")->actime)
+	modtime = user_long(&@cast($times, "utimbuf")->modtime)
+	@_SYSCALL_UTIME_ARGSTR
+}
+probe dw_syscall.utime.return = kernel.function("sys_utime").return ?
+{
+	@_SYSCALL_UTIME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_utime _____________________________________________________
+
+probe nd_syscall.utime = kprobe.function("sys_utime") ?
+{
+	@_SYSCALL_UTIME_NAME
+	asmlinkage()
+	filename_uaddr = pointer_arg(1)
+	filename = user_string_quoted(filename_uaddr)
+	buf_uaddr = pointer_arg(2)
+	actime = _struct_utimbuf_actime(buf_uaddr)
+	modtime = _struct_utimbuf_modtime(buf_uaddr)
+	@_SYSCALL_UTIME_ARGSTR
+}
+probe nd_syscall.utime.return = kprobe.function("sys_utime").return ?
+{
+	@_SYSCALL_UTIME_NAME
+	retstr = returnstr(1)
+}
+
+# long compat_sys_utime(char __user *filename, struct compat_utimbuf __user *t)
+
+probe syscall.compat_utime = dw_syscall.compat_utime !,
+                             nd_syscall.compat_utime ? {}
+probe syscall.compat_utime.return = dw_syscall.compat_utime.return !,
+                                    nd_syscall.compat_utime.return ? {}
+
+# dw_compat_utime _____________________________________________________
+
+probe dw_syscall.compat_utime = kernel.function("compat_sys_utime").call ?
+{
+	@_SYSCALL_UTIME_NAME
+	filename_uaddr = @__pointer($filename)
+	filename = user_string_quoted(filename_uaddr)
+	buf_uaddr = @__pointer($t)
+	actime = _struct_compat_utimbuf_actime(buf_uaddr)
+	modtime = _struct_compat_utimbuf_modtime(buf_uaddr)
+	@_SYSCALL_UTIME_ARGSTR
+}
+probe dw_syscall.compat_utime.return = kernel.function("compat_sys_utime").return ?
+{
+	@_SYSCALL_UTIME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_utime _____________________________________________________
+
+probe nd_syscall.compat_utime = kprobe.function("compat_sys_utime") ?
+{
+	@_SYSCALL_UTIME_NAME
+	asmlinkage()
+	filename_uaddr = pointer_arg(1)
+	filename = user_string_quoted(filename_uaddr)
+	buf_uaddr = pointer_arg(2)
+	actime = _struct_compat_utimbuf_actime(buf_uaddr)
+	modtime = _struct_compat_utimbuf_modtime(buf_uaddr)
+	@_SYSCALL_UTIME_ARGSTR
+}
+probe nd_syscall.compat_utime.return = kprobe.function("compat_sys_utime").return ?
+{
+	@_SYSCALL_UTIME_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,10 @@
+probe begin {
+  println("Dumping packet contents.")
+}
+
+probe netfilter.*.* {
+  printf("Protocol Family: %s\n", pf)
+  printf("Length: %d\n", length)
+  printf("Hex: %s\n", data_hex)
+  printf("ASCII: %s\n", data_str)
+}

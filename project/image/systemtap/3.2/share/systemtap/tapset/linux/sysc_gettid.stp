@@ -1,0 +1,42 @@
+# gettid _____________________________________________________
+# long sys_gettid(void)
+
+@define _SYSCALL_GETTID_NAME
+%(
+	name = "gettid"
+%)
+
+@define _SYSCALL_GETTID_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.gettid = dw_syscall.gettid !, nd_syscall.gettid {}
+probe syscall.gettid.return = dw_syscall.gettid.return !,
+                              nd_syscall.gettid.return {}
+
+# dw_gettid _____________________________________________________
+
+probe dw_syscall.gettid = kernel.function("sys_gettid").call
+{
+	@_SYSCALL_GETTID_NAME
+	@_SYSCALL_GETTID_ARGSTR
+}
+probe dw_syscall.gettid.return = kernel.function("sys_gettid").return
+{
+	@_SYSCALL_GETTID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_gettid _____________________________________________________
+
+probe nd_syscall.gettid = kprobe.function("sys_gettid")
+{
+	@_SYSCALL_GETTID_NAME
+	@_SYSCALL_GETTID_ARGSTR
+}
+probe nd_syscall.gettid.return = kprobe.function("sys_gettid").return
+{
+	@_SYSCALL_GETTID_NAME
+	retstr = returnstr(1)
+}

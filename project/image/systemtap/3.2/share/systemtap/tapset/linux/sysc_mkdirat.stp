@@ -1,0 +1,56 @@
+# mkdirat ____________________________________________________
+# long sys_mkdirat(int dfd, const char __user *pathname, int mode)
+# new function with 2.6.16
+
+@define _SYSCALL_MKDIRAT_NAME
+%(
+	name = "mkdirat"
+%)
+
+@define _SYSCALL_MKDIRAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %#o", dirfd_str, pathname, mode)
+%)
+
+probe syscall.mkdirat = dw_syscall.mkdirat !, nd_syscall.mkdirat ? {}
+probe syscall.mkdirat.return = dw_syscall.mkdirat.return !,
+                               nd_syscall.mkdirat.return ? {}
+
+# dw_mkdirat _____________________________________________________
+
+probe dw_syscall.mkdirat = kernel.function("sys_mkdirat").call ?
+{
+	@__syscall_compat_gate(@const("__NR_mkdirat"), @const("__NR_compat_mkdirat"))
+	@_SYSCALL_MKDIRAT_NAME
+	dirfd = __int32($dfd)
+	dirfd_str = _dfd_str(__int32($dfd))
+	pathname = user_string_quoted($pathname)
+	mode = __uint32($mode)
+	@_SYSCALL_MKDIRAT_ARGSTR
+}
+probe dw_syscall.mkdirat.return = kernel.function("sys_mkdirat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_mkdirat"), @const("__NR_compat_mkdirat"))
+	@_SYSCALL_MKDIRAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mkdirat _____________________________________________________
+
+probe nd_syscall.mkdirat = kprobe.function("sys_mkdirat") ?
+{
+	@__syscall_compat_gate(@const("__NR_mkdirat"), @const("__NR_compat_mkdirat"))
+	@_SYSCALL_MKDIRAT_NAME
+	asmlinkage()
+	dirfd = int_arg(1)
+	dirfd_str = _dfd_str(dirfd)
+	pathname = user_string_quoted(pointer_arg(2))
+	mode = uint_arg(3)
+	@_SYSCALL_MKDIRAT_ARGSTR
+}
+probe nd_syscall.mkdirat.return = kprobe.function("sys_mkdirat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_mkdirat"), @const("__NR_compat_mkdirat"))
+	@_SYSCALL_MKDIRAT_NAME
+	retstr = returnstr(1)
+}

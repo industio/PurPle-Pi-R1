@@ -1,0 +1,47 @@
+# mlock ______________________________________________________
+# long sys_mlock(unsigned long start, size_t len)
+#
+
+@define _SYSCALL_MLOCK_NAME
+%(
+	name = "mlock"
+%)
+
+@define _SYSCALL_MLOCK_ARGSTR
+%(
+	argstr = sprintf("%p, %u", addr, len)
+%)
+
+probe syscall.mlock = dw_syscall.mlock !, nd_syscall.mlock ? {}
+probe syscall.mlock.return = dw_syscall.mlock.return !, nd_syscall.mlock.return ? {}
+
+# dw_mlock _____________________________________________________
+
+probe dw_syscall.mlock = kernel.function("sys_mlock").call ?
+{
+	@_SYSCALL_MLOCK_NAME
+	addr = __ulong($start)
+	len = __ulong($len)
+	@_SYSCALL_MLOCK_ARGSTR
+}
+probe dw_syscall.mlock.return = kernel.function("sys_mlock").return ?
+{
+	@_SYSCALL_MLOCK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mlock _____________________________________________________
+
+probe nd_syscall.mlock = kprobe.function("sys_mlock") ?
+{
+	@_SYSCALL_MLOCK_NAME
+	asmlinkage()
+	addr = ulong_arg(1)
+	len = ulong_arg(2)
+	@_SYSCALL_MLOCK_ARGSTR
+}
+probe nd_syscall.mlock.return = kprobe.function("sys_mlock").return ?
+{
+	@_SYSCALL_MLOCK_NAME
+	retstr = returnstr(1)
+}

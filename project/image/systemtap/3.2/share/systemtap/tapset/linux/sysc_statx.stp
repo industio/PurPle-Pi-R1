@@ -1,0 +1,74 @@
+# statx _______________________________________________________
+# Syscall introduced in kernel commit a528d35e8bfcc521d7cb70aaf03e1bd296c8493f
+# Author: David Howells <dhowells@redhat.com>
+# Date:   Tue Jan 31 16:46:22 2017 +0000
+# SYSCALL_DEFINE5(statx,
+#                int, dfd, const char __user *, filename, unsigned, flags,
+#                unsigned int, mask,
+#                struct statx __user *, buffer)
+#
+# asmlinkage long sys_statx(int dfd, const char __user *path, unsigned flags,
+#                           unsigned mask, struct statx __user *buffer);
+
+@define _SYSCALL_STATX_NAME
+%(
+	name = "statx"
+%)
+
+@define _SYSCALL_STATX_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %s, %p", dfd_str, filename, flags_str,
+	                 mask_str, buf_uaddr)
+%)
+
+probe syscall.statx = dw_syscall.statx !, nd_syscall.statx ? {}
+probe syscall.statx.return = dw_syscall.statx.return !, nd_syscall.statx.return ? {}
+
+# dw_statx _____________________________________________________
+
+probe dw_syscall.statx = kernel.function("sys_statx").call ?
+{
+	@_SYSCALL_STATX_NAME
+	dfd = __int32($dfd)
+	dfd_str = _dfd_str(dfd)
+	filename_uaddr = $filename
+	filename = user_string_quoted($filename)
+	flags = __uint32($flags)
+	flags_str = _at_flag_str(flags)
+	mask = __uint32($mask)
+	mask_str = _statx_mask_str(mask)
+	buf_uaddr = $buffer
+	# Not pretty-printing struct statx, since it is just
+	# (maybe somehow initialized) *destination* buffer.
+	@_SYSCALL_STATX_ARGSTR
+}
+probe dw_syscall.statx.return = kernel.function("sys_statx").return ?
+{
+	@_SYSCALL_STATX_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_statx _____________________________________________________
+
+probe nd_syscall.statx = kprobe.function("sys_statx") ?
+{
+	@_SYSCALL_STATX_NAME
+	asmlinkage()
+	dfd = int_arg(1)
+	dfd_str = _dfd_str(dfd)
+	filename_uaddr = pointer_arg(2)
+	filename = user_string_quoted(filename_uaddr)
+	flags = uint_arg(3)
+	flags_str = _at_flag_str(flags)
+	mask = uint_arg(4)
+	mask_str = _statx_mask_str(mask)
+	buf_uaddr = pointer_arg(5)
+	# Not pretty-printing struct statx, since it is just
+	# (maybe somehow initialized) *destination* buffer.
+	@_SYSCALL_STATX_ARGSTR
+}
+probe nd_syscall.statx.return = kprobe.function("sys_statx").return ?
+{
+	@_SYSCALL_STATX_NAME
+	retstr = returnstr(1)
+}

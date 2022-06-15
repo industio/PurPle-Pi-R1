@@ -1,0 +1,37 @@
+# exit _______________________________________________________
+# long sys_exit(int error_code)
+#
+# sys_exit() never returns, and is blacklisted for return probes,
+# so no alias here.  See bz6588.
+# NB: the explicit .call ensures that alias suffixes can't infer .return
+
+@define _SYSCALL_EXIT_NAME
+%(
+	name = "exit"
+%)
+
+@define _SYSCALL_EXIT_ARGSTR
+%(
+	argstr = sprint(status)
+%)
+
+probe syscall.exit = dw_syscall.exit !, nd_syscall.exit {}
+
+# dw_exit _____________________________________________________
+
+probe dw_syscall.exit = kernel.function("sys_exit").call
+{
+	@_SYSCALL_EXIT_NAME
+	status = __int32($error_code)
+	@_SYSCALL_EXIT_ARGSTR
+}
+
+# nd_exit _____________________________________________________
+
+probe nd_syscall.exit = kprobe.function("sys_exit").call
+{
+	@_SYSCALL_EXIT_NAME
+	asmlinkage()
+	status = int_arg(1)
+	@_SYSCALL_EXIT_ARGSTR
+}

@@ -1,0 +1,99 @@
+# futex ______________________________________________________
+# long sys_futex(u32 __user *uaddr,
+#           int op,
+#           int val,
+#           struct timespec __user *utime,
+#           u32 __user *uaddr2,
+#           int val3)
+# long compat_sys_futex(u32 __user *uaddr, int op, u32 val,
+#		struct compat_timespec __user *utime, u32 __user *uaddr2,
+#		u32 val3)
+#
+
+@define _SYSCALL_FUTEX_NAME
+%(
+	name = "futex"
+%)
+
+probe syscall.futex = dw_syscall.futex !, nd_syscall.futex ? {}
+probe syscall.futex.return = dw_syscall.futex.return !,
+                             nd_syscall.futex.return ? {}
+
+probe syscall.compat_futex = dw_syscall.compat_futex !,
+                             nd_syscall.compat_futex ? {}
+probe syscall.compat_futex.return = dw_syscall.compat_futex.return !,
+                                    nd_syscall.compat_futex.return ? {}
+
+# dw_futex _____________________________________________________
+
+probe dw_syscall.futex = kernel.function("sys_futex").call ?
+{
+	@_SYSCALL_FUTEX_NAME
+	futex_uaddr = $uaddr
+	op = __int32($op)
+	val = __int32($val)
+	utime_uaddr = $utime
+	uaddr2_uaddr = $uaddr2
+	val3 = __int32($val3)
+	@__futex_argstr(futex_uaddr, op, val, utime_uaddr, uaddr2_uaddr, val3)
+}
+probe dw_syscall.futex.return = kernel.function("sys_futex").return ?
+{
+	@_SYSCALL_FUTEX_NAME
+	retstr = return_str(1, $return)
+}
+probe dw_syscall.compat_futex = kernel.function("compat_sys_futex").call ?
+{
+	@_SYSCALL_FUTEX_NAME
+	futex_uaddr = @__pointer($uaddr)
+	op = __int32($op)
+	val = __int32($val)
+	utime_uaddr = @__pointer($utime)
+	uaddr2_uaddr = $uaddr2
+	val3 = __int32($val3)
+	@__futex_argstr(futex_uaddr, op, val, utime_uaddr, uaddr2_uaddr, val3)
+}
+probe dw_syscall.compat_futex.return =
+	kernel.function("compat_sys_futex").return ?
+{
+	@_SYSCALL_FUTEX_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_futex _____________________________________________________
+
+probe nd_syscall.futex = kprobe.function("sys_futex") ?
+{
+	@_SYSCALL_FUTEX_NAME
+	asmlinkage()
+	futex_uaddr = pointer_arg(1)
+	op = int_arg(2)
+	val = int_arg(3)
+	utime_uaddr = pointer_arg(4)
+	uaddr2_uaddr = pointer_arg(5)
+	val3 = int_arg(6)
+	@__futex_argstr(futex_uaddr, op, val, utime_uaddr, uaddr2_uaddr, val3)
+}
+probe nd_syscall.futex.return = kprobe.function("sys_futex").return ?
+{
+	@_SYSCALL_FUTEX_NAME
+	retstr = returnstr(1)
+}
+probe nd_syscall.compat_futex = kprobe.function("compat_sys_futex") ?
+{
+	@_SYSCALL_FUTEX_NAME
+	asmlinkage()
+	futex_uaddr = pointer_arg(1)
+	op = int_arg(2)
+	val = int_arg(3)
+	utime_uaddr = pointer_arg(4)
+	uaddr2_uaddr = pointer_arg(5)
+	val3 = int_arg(6)
+	@__futex_argstr(futex_uaddr, op, val, utime_uaddr, uaddr2_uaddr, val3)
+}
+probe nd_syscall.compat_futex.return =
+	kprobe.function("compat_sys_futex").return ?
+{
+	@_SYSCALL_FUTEX_NAME
+	retstr = returnstr(1)
+}

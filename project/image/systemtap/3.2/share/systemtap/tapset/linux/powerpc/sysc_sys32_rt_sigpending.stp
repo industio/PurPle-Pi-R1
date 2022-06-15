@@ -1,0 +1,51 @@
+# sys32_rt_sigpending ________________________________________
+#
+# long sys32_rt_sigpending(compat_sigset_t __user *set,
+#			compat_size_t sigsetsize)
+#
+
+@define _SYSCALL_SYS32_RT_SIGPENDING_NAME
+%(
+	name = "sys32_rt_sigpending"
+%)
+
+@define _SYSCALL_SYS32_RT_SIGPENDING_ARGSTR
+%(
+	argstr = sprintf("%p, %d", set_uaddr, sigsetsize)
+%)
+
+probe syscall.sys32_rt_sigpending = dw_syscall.sys32_rt_sigpending !,
+                                    nd_syscall.sys32_rt_sigpending ? {}
+probe syscall.sys32_rt_sigpending.return = dw_syscall.sys32_rt_sigpending.return !,
+                                           nd_syscall.sys32_rt_sigpending.return ? {}
+
+# dw_sys32_rt_sigpending _____________________________________________________
+
+probe dw_syscall.sys32_rt_sigpending = kernel.function("sys32_rt_sigpending") ?
+{
+	@_SYSCALL_SYS32_RT_SIGPENDING_NAME
+	set_uaddr = $set
+	sigsetsize = $sigsetsize
+	@_SYSCALL_SYS32_RT_SIGPENDING_ARGSTR
+}
+probe dw_syscall.sys32_rt_sigpending.return = kernel.function("sys32_rt_sigpending").return ?
+{
+	@_SYSCALL_SYS32_RT_SIGPENDING_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_rt_sigpending _____________________________________________________
+
+probe nd_syscall.sys32_rt_sigpending = kprobe.function("sys32_rt_sigpending") ?
+{
+	@_SYSCALL_SYS32_RT_SIGPENDING_NAME
+	asmlinkage()
+	set_uaddr = pointer_arg(1)
+	sigsetsize = uint_arg(2)
+	@_SYSCALL_SYS32_RT_SIGPENDING_ARGSTR
+}
+probe nd_syscall.sys32_rt_sigpending.return = kprobe.function("sys32_rt_sigpending").return ?
+{
+	@_SYSCALL_SYS32_RT_SIGPENDING_NAME
+	retstr = returnstr(1)
+}

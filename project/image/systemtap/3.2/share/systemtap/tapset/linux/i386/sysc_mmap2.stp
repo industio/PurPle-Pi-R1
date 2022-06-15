@@ -1,0 +1,89 @@
+# In kernels < 2.6.33, mmap()/mmap2() was handled by arch-specific
+# code.  In kernels >= 2.6.33, the arch-specific code just calls
+# generic sys_mmap_pgoff().
+%( kernel_v < "2.6.33" %?
+# mmap2 ____________________________________________
+# sys_mmap2(unsigned long addr, unsigned long len,
+#	  unsigned long prot, unsigned long flags,
+#	  unsigned long fd, unsigned long pgoff)
+#
+
+@define _SYSCALL_MMAP2_NAME
+%(
+	name = "mmap2"
+%)
+
+@define _SYSCALL_MMAP2_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s, %s, %d, %d", start, length, prot_str,
+	                 flags_str, fd, pgoffset)
+%)
+
+probe syscall.mmap2 = dw_syscall.mmap2 !, nd_syscall.mmap2 ? {}
+probe syscall.mmap2.return = dw_syscall.mmap2.return !, nd_syscall.mmap2.return ? {}
+
+# dw_mmap2 _____________________________________________________
+
+probe dw_syscall.mmap2 = __syscall.mmap2 ?, __syscall.mmap_pgoff ?
+{
+        @_SYSCALL_MMAP2_NAME
+        start = $addr
+        length = $len
+        prot = $prot
+	prot_str = _mprotect_prot_str(prot)
+        flags = $flags
+	flags_str = _mmap_flags(flags)
+	# Although the kernel gets an unsigned long fd, on the
+	# user-side it is a signed int.  Fix this.
+        fd = __int32($fd)
+        @_SYSCALL_MMAP2_ARGSTR
+}
+probe __syscall.mmap2 = kernel.function("sys_mmap2")
+{
+        pgoffset = $pgoff
+}
+probe __syscall.mmap_pgoff = kernel.function("sys_mmap_pgoff")
+{
+        pgoffset = $pgoff * @const("PAGE_SIZE")
+}
+probe dw_syscall.mmap2.return = kernel.function("sys_mmap2").return ?,
+	kernel.function("sys_mmap_pgoff").return ?
+{
+        @_SYSCALL_MMAP2_NAME
+        retstr = return_str(2, $return)
+}
+
+# nd_mmap2 _____________________________________________________
+
+probe nd_syscall.mmap2 = __nd_syscall.mmap2 ?, __nd_syscall.mmap_pgoff ?
+{
+	@_SYSCALL_MMAP2_NAME
+	asmlinkage()
+	start = ulong_arg(1)
+	length = ulong_arg(2)
+	prot = ulong_arg(3)
+	prot_str = _mprotect_prot_str(prot)
+	flags = ulong_arg(4)
+	flags_str = _mmap_flags(flags)
+	# Although the kernel gets an unsigned long fd, on the
+	# user-side it is a signed int.  Fix this.
+	fd = int_arg(5)
+	@_SYSCALL_MMAP2_ARGSTR
+}
+probe __nd_syscall.mmap2 = kprobe.function("sys_mmap2")
+{
+	asmlinkage()
+	pgoffset = ulong_arg(6)
+}
+probe __nd_syscall.mmap_pgoff = kprobe.function("sys_mmap_pgoff")
+{
+	asmlinkage()
+	pgoffset = ulong_arg(6) * @const("PAGE_SIZE")
+}
+probe nd_syscall.mmap2.return = kprobe.function("sys_mmap2").return ?,
+	kprobe.function("sys_mmap_pgoff").return ?
+{
+	@_SYSCALL_MMAP2_NAME
+	retstr = returnstr(2)
+}
+%)

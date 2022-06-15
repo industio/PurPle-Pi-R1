@@ -1,0 +1,60 @@
+# compat_mbind ________________________________________
+#
+# asmlinkage long compat_mbind(compat_ulong_t start, compat_ulong_t len,
+#			compat_ulong_t mode, compat_ulong_t __user *nmask,
+#			compat_ulong_t maxnode, compat_ulong_t flags)
+#
+
+@define _SYSCALL_COMPAT_MBIND_NAME
+%(
+	name = "compat_mbind"
+%)
+
+@define _SYSCALL_COMPAT_MBIND_ARGSTR
+%(
+	argstr = sprintf("%p, %d, %d, %p, %d, %d", start_uaddr, len,
+	                 policy, nodemask_uaddr, maxnode, flags)
+%)
+
+probe syscall.compat_mbind = dw_syscall.compat_mbind !, nd_syscall.compat_mbind ? {}
+probe syscall.compat_mbind.return = dw_syscall.compat_mbind.return !,
+                                    nd_syscall.compat_mbind.return ? {}
+
+# dw_compat_mbind _____________________________________________________
+
+probe dw_syscall.compat_mbind = kernel.function("compat_mbind") ?
+{
+	@_SYSCALL_COMPAT_MBIND_NAME
+	start_uaddr = $start
+	len = $len
+	policy = $mode
+	nodemask_uaddr = $nmask
+	maxnode = $maxnode
+	flags = $flags
+	@_SYSCALL_COMPAT_MBIND_ARGSTR
+}
+probe dw_syscall.compat_mbind.return = kernel.function("compat_mbind").return ?
+{
+	@_SYSCALL_COMPAT_MBIND_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_mbind _____________________________________________________
+
+probe nd_syscall.compat_mbind = kprobe.function("compat_mbind") ?
+{
+	@_SYSCALL_COMPAT_MBIND_NAME
+	asmlinkage()
+	start_uaddr = uint_arg(1)
+	len = uint_arg(2)
+	policy = uint_arg(3)
+	nodemask_uaddr = uint_arg(4)
+	maxnode = uint_arg(5)
+	flags = uint_arg(6)
+	@_SYSCALL_COMPAT_MBIND_ARGSTR
+}
+probe nd_syscall.compat_mbind.return = kprobe.function("compat_mbind").return ?
+{
+	@_SYSCALL_COMPAT_MBIND_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,48 @@
+# sys32_sysinfo ________________________________________
+#
+# (obsolete) long sys32_sysinfo(struct sysinfo32 __user *info)
+#
+
+@define _SYSCALL_SYS32_SYSINFO_NAME
+%(
+	name = "sys32_sysinfo"
+%)
+
+@define _SYSCALL_SYS32_SYSINFO_ARGSTR
+%(
+	argstr = sprintf("%p", info_uaddr)
+%)
+
+probe syscall.sys32_sysinfo = dw_syscall.sys32_sysinfo !,
+                              nd_syscall.sys32_sysinfo ? {}
+probe syscall.sys32_sysinfo.return = dw_syscall.sys32_sysinfo.return !,
+                                     nd_syscall.sys32_sysinfo.return ? {}
+
+# dw_sys32_sysinfo _____________________________________________________
+
+probe dw_syscall.sys32_sysinfo = kernel.function("sys32_sysinfo") ?
+{
+	@_SYSCALL_SYS32_SYSINFO_NAME
+	info_uaddr = $info
+	@_SYSCALL_SYS32_SYSINFO_ARGSTR
+}
+probe dw_syscall.sys32_sysinfo.return = kernel.function("sys32_sysinfo").return ?
+{
+	@_SYSCALL_SYS32_SYSINFO_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_sysinfo _____________________________________________________
+
+probe nd_syscall.sys32_sysinfo = kprobe.function("sys32_sysinfo") ?
+{
+	@_SYSCALL_SYS32_SYSINFO_NAME
+	asmlinkage()
+	info_uaddr = pointer_arg(1)
+	@_SYSCALL_SYS32_SYSINFO_ARGSTR
+}
+probe nd_syscall.sys32_sysinfo.return = kprobe.function("sys32_sysinfo").return ?
+{
+	@_SYSCALL_SYS32_SYSINFO_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,14 @@
+@__private30 global _line = ""
+
+probe input.char = procfs("__stdin").write {
+        char = $value
+}
+
+
+probe input.line = procfs("__stdin").write {
+        _line .= $value
+        if ($value != "\n")
+                next
+        line = _line
+        _line = ""
+}

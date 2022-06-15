@@ -1,0 +1,177 @@
+#! /usr/bin/env stap
+
+global socketstart, lastevent, sendtofd
+global eventnumber, eventname, eventstart, eventend, eventbytes, eventlength
+global writestart, readstart, sendstart, recvstart
+
+probe begin {
+  if (target() == 0) {
+        println("No PID specified.  Use -c or -x.  See man stap for more information.")
+        exit()
+  }
+}
+
+function printshorthistory (fd:long) {
+  if (eventnumber[fd] < 1 || eventnumber[fd] % 2 && eventnumber[fd] != 1)
+	  return
+  wait1 = eventstart[fd, eventnumber[fd] - 1] - eventend[fd, eventnumber[fd] - 2]
+  wait2 = eventstart[fd, eventnumber[fd]] - eventend[fd, eventnumber[fd] - 1]
+  name1 = eventname[fd, eventnumber[fd] - 1]
+  name2 = eventname[fd, eventnumber[fd]]
+  length1 = eventlength[fd, eventnumber[fd] - 1]
+  length2 = eventlength[fd, eventnumber[fd]]
+  bytes1 = eventbytes[fd, eventnumber[fd] -1]
+  bytes2 = eventbytes[fd, eventnumber[fd]]
+  if (eventnumber[fd] == 1)
+       printf("Socket %d connect, wait %d us, %s %d bytes in %d us\n", fd, wait2, name2, bytes2, length2)
+  else {
+       printf("Socket %d wait %d us, ", fd, wait1)
+       printf("%s %d bytes in %d us, wait %d us, ", name1, bytes1, length1, wait2)
+       printf("%s %d bytes in %d us\n", name2, bytes2, length2)
+  }
+}
+
+probe syscall.socket.return {
+  if (!target_set_pid(pid()))
+         next
+  eventnumber[$return] = 0
+  socketstart[$return] = gettimeofday_us()
+  eventname[$return, eventnumber[$return]] = "connect"
+  eventend[$return, eventnumber[$return]] = gettimeofday_us()
+  lastevent[$return] = "connect"
+}
+
+probe syscall.close.return {
+  if (!target_set_pid(pid()))
+         next
+  if (socketstart[$fd] != 0 && eventnumber[$fd] >= 1)
+         printf("Socket %d close\n", $fd)
+  delete socketstart[$fd]
+}
+
+probe syscall.send, syscall.sendmsg {
+  if (!target_set_pid(pid()))
+         next
+  if (socketstart[s] != 0 && sendstart[s] == 0) {
+	  sendstart[s] = gettimeofday_us()
+	  if (lastevent[s] == "send")
+	        next
+	  printshorthistory(s)
+	  eventname[s, ++eventnumber[s]] = "send"
+          eventstart[s, eventnumber[s]] = sendstart[s]
+  }
+}
+
+probe syscall.sendto {
+  if (!target_set_pid(pid()))
+         next
+  if (socketstart[s] !=0 && sendstart[s] == 0) {
+	 sendstart[s] = gettimeofday_us()
+         sendtofd[tid()] = s
+	 if (lastevent[s] == "send")
+	       next
+         printshorthistory(s)
+	 eventname[s, ++eventnumber[s]] = "send"
+	 eventstart[s, eventnumber[s]] = sendstart[s]
+  }
+}
+
+probe __syscall.send.return, __syscall.sendmsg.return {
+  if (!target_set_pid(pid()))
+         next
+  if (socketstart[$fd] != 0 && $return > 0) {
+         eventbytes[$fd, eventnumber[$fd]] += $return
+	 eventlength[$fd, eventnumber[$fd]] += gettimeofday_us() - sendstart[$fd]
+	 eventend[$fd, eventnumber[$fd]] = gettimeofday_us()
+  }
+  sendstart[$fd] = 0
+  lastevent[$fd] = "send"
+}
+
+probe syscall.sendto.return {
+  if (!target_set_pid(pid()))
+         next
+  fd = sendtofd[tid()]
+  if (socketstart[fd] != 0 && $return > 0) {
+         eventbytes[fd, eventnumber[fd]] += $return
+	 eventlength[fd, eventnumber[fd]] += gettimeofday_us() - sendstart[fd]
+	 eventend[fd, eventnumber[fd]] = gettimeofday_us()
+  }
+  sendstart[fd] = 0
+  lastevent[fd] = "send"
+}
+
+probe syscall.recv, syscall.recvfrom, syscall.recvmsg {
+  if (!target_set_pid(pid()))
+	  next
+  if (socketstart[s] != 0 && recvstart[s] == 0) {
+	  recvstart[s] = gettimeofday_us()
+          if (lastevent[s] == "recv")
+		  next
+	  printshorthistory(s)
+	  eventname[s, ++eventnumber[s]] = "recv"
+	  eventstart[s, eventnumber[s]] = recvstart[s]
+  }
+}
+
+probe __syscall.recv.return, __syscall.recvfrom.return, __syscall.recvmsg.return {
+  if (!target_set_pid(pid()))
+	  next
+  if (socketstart[$fd] != 0 && $return > 0) {
+	  eventbytes[$fd, eventnumber[$fd]] += $return
+	  eventlength[$fd, eventnumber[$fd]] += gettimeofday_us() - recvstart[$fd]
+	  eventend[$fd, eventnumber[$fd]] = gettimeofday_us()
+  }
+  recvstart[$fd] = 0
+  lastevent[$fd] = "recv"
+}
+
+probe syscall.write, syscall.writev {
+  if (!target_set_pid(pid()))
+	  next
+  if (socketstart[fd] != 0 && writestart[fd] == 0) {
+          writestart[fd]  = gettimeofday_us()
+	  if (lastevent[fd] == "write")
+		  next
+	  printshorthistory(fd)
+	  eventname[fd, ++eventnumber[fd]] = "write"
+	  eventstart[fd, eventnumber[fd]] = writestart[fd]
+  }
+}
+
+probe syscall.write.return, syscall.writev.return {
+  if (!target_set_pid(pid()))
+	  next
+  if (socketstart[$fd] != 0 && $return > 0) {
+          eventbytes[$fd, eventnumber[$fd]] += $return
+	  eventlength[$fd, eventnumber[$fd]] += gettimeofday_us() - writestart[$fd]
+	  eventend[$fd, eventnumber[$fd]] = gettimeofday_us()
+  }
+  writestart[$fd] = 0
+  lastevent[$fd] = "write"
+}
+
+probe syscall.read, syscall.readv {
+  if (!target_set_pid(pid()))
+	  next
+  if (socketstart[fd] != 0 && readstart[fd] == 0) {
+          readstart[fd] = gettimeofday_us()
+	  if (lastevent[fd] == "read")
+		  next
+	  printshorthistory(fd)
+	  eventname[fd, ++eventnumber[fd]] = "read"
+	  eventstart[fd, eventnumber[fd]] = readstart[fd]
+  }
+}
+
+probe syscall.read.return, syscall.readv.return {
+  if (!target_set_pid(pid()))
+	  next
+  if (socketstart[$fd] != 0 && $return > 0) {
+          eventbytes[$fd, eventnumber[$fd]] += $return
+	  eventlength[$fd, eventnumber[$fd]] += gettimeofday_us() - readstart[$fd]
+	  eventend[$fd, eventnumber[$fd]] = gettimeofday_us()
+  }
+  readstart[$fd] = 0
+  lastevent[$fd] = "read"
+}

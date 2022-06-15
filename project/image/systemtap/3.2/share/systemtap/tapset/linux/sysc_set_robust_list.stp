@@ -1,0 +1,76 @@
+# set_robust_list ____________________________________________
+# SYSCALL_DEFINE2(set_robust_list, struct robust_list_head __user *, head,
+#                 size_t, len)
+# COMPAT_SYSCALL_DEFINE2(set_robust_list,
+#                        struct compat_robust_list_head __user *, head,
+#                        compat_size_t, len)
+
+@define _SYSCALL_SET_ROBUST_LIST_NAME
+%(
+	name = "set_robust_list"
+%)
+
+@define _SYSCALL_SET_ROBUST_LIST_ARGSTR
+%(
+	argstr = sprintf("%p, %u", list_head_uaddr, len)
+%)
+
+probe syscall.set_robust_list = dw_syscall.set_robust_list !,
+                                nd_syscall.set_robust_list ? {}
+probe syscall.set_robust_list.return = dw_syscall.set_robust_list.return !,
+                                       nd_syscall.set_robust_list.return ? {}
+
+# dw_set_robust_list _____________________________________________________
+
+probe dw_syscall.set_robust_list = __syscall.set_robust_list ?,
+                                kernel.function("compat_sys_set_robust_list") ?
+{
+	@_SYSCALL_SET_ROBUST_LIST_NAME
+	list_head_uaddr = @__pointer($head)
+	len = @__compat_ulong($len)
+	@_SYSCALL_SET_ROBUST_LIST_ARGSTR
+}
+probe __syscall.set_robust_list = kernel.function("sys_set_robust_list")
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.set_robust_list.return = __syscall.set_robust_list.return ?,
+		kernel.function("compat_sys_set_robust_list").return ?
+{
+	@_SYSCALL_SET_ROBUST_LIST_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.set_robust_list.return =
+		kernel.function("sys_set_robust_list").return
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_set_robust_list _____________________________________________________
+
+probe nd_syscall.set_robust_list =
+		__nd_syscall.set_robust_list ?,
+		kprobe.function("compat_sys_set_robust_list") ?
+{
+	@_SYSCALL_SET_ROBUST_LIST_NAME
+	asmlinkage()
+	list_head_uaddr = pointer_arg(1)
+	len = ulong_arg(2)
+	@_SYSCALL_SET_ROBUST_LIST_ARGSTR
+}
+probe __nd_syscall.set_robust_list = kprobe.function("sys_set_robust_list")
+{
+	@__syscall_gate_compat_simple
+}
+probe nd_syscall.set_robust_list.return =
+		__nd_syscall.set_robust_list.return ?,
+		kprobe.function("compat_sys_set_robust_list").return ?
+{
+	@_SYSCALL_SET_ROBUST_LIST_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.set_robust_list.return =
+		kprobe.function("sys_set_robust_list").return
+{
+	@__syscall_gate_compat_simple
+}

@@ -1,0 +1,48 @@
+# ppc64_sys32_stime ________________________________________
+#
+# long ppc64_sys32_stime(int __user * tptr)
+#
+
+@define _SYSCALL_PPC64_SYS32_STIME_NAME
+%(
+	name = "ppc64_sys32_stime"
+%)
+
+@define _SYSCALL_PPC64_SYS32_STIME_ARGSTR
+%(
+	argstr = sprintf("%p", t_uaddr)
+%)
+
+probe syscall.ppc64_sys32_stime = dw_syscall.ppc64_sys32_stime !,
+                                  nd_syscall.ppc64_sys32_stime ? {}
+probe syscall.ppc64_sys32_stime.return = dw_syscall.ppc64_sys32_stime.return !,
+                                         nd_syscall.ppc64_sys32_stime.return ? {}
+
+# dw_ppc64_sys32_stime _____________________________________________________
+
+probe dw_syscall.ppc64_sys32_stime = kernel.function("ppc64_sys32_stime") ?
+{
+	@_SYSCALL_PPC64_SYS32_STIME_NAME
+	t_uaddr = $tptr
+	@_SYSCALL_PPC64_SYS32_STIME_ARGSTR
+}
+probe dw_syscall.ppc64_sys32_stime.return = kernel.function("ppc64_sys32_stime").return ?
+{
+	@_SYSCALL_PPC64_SYS32_STIME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ppc64_sys32_stime _____________________________________________________
+
+probe nd_syscall.ppc64_sys32_stime = kprobe.function("ppc64_sys32_stime") ?
+{
+	@_SYSCALL_PPC64_SYS32_STIME_NAME
+	asmlinkage()
+	t_uaddr = pointer_arg(1)
+	@_SYSCALL_PPC64_SYS32_STIME_ARGSTR
+}
+probe nd_syscall.ppc64_sys32_stime.return = kprobe.function("ppc64_sys32_stime").return ?
+{
+	@_SYSCALL_PPC64_SYS32_STIME_NAME
+	retstr = returnstr(1)
+}

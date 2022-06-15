@@ -1,0 +1,83 @@
+# preadv ____________________________________________________
+#
+# SYSCALL_DEFINE5(preadv, unsigned long, fd,
+#		  const struct iovec __user *, vec,
+#		  unsigned long, vlen, unsigned long, pos_l,
+#		  unsigned long, pos_h)
+# COMPAT_SYSCALL_DEFINE5(preadv, unsigned long, fd,
+#		const struct compat_iovec __user *,vec,
+#		unsigned long, vlen, u32, pos_low, u32, pos_high)
+#
+
+@define _SYSCALL_PREADV_NAME
+%(
+	name = "preadv"
+%)
+
+@define _SYSCALL_PREADV_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d, 0x%x", fd, vector_uaddr, count, offset)
+%)
+
+probe syscall.preadv = dw_syscall.preadv !, nd_syscall.preadv ? {}
+probe syscall.preadv.return = dw_syscall.preadv.return !,
+                              nd_syscall.preadv.return ? {}
+
+# dw_preadv _____________________________________________________
+
+probe dw_syscall.preadv = __syscall.preadv ?, __syscall.compat_preadv ?
+{
+	@_SYSCALL_PREADV_NAME
+}
+probe __syscall.preadv = kernel.function("sys_preadv")
+{
+	fd = __int32($fd)
+	vector_uaddr = $vec
+	count = __int32($vlen)
+	offset = @__pos_from_hilo($pos_h, $pos_l)
+	@_SYSCALL_PREADV_ARGSTR
+}
+probe __syscall.compat_preadv = kernel.function("compat_sys_preadv")
+{
+	fd = __int32($fd)
+	vector_uaddr = $vec
+	count = __int32($vlen)
+	offset = ($pos_high << 32) + __uint32($pos_low)
+	@_SYSCALL_PREADV_ARGSTR
+}
+probe dw_syscall.preadv.return = kernel.function("sys_preadv").return ?,
+			      kernel.function("compat_sys_preadv").return ?
+{
+	@_SYSCALL_PREADV_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_preadv _____________________________________________________
+
+probe nd_syscall.preadv = __nd_syscall.preadv ?, __nd_syscall.compat_preadv ?
+{
+	@_SYSCALL_PREADV_NAME
+}
+probe __nd_syscall.preadv = kprobe.function("sys_preadv")
+{
+	asmlinkage()
+	fd = int_arg(1)
+	vector_uaddr = pointer_arg(2)
+	count = int_arg(3)
+	offset = @__pos_from_hilo(ulong_arg(5), ulong_arg(4))
+	@_SYSCALL_PREADV_ARGSTR
+}
+probe __nd_syscall.compat_preadv = kprobe.function("compat_sys_preadv")
+{
+	fd = int_arg(1)
+	vector_uaddr = pointer_arg(2)
+	count = int_arg(3)
+	offset = (u32_arg(5) << 32) + u32_arg(4)
+	@_SYSCALL_PREADV_ARGSTR
+}
+probe nd_syscall.preadv.return = kprobe.function("sys_preadv").return ?,
+				 kprobe.function("compat_sys_preadv").return ?
+{
+	@_SYSCALL_PREADV_NAME
+	retstr = returnstr(1)
+}

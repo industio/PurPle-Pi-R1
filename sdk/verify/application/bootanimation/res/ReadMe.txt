@@ -1,0 +1,1 @@
+注意目前bootanimation只支持h264文件，如果要替换开机动画视频，需要将开机动画的视频重命名为bootanimation_src.h264放到此目录下

@@ -1,0 +1,51 @@
+# setpgid ____________________________________________________
+#
+# asmlinkage long
+# sys_setpgid(pid_t pid,
+#		 pid_t pgid)
+#
+
+@define _SYSCALL_SETPGID_NAME
+%(
+	name = "setpgid"
+%)
+
+@define _SYSCALL_SETPGID_ARGSTR
+%(
+	argstr = sprintf("%d, %d", pid, pgid)
+%)
+
+probe syscall.setpgid = dw_syscall.setpgid !, nd_syscall.setpgid ? {}
+probe syscall.setpgid.return = dw_syscall.setpgid.return !,
+                               nd_syscall.setpgid.return ? {}
+
+# dw_setpgid _____________________________________________________
+
+probe dw_syscall.setpgid = kernel.function("sys_setpgid").call
+{
+	@_SYSCALL_SETPGID_NAME
+	pid = __int32($pid)
+	pgid = __int32($pgid)
+	@_SYSCALL_SETPGID_ARGSTR
+}
+probe dw_syscall.setpgid.return = kernel.function("sys_setpgid").return
+{
+	@_SYSCALL_SETPGID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setpgid _____________________________________________________
+
+probe nd_syscall.setpgid = kprobe.function("sys_setpgid") ?
+{
+	@_SYSCALL_SETPGID_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	pgid = int_arg(2)
+	@_SYSCALL_SETPGID_ARGSTR
+}
+probe nd_syscall.setpgid.return = kprobe.function("sys_setpgid").return ?
+{
+	@_SYSCALL_SETPGID_NAME
+	retstr = returnstr(1)
+}

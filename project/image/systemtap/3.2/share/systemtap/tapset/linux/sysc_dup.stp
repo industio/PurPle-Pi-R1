@@ -1,0 +1,44 @@
+# dup ________________________________________________________
+# long sys_dup(unsigned int fildes)
+
+@define _SYSCALL_DUP_NAME
+%(
+	name = "dup"
+%)
+
+@define _SYSCALL_DUP_ARGSTR
+%(
+	argstr = sprint(oldfd)
+%)
+
+probe syscall.dup = dw_syscall.dup !, nd_syscall.dup ? {}
+probe syscall.dup.return = dw_syscall.dup.return !, nd_syscall.dup.return ? {}
+
+# dw_dup _____________________________________________________
+
+probe dw_syscall.dup = kernel.function("sys_dup").call
+{
+	@_SYSCALL_DUP_NAME
+	oldfd = __int32($fildes)
+	@_SYSCALL_DUP_ARGSTR
+}
+probe dw_syscall.dup.return = kernel.function("sys_dup").return
+{
+	@_SYSCALL_DUP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_dup _____________________________________________________
+
+probe nd_syscall.dup = kprobe.function("sys_dup") ?
+{
+	@_SYSCALL_DUP_NAME
+	asmlinkage()
+	oldfd = int_arg(1)
+	@_SYSCALL_DUP_ARGSTR
+}
+probe nd_syscall.dup.return = kprobe.function("sys_dup").return ?
+{
+	@_SYSCALL_DUP_NAME
+	retstr = returnstr(1)
+}

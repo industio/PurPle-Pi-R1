@@ -1,0 +1,72 @@
+# pipe _______________________________________________________
+#
+# long sys32_pipe(int __user *fd)
+# Not available in newer kernels.
+
+@define _SYSCALL_PIPE32_NAME
+%(
+	name = "pipe"
+%)
+
+probe syscall.pipe32 = dw_syscall.pipe32 !, nd_syscall.pipe32 ? {}
+probe syscall.pipe32.return = dw_syscall.pipe32.return !, nd_syscall.pipe32.return ? {}
+
+# dw_pipe32 _____________________________________________________
+
+probe dw_syscall.pipe32 = kernel.function("sys32_pipe")?
+{
+	@_SYSCALL_PIPE32_NAME
+	flags = 0;
+	flag_str = ""
+	if (@defined($fd)) {
+		fildes_uaddr = $fd
+		if (fildes_uaddr == 0) {
+			pipe0 = 0;
+			pipe1 = 0;
+			argstr = "NULL"
+		} else {
+			pipe0 = user_int(&$fd[0]);
+			pipe1 = user_int(&$fd[1]);
+			argstr = sprintf("[%d, %d]", pipe0, pipe1);
+		}
+	} else {
+		fildes_uaddr = 0;
+		pipe0 = 0;
+		pipe1 = 0;
+		argstr = "[0, 0]";
+	}
+}
+probe dw_syscall.pipe32.return = kernel.function("sys32_pipe").return?
+{
+	@_SYSCALL_PIPE32_NAME
+	flags = 0;
+	if (@defined(@entry($fd))) {
+		fildes_uaddr = @entry($fd)
+		if (fildes_uaddr == 0) {
+			pipe0 = 0;
+			pipe1 = 0;
+		} else {
+			pipe0 = @entry(user_int(&$fd[0]));
+			pipe1 = @entry(user_int(&$fd[1]));
+		}
+	} else {
+		fildes_uaddr = 0;
+		pipe0 = 0;
+		pipe1 = 0;
+	}
+	retstr = return_str(1, $return)
+}
+
+# nd_pipe32 _____________________________________________________
+
+probe nd_syscall.pipe32 = kprobe.function("sys32_pipe")?
+{
+	@_SYSCALL_PIPE32_NAME
+	asmlinkage()
+	argstr = sprintf("%p", pointer_arg(1))
+}
+probe nd_syscall.pipe32.return = kprobe.function("sys32_pipe").return?
+{
+	@_SYSCALL_PIPE32_NAME
+	retstr = returnstr(1)
+}

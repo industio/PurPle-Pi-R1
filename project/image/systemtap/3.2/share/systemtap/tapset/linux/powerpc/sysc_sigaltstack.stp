@@ -1,0 +1,117 @@
+%( CONFIG_GENERIC_SIGALTSTACK == "n" || kernel_v < "3.8" %?
+# sigaltstack ________________________________________________
+# long sys_sigaltstack(const stack_t __user *uss, stack_t __user *uoss,
+#		       unsigned long r5, unsigned long r6,
+#		       unsigned long r7, unsigned long r8,
+#		       struct pt_regs *regs)
+#
+# NOTE: args vary between archs.
+#
+
+@define _SYSCALL_SIGALTSTACK_NAME
+%(
+	name = "sigaltstack"
+%)
+
+@define _SYSCALL_SIGALTSTACK_ARGSTR
+%(
+	argstr = sprintf("%s, %p", uss_str, uoss_uaddr)
+%)
+
+probe syscall.sigaltstack = dw_syscall.sigaltstack !, nd_syscall.sigaltstack {}
+probe syscall.sigaltstack.return = dw_syscall.sigaltstack.return !,
+                                   nd_syscall.sigaltstack.return {}
+
+# dw_sigaltstack _____________________________________________________
+
+probe dw_syscall.sigaltstack = kernel.function("sys_sigaltstack")
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	uss_uaddr = $uss
+	uss_str = _stp_sigaltstack_u(uss_uaddr)
+	uoss_uaddr = $uoss
+%(systemtap_v < "2.3" %?
+	regs = $regs
+%)
+	@_SYSCALL_SIGALTSTACK_ARGSTR
+}
+probe dw_syscall.sigaltstack.return = kernel.function("sys_sigaltstack").return
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sigaltstack _____________________________________________________
+
+probe nd_syscall.sigaltstack = kprobe.function("sys_sigaltstack")
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	asmlinkage()
+	uss_uaddr = pointer_arg(1)
+	uss_str = _stp_sigaltstack_u(uss_uaddr)
+	uoss_uaddr = pointer_arg(2)
+%(systemtap_v < "2.3" %?
+	regs = pointer_arg(7)
+%)
+	@_SYSCALL_SIGALTSTACK_ARGSTR
+}
+probe nd_syscall.sigaltstack.return =
+	kprobe.function("sys_sigaltstack").return
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	retstr = returnstr(1)
+}
+
+# sys32_sigaltstack ________________________________________
+#
+# int compat_sys_sigaltstack(u32 __new, u32 __old, int r5,
+#		             int r6, int r7, int r8, struct pt_regs *regs)
+# int sys32_sigaltstack(u32 __new, u32 __old, int r5,
+#			int r6, int r7, int r8, struct pt_regs *regs)
+#
+
+probe syscall.sys32_sigaltstack = dw_syscall.sys32_sigaltstack !,
+                                  nd_syscall.sys32_sigaltstack ? {}
+probe syscall.sys32_sigaltstack.return = dw_syscall.sys32_sigaltstack.return !,
+                                         nd_syscall.sys32_sigaltstack.return ? {}
+
+# dw_sys32_sigaltstack _____________________________________________________
+
+probe dw_syscall.sys32_sigaltstack =
+	kernel.function("compat_sys_sigaltstack").call !,
+	kernel.function("sys32_sigaltstack").call ?
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	uss_uaddr = @__pointer($__new)
+	uss_str = _stp_compat_sigaltstack_u(uss_uaddr)
+	uoss_uaddr = @__pointer($__old)
+	@_SYSCALL_SIGALTSTACK_ARGSTR
+}
+probe dw_syscall.sys32_sigaltstack.return =
+	kernel.function("compat_sys_sigaltstack").return !,
+	kernel.function("sys32_sigaltstack").return ?
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_sigaltstack _____________________________________________________
+
+probe nd_syscall.sys32_sigaltstack =
+	kprobe.function("compat_sys_sigaltstack") !,
+	kprobe.function("sys32_sigaltstack") ?
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	uss_uaddr = pointer_arg(1)
+	uss_str = _stp_compat_sigaltstack_u(uss_uaddr)
+	uoss_uaddr = pointer_arg(2)
+	@_SYSCALL_SIGALTSTACK_ARGSTR
+}
+probe nd_syscall.sys32_sigaltstack.return =
+	kprobe.function("compat_sys_sigaltstack").return !,
+	kprobe.function("sys32_sigaltstack").return ?
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	retstr = returnstr(1)
+}
+%)

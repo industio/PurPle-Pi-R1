@@ -1,0 +1,140 @@
+# clock_nanosleep ____________________________________________
+# long sys_clock_nanosleep(clockid_t which_clock,
+#                     int flags,
+#                     const struct timespec __user *rqtp,
+#                     struct timespec __user *rmtp)
+#
+
+@define _SYSCALL_CLOCK_NANOSLEEP_NAME
+%(
+	name = "clock_nanosleep"
+%)
+
+@define _SYSCALL_CLOCK_NANOSLEEP_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %p", clk_id_str, flags_str,
+	                 req_str, rem_uaddr)
+%)
+
+probe syscall.clock_nanosleep = dw_syscall.clock_nanosleep !, nd_syscall.clock_nanosleep {}
+probe syscall.clock_nanosleep.return = dw_syscall.clock_nanosleep.return !, nd_syscall.clock_nanosleep.return {}
+
+# dw_clock_nanosleep _____________________________________________________
+
+probe dw_syscall.clock_nanosleep = kernel.function("sys_clock_nanosleep").call
+{
+	@__syscall_gate(@const("__NR_clock_nanosleep"))
+	@_SYSCALL_CLOCK_NANOSLEEP_NAME
+	clk_id = __int32($which_clock)
+	clk_id_str = _get_wc_str(__int32($which_clock))
+	flags = __int32($flags)
+%(systemtap_v <= "2.6" %?
+	flag_str = _stp_clock_nanosleep_flags_str(__int32($flags))
+%)
+	flags_str = _stp_clock_nanosleep_flags_str(__int32($flags))
+	req_uaddr = $rqtp
+	req_str = _struct_timespec_u(req_uaddr, 1)
+	rem_uaddr = $rmtp
+	@_SYSCALL_CLOCK_NANOSLEEP_ARGSTR
+}
+probe dw_syscall.clock_nanosleep.return =
+	kernel.function("sys_clock_nanosleep").return
+{
+	@__syscall_gate(@const("__NR_clock_nanosleep"))
+	@_SYSCALL_CLOCK_NANOSLEEP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_clock_nanosleep _____________________________________________________
+
+probe nd_syscall.clock_nanosleep = kprobe.function("sys_clock_nanosleep").call
+{
+	@__syscall_gate(@const("__NR_clock_nanosleep"))
+	@_SYSCALL_CLOCK_NANOSLEEP_NAME
+	asmlinkage()
+	clk_id = int_arg(1)
+	clk_id_str = _get_wc_str(clk_id)
+	flags = int_arg(2)
+%(systemtap_v <= "2.6" %?
+	flag_str = _stp_clock_nanosleep_flags_str(flags)
+%)
+	flags_str = _stp_clock_nanosleep_flags_str(flags)
+	req_uaddr = pointer_arg(3)
+	req_str = _struct_timespec_u(req_uaddr, 1)
+	rem_uaddr = pointer_arg(4)
+	@_SYSCALL_CLOCK_NANOSLEEP_ARGSTR
+}
+probe nd_syscall.clock_nanosleep.return =
+	kprobe.function("sys_clock_nanosleep").return ?
+{
+	@__syscall_gate(@const("__NR_clock_nanosleep"))
+	@_SYSCALL_CLOCK_NANOSLEEP_NAME
+	retstr = returnstr(1)
+}
+
+# compat_clock_nanosleep ________________________________________
+#
+# long compat_clock_nanosleep(clockid_t which_clock, int flags,
+#			struct compat_timespec __user *rqtp,
+#			struct compat_timespec __user *rmtp)
+#
+
+probe syscall.compat_clock_nanosleep = dw_syscall.compat_clock_nanosleep !,
+                                       nd_syscall.compat_clock_nanosleep ? {}
+probe syscall.compat_clock_nanosleep.return = dw_syscall.compat_clock_nanosleep.return !,
+                                              nd_syscall.compat_clock_nanosleep.return ? {}
+
+# dw_compat_clock_nanosleep _____________________________________________________
+
+probe dw_syscall.compat_clock_nanosleep =
+	kernel.function("compat_clock_nanosleep").call ?,
+	kernel.function("compat_sys_clock_nanosleep").call ?
+{
+	@_SYSCALL_CLOCK_NANOSLEEP_NAME
+	clk_id = __int32($which_clock)
+	clk_id_str = _get_wc_str(__int32($which_clock))
+	flags = __int32($flags)
+%(systemtap_v <= "2.6" %?
+	flag_str = _stp_clock_nanosleep_flags_str(__int32($flags))
+%)
+	flags_str = _stp_clock_nanosleep_flags_str(__int32($flags))
+	req_uaddr = @__pointer($rqtp)
+	req_str = _struct_compat_timespec_u(req_uaddr, 1)
+	rem_uaddr = $rmtp
+	@_SYSCALL_CLOCK_NANOSLEEP_ARGSTR
+}
+probe dw_syscall.compat_clock_nanosleep.return =
+	kernel.function("compat_clock_nanosleep").return ?,
+	kernel.function("compat_sys_clock_nanosleep").return ?
+{
+	@_SYSCALL_CLOCK_NANOSLEEP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_clock_nanosleep _____________________________________________________
+
+probe nd_syscall.compat_clock_nanosleep =
+	kprobe.function("compat_clock_nanosleep").call ?,
+	kprobe.function("compat_sys_clock_nanosleep").call ?
+{
+	@_SYSCALL_CLOCK_NANOSLEEP_NAME
+	asmlinkage()
+	clk_id = int_arg(1)
+	clk_id_str = _get_wc_str(clk_id)
+	flags = int_arg(2)
+%(systemtap_v <= "2.6" %?
+	flag_str = _stp_clock_nanosleep_flags_str(flags)
+%)
+	flags_str = _stp_clock_nanosleep_flags_str(flags)
+	req_uaddr = pointer_arg(3)
+	req_str = _struct_compat_timespec_u(req_uaddr, 1)
+	rem_uaddr = pointer_arg(4)
+	@_SYSCALL_CLOCK_NANOSLEEP_ARGSTR
+}
+probe nd_syscall.compat_clock_nanosleep.return =
+	kprobe.function("compat_clock_nanosleep").return ?,
+	kprobe.function("compat_sys_clock_nanosleep").return ?
+{
+	@_SYSCALL_CLOCK_NANOSLEEP_NAME
+	retstr = returnstr(1)
+}

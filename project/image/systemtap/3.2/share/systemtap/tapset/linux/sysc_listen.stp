@@ -1,0 +1,110 @@
+# listen _____________________________________________________
+# long sys_listen(int fd, int backlog)
+
+@define _SYSCALL_LISTEN_NAME
+%(
+	name = "listen"
+%)
+
+@define _SYSCALL_LISTEN_ARGSTR
+%(
+	argstr = sprintf("%d, %d", sockfd, backlog)
+%)
+
+probe syscall.listen = dw_syscall.listen !, nd_syscall.listen ? {}
+probe syscall.listen.return = dw_syscall.listen.return !,
+                              nd_syscall.listen.return ? {}
+
+# dw_listen _____________________________________________________
+
+probe dw_syscall.listen = __syscall.listen ?, __syscall.socketcall.listen ?,
+	__syscall.compat_socketcall.listen ?
+{
+	@_SYSCALL_LISTEN_NAME
+	@_SYSCALL_LISTEN_ARGSTR
+}
+probe __syscall.listen = kernel.function("sys_listen").call ?
+{
+	@__syscall_gate(@const("__NR_listen"))
+	sockfd = __int32($fd)
+	backlog = __int32($backlog)
+}
+probe __syscall.socketcall.listen = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_LISTEN")) next;
+	sockfd = __int32(user_ulong(&@ulong_cast($args)[0]))
+	backlog = __int32(user_ulong(&@ulong_cast($args)[1]))
+}
+probe __syscall.compat_socketcall.listen =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_LISTEN")) next;
+	sockfd = user_int(&@uint_cast($args)[0])
+	backlog = user_int(&@uint_cast($args)[1])
+}
+probe dw_syscall.listen.return = __syscall.listen.return ?,
+	__syscall.socketcall.listen.return ?
+{
+	@_SYSCALL_LISTEN_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.listen.return = kernel.function("sys_listen").return ?
+{
+	@__syscall_gate(@const("__NR_listen"))
+}
+probe __syscall.socketcall.listen.return =
+	kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_LISTEN")) next;
+}
+
+# nd_listen _____________________________________________________
+
+probe nd_syscall.listen = __nd_syscall.listen ?,
+	__nd_syscall.socketcall.listen ?,
+	__nd_syscall.compat_socketcall.listen ?
+{
+	@_SYSCALL_LISTEN_NAME
+	@_SYSCALL_LISTEN_ARGSTR
+}
+probe __nd_syscall.listen = kprobe.function("sys_listen") ?
+{
+	@__syscall_gate(@const("__NR_listen"))
+	asmlinkage()
+	sockfd = int_arg(1)
+	backlog = int_arg(2)
+}
+probe __nd_syscall.socketcall.listen = kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_LISTEN")) next;
+	__args = &@ulong_cast(pointer_arg(2))
+	sockfd = __int32(user_ulong(&(__args)[0]))
+	backlog = __int32(user_ulong(&(__args)[1]))
+}
+probe __nd_syscall.compat_socketcall.listen =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_LISTEN")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	sockfd = user_int(&(__args)[0])
+	backlog = user_int(&(__args)[1])
+}
+probe nd_syscall.listen.return = __nd_syscall.listen.return ?,
+	__nd_syscall.socketcall.listen.return ?
+{
+	@_SYSCALL_LISTEN_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.listen.return = kprobe.function("sys_listen").return ?
+{
+	@__syscall_gate(@const("__NR_listen"))
+}
+probe __nd_syscall.socketcall.listen.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_LISTEN")) next;
+}

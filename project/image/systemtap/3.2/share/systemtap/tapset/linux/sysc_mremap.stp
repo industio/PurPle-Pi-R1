@@ -1,0 +1,64 @@
+# mremap _____________________________________________________
+# unsigned long sys_mremap(unsigned long addr,
+#            unsigned long old_len,
+#            unsigned long new_len,
+#            unsigned long flags,
+#            unsigned long new_addr)
+#
+
+@define _SYSCALL_MREMAP_NAME
+%(
+	name = "mremap"
+%)
+
+@define _SYSCALL_MREMAP_ARGSTR
+%(
+	argstr = sprintf("%p, %d, %d, %s, %p", old_address, old_size, new_size,
+	                 flags_str, new_address)
+%)
+
+probe syscall.mremap = dw_syscall.mremap !, nd_syscall.mremap ? {}
+probe syscall.mremap.return = dw_syscall.mremap.return !, nd_syscall.mremap.return ? {}
+
+# dw_mremap _____________________________________________________
+
+probe dw_syscall.mremap = kernel.function("ia64_mremap").call ?,
+                       kernel.function("sys_mremap").call ?
+{
+	@_SYSCALL_MREMAP_NAME
+	old_address = $addr
+	old_size = $old_len
+	new_size = $new_len
+	flags = $flags
+	flags_str = _mremap_flags(flags)
+	new_address = $new_addr
+	@_SYSCALL_MREMAP_ARGSTR
+}
+probe dw_syscall.mremap.return = kernel.function("ia64_mremap").return ?,
+                              kernel.function("sys_mremap").return ?
+{
+	@_SYSCALL_MREMAP_NAME
+	retstr = return_str(2, $return)
+}
+
+# nd_mremap _____________________________________________________
+
+probe nd_syscall.mremap = kprobe.function("ia64_mremap") ?,
+                          kprobe.function("sys_mremap") ?
+{
+	@_SYSCALL_MREMAP_NAME
+	asmlinkage()
+	old_address = ulong_arg(1)
+	old_size = ulong_arg(2)
+	new_size = ulong_arg(3)
+	flags = ulong_arg(4)
+	flags_str = _mremap_flags(flags)
+	new_address = ulong_arg(5)
+	@_SYSCALL_MREMAP_ARGSTR
+}
+probe nd_syscall.mremap.return = kprobe.function("ia64_mremap").return ?,
+                                 kprobe.function("sys_mremap").return ?
+{
+	@_SYSCALL_MREMAP_NAME
+	retstr = returnstr(2)
+}

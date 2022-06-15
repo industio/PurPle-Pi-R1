@@ -1,0 +1,41 @@
+# getpid _____________________________________________________
+# long sys_getpid(void)
+
+@define _SYSCALL_GETPID_NAME
+%(
+	name = "getpid"
+%)
+
+@define _SYSCALL_GETPID_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.getpid = dw_syscall.getpid !, nd_syscall.getpid ? {}
+probe syscall.getpid.return = dw_syscall.getpid.return !, nd_syscall.getpid.return ? {}
+
+# dw_getpid _____________________________________________________
+
+probe dw_syscall.getpid = kernel.function("sys_getpid").call
+{
+	@_SYSCALL_GETPID_NAME
+	@_SYSCALL_GETPID_ARGSTR
+}
+probe dw_syscall.getpid.return = kernel.function("sys_getpid").return
+{
+	@_SYSCALL_GETPID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getpid _____________________________________________________
+
+probe nd_syscall.getpid = kprobe.function("sys_getpid")
+{
+	@_SYSCALL_GETPID_NAME
+	@_SYSCALL_GETPID_ARGSTR
+}
+probe nd_syscall.getpid.return = kprobe.function("sys_getpid").return
+{
+	@_SYSCALL_GETPID_NAME
+	retstr = returnstr(1)
+}

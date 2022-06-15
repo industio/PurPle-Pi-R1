@@ -1,0 +1,51 @@
+# getrandom __________________________________________________
+# long sys_getrandom(char __user *buf, size_t count, unsigned int flags)
+
+@define _SYSCALL_GETRANDOM_NAME
+%(
+	name = "getrandom"
+%)
+
+@define _SYSCALL_GETRANDOM_ARGSTR
+%(
+	argstr = sprintf("%s, %u, %s", buf, count, flags_str)
+%)
+
+probe syscall.getrandom = dw_syscall.getrandom !, nd_syscall.getrandom ? {}
+probe syscall.getrandom.return = dw_syscall.getrandom.return !,
+                                 nd_syscall.getrandom.return ? {}
+
+# dw_getrandom _____________________________________________________
+
+probe dw_syscall.getrandom = kernel.function("sys_getrandom").call ?
+{
+	@_SYSCALL_GETRANDOM_NAME
+	buf = user_string_quoted($buf)
+	count = __ulong($count)
+	flags = __uint32($flags)
+	flags_str = _getrandom_flags_str(__uint32($flags))
+	@_SYSCALL_GETRANDOM_ARGSTR
+}
+probe dw_syscall.getrandom.return = kernel.function("sys_getrandom").return ?
+{
+	@_SYSCALL_GETRANDOM_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getrandom _____________________________________________________
+
+probe nd_syscall.getrandom = kprobe.function("sys_getrandom") ?
+{
+	@_SYSCALL_GETRANDOM_NAME
+	asmlinkage()
+	buf = user_string_quoted(pointer_arg(1))
+	count = ulong_arg(2)
+	flags = uint_arg(3)
+	flags_str = _getrandom_flags_str(uint_arg(3))
+	@_SYSCALL_GETRANDOM_ARGSTR
+}
+probe nd_syscall.getrandom.return = kprobe.function("sys_getrandom").return ?
+{
+	@_SYSCALL_GETRANDOM_NAME
+	retstr = returnstr(1)
+}

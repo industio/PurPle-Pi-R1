@@ -1,0 +1,141 @@
+# getsockopt _________________________________________________
+# long sys_getsockopt(int fd,
+#                int level,
+#                int optname,
+#                char __user *optval,
+#                int __user *optlen)
+#
+
+@define _SYSCALL_GETSOCKOPT_NAME
+%(
+	name = "getsockopt"
+%)
+
+@define _SYSCALL_GETSOCKOPT_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %s, %p, %p", fd, _sockopt_level_str(level),
+	                 _sockopt_optname_str(optname), optval_uaddr, optlen_uaddr)
+%)
+
+probe syscall.getsockopt = dw_syscall.getsockopt !, nd_syscall.getsockopt ? {}
+probe syscall.getsockopt.return = dw_syscall.getsockopt.return !,
+                                  nd_syscall.getsockopt.return ? {}
+
+# dw_getsockopt _____________________________________________________
+
+probe dw_syscall.getsockopt = __syscall.getsockopt ?,
+	__syscall.socketcall.getsockopt ?,
+	__syscall.compat_socketcall.getsockopt ?
+{
+	@_SYSCALL_GETSOCKOPT_NAME
+	level_str = _sockopt_level_str(level)
+	optname_str = _sockopt_optname_str(optname)
+	@_SYSCALL_GETSOCKOPT_ARGSTR
+}
+probe __syscall.getsockopt = kernel.function("sys_getsockopt").call ?
+{
+	@__syscall_gate(@const("__NR_getsockopt"))
+	fd = __int32($fd)
+	level = __int32($level)
+	optname = __int32($optname)
+	optval_uaddr = $optval
+	optlen_uaddr = $optlen
+}
+probe __syscall.socketcall.getsockopt = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_GETSOCKOPT")) next;
+	fd = __int32(user_ulong(&@ulong_cast($args)[0]))
+	level = __int32(user_ulong(&@ulong_cast($args)[1]))
+	optname = __int32(user_ulong(&@ulong_cast($args)[2]))
+	optval_uaddr = user_ulong(&@ulong_cast($args)[3])
+	optlen_uaddr = user_ulong(&@ulong_cast($args)[4])
+}
+probe __syscall.compat_socketcall.getsockopt =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_GETSOCKOPT")) next;
+	fd = user_int(&@uint_cast($args)[0])
+	level = user_int(&@uint_cast($args)[1])
+	optname = user_int(&@uint_cast($args)[2])
+	optval_uaddr = user_uint32(&@uint_cast($args)[3])
+	optlen_uaddr = user_uint32(&@uint_cast($args)[4])
+}
+probe dw_syscall.getsockopt.return = __syscall.getsockopt.return ?,
+      __syscall.socketcall.getsockopt.return ?
+{
+	@_SYSCALL_GETSOCKOPT_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.getsockopt.return = kernel.function("sys_getsockopt").return ?
+{
+	@__syscall_gate(@const("__NR_getsockopt"))
+}
+probe __syscall.socketcall.getsockopt.return =
+	kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_GETSOCKOPT")) next;
+}
+
+# nd_getsockopt _____________________________________________________
+
+probe nd_syscall.getsockopt = __nd_syscall.getsockopt ?,
+	__nd_syscall.socketcall.getsockopt ?,
+	__nd_syscall.compat_socketcall.getsockopt ?
+{
+	@_SYSCALL_GETSOCKOPT_NAME
+	level_str = _sockopt_level_str(level)
+	optname_str = _sockopt_optname_str(optname)
+	@_SYSCALL_GETSOCKOPT_ARGSTR
+}
+probe __nd_syscall.getsockopt = kprobe.function("sys_getsockopt") ?
+{
+	asmlinkage()
+	@__syscall_gate(@const("__NR_getsockopt"))
+	fd = int_arg(1)
+	level = int_arg(2)
+	optname = int_arg(3)
+	optval_uaddr = pointer_arg(4)
+	optlen_uaddr = pointer_arg(5)
+}
+probe __nd_syscall.socketcall.getsockopt =
+	kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_GETSOCKOPT")) next;
+	__args = &@ulong_cast(pointer_arg(2))
+	fd = __int32(user_ulong(&(__args)[0]))
+	level = __int32(user_ulong(&(__args)[1]))
+	optname = __int32(user_ulong(&(__args)[2]))
+	optval_uaddr = user_ulong(&(__args)[3])
+	optlen_uaddr = user_ulong(&(__args)[4])
+}
+probe __nd_syscall.compat_socketcall.getsockopt =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_GETSOCKOPT")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	fd = user_int(&(__args)[0])
+	level = user_int(&(__args)[1])
+	optname = user_int(&(__args)[2])
+	optval_uaddr = user_uint32(&(__args)[3])
+	optlen_uaddr = user_uint32(&(__args)[4])
+}
+probe nd_syscall.getsockopt.return = __nd_syscall.getsockopt.return ?,
+      __nd_syscall.socketcall.getsockopt.return ?
+{
+	@_SYSCALL_GETSOCKOPT_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.getsockopt.return =
+	kprobe.function("sys_getsockopt").return ?
+{
+	@__syscall_gate(@const("__NR_getsockopt"))
+}
+probe __nd_syscall.socketcall.getsockopt.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_GETSOCKOPT")) next;
+}

@@ -1,0 +1,48 @@
+# close ______________________________________________________
+# long sys_close(unsigned int fd)
+
+@define _SYSCALL_CLOSE_NAME
+%(
+	name = "close"
+%)
+
+@define _SYSCALL_CLOSE_ARGSTR
+%(
+	argstr = sprint(fd)
+%)
+
+probe syscall.close = dw_syscall.close !, nd_syscall.close ? {}
+probe syscall.close.return = dw_syscall.close.return !, nd_syscall.close.return ? {}
+
+# dw_close _____________________________________________________
+
+probe dw_syscall.close = kernel.function("sys_close").call
+{
+	@__syscall_compat_gate(@const("__NR_close"), @const("__NR_compat_close"))
+	@_SYSCALL_CLOSE_NAME
+	fd = __int32($fd)
+	@_SYSCALL_CLOSE_ARGSTR
+}
+probe dw_syscall.close.return = kernel.function("sys_close").return
+{
+	@__syscall_compat_gate(@const("__NR_close"), @const("__NR_compat_close"))
+	@_SYSCALL_CLOSE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_close _____________________________________________________
+
+probe nd_syscall.close = kprobe.function("sys_close") ?
+{
+	@__syscall_compat_gate(@const("__NR_close"), @const("__NR_compat_close"))
+	@_SYSCALL_CLOSE_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	@_SYSCALL_CLOSE_ARGSTR
+}
+probe nd_syscall.close.return = kprobe.function("sys_close").return ?
+{
+	@__syscall_compat_gate(@const("__NR_close"), @const("__NR_compat_close"))
+	@_SYSCALL_CLOSE_NAME
+	retstr = returnstr(1)
+}

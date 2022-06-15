@@ -1,0 +1,11 @@
+prefix=/home/malloc.peng/p2_sdk/sdk/verify/mi_demo/3rdparty/libnl/out
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: libnl-genl
+Description: Generic Netlink Library
+Version: 3.5.0
+Requires: libnl-3.0
+Libs: -L${libdir} -lnl-genl-3
+Cflags: -I${includedir}/libnl3

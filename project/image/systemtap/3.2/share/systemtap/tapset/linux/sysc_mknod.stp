@@ -1,0 +1,52 @@
+# mknod ______________________________________________________
+# long sys_mknod(const char __user * filename, int mode, unsigned dev)
+
+@define _SYSCALL_MKNOD_NAME
+%(
+	name = "mknod"
+%)
+
+@define _SYSCALL_MKNOD_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %u", pathname, mode_str, dev)
+%)
+
+probe syscall.mknod = dw_syscall.mknod !, nd_syscall.mknod ? {}
+probe syscall.mknod.return = dw_syscall.mknod.return !, nd_syscall.mknod.return ? {}
+
+# dw_mknod _____________________________________________________
+
+probe dw_syscall.mknod = kernel.function("sys_mknod").call
+{
+	@_SYSCALL_MKNOD_NAME
+	pathname = user_string_quoted($filename)
+	mode = __uint32($mode)
+	mode_str = _mknod_mode_str(mode)
+	dev = __uint32($dev)
+	@_SYSCALL_MKNOD_ARGSTR
+}
+
+probe dw_syscall.mknod.return = kernel.function("sys_mknod").return
+{
+	@_SYSCALL_MKNOD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mknod _____________________________________________________
+
+probe nd_syscall.mknod = kprobe.function("sys_mknod") ?
+{
+	@_SYSCALL_MKNOD_NAME
+	asmlinkage()
+	pathname = user_string_quoted(pointer_arg(1))
+	mode = uint_arg(2)
+	mode_str = _mknod_mode_str(mode)
+	dev = uint_arg(3)
+	@_SYSCALL_MKNOD_ARGSTR
+}
+
+probe nd_syscall.mknod.return = kprobe.function("sys_mknod").return ?
+{
+	@_SYSCALL_MKNOD_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,57 @@
+# unlinkat ___________________________________________________
+# new function with 2.6.16
+# long sys_unlinkat(int dfd, const char __user *pathname,
+#	int flag)
+
+@define _SYSCALL_UNLINKAT_NAME
+%(
+	name = "unlinkat"
+%)
+
+@define _SYSCALL_UNLINKAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s", dfd_str, pathname_str, flag_str)
+%)
+
+probe syscall.unlinkat = dw_syscall.unlinkat !, nd_syscall.unlinkat ? {}
+probe syscall.unlinkat.return = dw_syscall.unlinkat.return !,
+                                nd_syscall.unlinkat.return ? {}
+
+# dw_unlinkat _____________________________________________________
+
+probe dw_syscall.unlinkat = kernel.function("sys_unlinkat").call ?
+{
+	@_SYSCALL_UNLINKAT_NAME
+	dfd = __int32($dfd)
+	dfd_str = _dfd_str(__int32($dfd))
+	pathname = $pathname
+	pathname_str = user_string_quoted($pathname)
+	flag = __uint32($flag)
+	flag_str = _at_flag_str(__uint32($flag))
+	@_SYSCALL_UNLINKAT_ARGSTR
+}
+probe dw_syscall.unlinkat.return = kernel.function("sys_unlinkat").return ?
+{
+	@_SYSCALL_UNLINKAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_unlinkat _____________________________________________________
+
+probe nd_syscall.unlinkat = kprobe.function("sys_unlinkat") ?
+{
+	@_SYSCALL_UNLINKAT_NAME
+	asmlinkage()
+	dfd = int_arg(1)
+	dfd_str = _dfd_str(dfd)
+	pathname = pointer_arg(2)
+	pathname_str = user_string_quoted(pathname)
+	flag = uint_arg(3)
+	flag_str = _at_flag_str(flag)
+	@_SYSCALL_UNLINKAT_ARGSTR
+}
+probe nd_syscall.unlinkat.return = kprobe.function("sys_unlinkat").return ?
+{
+	@_SYSCALL_UNLINKAT_NAME
+	retstr = returnstr(1)
+}

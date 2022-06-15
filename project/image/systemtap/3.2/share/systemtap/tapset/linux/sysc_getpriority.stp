@@ -1,0 +1,47 @@
+# getpriority ________________________________________________
+# long sys_getpriority(int which, int who)
+
+@define _SYSCALL_GETPRIORITY_NAME
+%(
+	name = "getpriority"
+%)
+
+@define _SYSCALL_GETPRIORITY_ARGSTR
+%(
+	argstr = sprintf("%s, %d", _priority_which_str(which), who)
+%)
+
+probe syscall.getpriority = dw_syscall.getpriority !, nd_syscall.getpriority ? {}
+probe syscall.getpriority.return = dw_syscall.getpriority.return !,
+                                   nd_syscall.getpriority.return ? {}
+
+# dw_getpriority _____________________________________________________
+
+probe dw_syscall.getpriority = kernel.function("sys_getpriority").call
+{
+	@_SYSCALL_GETPRIORITY_NAME
+	which = __int32($which)
+	who = __int32($who)
+	@_SYSCALL_GETPRIORITY_ARGSTR
+}
+probe dw_syscall.getpriority.return = kernel.function("sys_getpriority").return
+{
+	@_SYSCALL_GETPRIORITY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getpriority _____________________________________________________
+
+probe nd_syscall.getpriority = kprobe.function("sys_getpriority") ?
+{
+	@_SYSCALL_GETPRIORITY_NAME
+	asmlinkage()
+	which = int_arg(1)
+	who = int_arg(2)
+	@_SYSCALL_GETPRIORITY_ARGSTR
+}
+probe nd_syscall.getpriority.return = kprobe.function("sys_getpriority").return ?
+{
+	@_SYSCALL_GETPRIORITY_NAME
+	retstr = returnstr(1)
+}

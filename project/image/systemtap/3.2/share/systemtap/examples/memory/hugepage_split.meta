@@ -1,0 +1,14 @@
+title: Log the kernel splitting huge pages into normal sized pages
+name: hugepage_split.stp
+version: 1.0
+author: William Cohen
+keywords: memory
+subsystem: memory
+status: production
+exit: user-controlled
+output: sorted-list
+scope: system-wide
+description: Because some portions of the kernel code only work with normal-sized pages the kernel may convert a huge page into a set of normal-sized pages using a split operation. This operation may be relatively expensive and noticeable to latency sensitive programs. You can identify if split operations are occurring with the systemtap hugepage_split.stp script.
+test_support: stap -l 'kernel.function("split_huge_page")'
+test_check: stap -p4 hugepage_split.stp
+test_installcheck: stap hugepage_split.stp -T 1

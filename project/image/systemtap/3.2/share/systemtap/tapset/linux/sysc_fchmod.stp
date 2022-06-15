@@ -1,0 +1,53 @@
+# fchmod _____________________________________________________
+# long sys_fchmod(unsigned int fd, mode_t mode)
+
+@define _SYSCALL_FCHMOD_NAME
+%(
+	name = "fchmod"
+%)
+
+@define _SYSCALL_FCHMOD_ARGSTR
+%(
+	argstr = sprintf("%d, %#o", fildes, mode)
+%)
+
+probe syscall.fchmod = dw_syscall.fchmod !, nd_syscall.fchmod ? {}
+probe syscall.fchmod.return = dw_syscall.fchmod.return !, nd_syscall.fchmod.return ? {}
+
+# dw_fchmod _____________________________________________________
+
+probe dw_syscall.fchmod = kernel.function("sys_fchmod").call
+{
+	@_SYSCALL_FCHMOD_NAME
+	fildes = __int32($fd)
+%( arch == "i386" %?
+	# Why @cast() here? Even though the user passes an unsigned
+	# int (32-bits), some kernels (2.6.32-431.el6.i686) get an
+	# unsigned short (16-bits).
+	mode = @uint_cast(&$mode)
+%:
+	mode = __uint32($mode)
+%)
+	@_SYSCALL_FCHMOD_ARGSTR
+}
+probe dw_syscall.fchmod.return = kernel.function("sys_fchmod").return
+{
+	@_SYSCALL_FCHMOD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fchmod _____________________________________________________
+
+probe nd_syscall.fchmod = kprobe.function("sys_fchmod") ?
+{
+	@_SYSCALL_FCHMOD_NAME
+	asmlinkage()
+	fildes = int_arg(1)
+	mode = uint_arg(2)
+	@_SYSCALL_FCHMOD_ARGSTR
+}
+probe nd_syscall.fchmod.return = kprobe.function("sys_fchmod").return ?
+{
+	@_SYSCALL_FCHMOD_NAME
+	retstr = returnstr(1)
+}

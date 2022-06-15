@@ -1,0 +1,73 @@
+# mq_notify __________________________________________________
+# long sys_mq_notify(mqd_t mqdes, const struct sigevent __user *u_notification)
+# long compat_sys_mq_notify(mqd_t mqdes, const struct compat_sigevent __user *u_notification)
+#
+
+@define _SYSCALL_MQ_NOTIFY_NAME
+%(
+	name = "mq_notify"
+%)
+
+@define _SYSCALL_MQ_NOTIFY_ARGSTR
+%(
+	argstr = sprintf("%d, %p", mqdes, notification_uaddr)
+%)
+
+probe syscall.mq_notify = dw_syscall.mq_notify !, nd_syscall.mq_notify ? {}
+probe syscall.mq_notify.return = dw_syscall.mq_notify.return !,
+                                 nd_syscall.mq_notify.return ? {}
+
+# dw_mq_notify _____________________________________________________
+
+probe dw_syscall.mq_notify =
+        __syscall.mq_notify,
+        kernel.function("compat_sys_mq_notify").call ?
+{
+	@_SYSCALL_MQ_NOTIFY_NAME
+	mqdes = __int32($mqdes)
+	notification_uaddr = @__pointer($u_notification)
+	@_SYSCALL_MQ_NOTIFY_ARGSTR
+}
+probe __syscall.mq_notify = kernel.function("sys_mq_notify").call
+{
+        @__syscall_gate(@const("__NR_mq_notify"))
+}
+probe dw_syscall.mq_notify.return =
+        __syscall.mq_notify.return,
+        kernel.function("compat_sys_mq_notify").return ?
+{
+	@_SYSCALL_MQ_NOTIFY_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.mq_notify.return = kernel.function("sys_mq_notify").return
+{
+        @__syscall_gate(@const("__NR_mq_notify"))
+}
+
+# nd_mq_notify _____________________________________________________
+
+probe nd_syscall.mq_notify =
+        __nd_syscall.mq_notify ?,
+        kprobe.function("compat_sys_mq_notify") ?
+{
+	@_SYSCALL_MQ_NOTIFY_NAME
+	asmlinkage()
+	mqdes = int_arg(1)
+	notification_uaddr = pointer_arg(2)
+	@_SYSCALL_MQ_NOTIFY_ARGSTR
+}
+probe __nd_syscall.mq_notify = kprobe.function("sys_mq_notify")
+{
+        @__syscall_gate(@const("__NR_mq_notify"))
+}
+probe nd_syscall.mq_notify.return =
+        __nd_syscall.mq_notify.return ?,
+        kprobe.function("compat_sys_mq_notify").return ?
+{
+	@_SYSCALL_MQ_NOTIFY_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.mq_notify.return = kprobe.function("sys_mq_notify").return
+{
+        @__syscall_gate(@const("__NR_mq_notify"))
+}

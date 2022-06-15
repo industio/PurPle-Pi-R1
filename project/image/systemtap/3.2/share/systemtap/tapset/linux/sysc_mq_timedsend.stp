@@ -1,0 +1,102 @@
+# mq_timedsend _______________________________________________
+# long sys_mq_timedsend(mqd_t mqdes,
+#                  const char __user *u_msg_ptr,
+#                  size_t msg_len,
+#                  unsigned int msg_prio,
+#                  const struct timespec __user *u_abs_timeout)
+# long compat_sys_mq_timedsend(mqd_t mqdes,
+#                  const char __user *u_msg_ptr,
+#                  size_t msg_len, unsigned int msg_prio,
+#                  const struct compat_timespec __user *u_abs_timeout)
+#
+
+@define _SYSCALL_MQ_TIMEDSEND_NAME
+%(
+	name = "mq_timedsend"
+%)
+
+@define _SYSCALL_MQ_TIMEDSEND_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u, %u, %p", mqdes, msg_ptr_uaddr, msg_len,
+	                 msg_prio, abs_timeout_uaddr)
+%)
+
+probe syscall.mq_timedsend = dw_syscall.mq_timedsend !,
+                             nd_syscall.mq_timedsend ? {}
+probe syscall.mq_timedsend.return = dw_syscall.mq_timedsend.return !,
+                                    nd_syscall.mq_timedsend.return ? {}
+
+# dw_mq_timedsend _____________________________________________________
+
+probe dw_syscall.mq_timedsend =
+	__syscall.mq_timedsend,
+	kernel.function("compat_sys_mq_timedsend").call ?
+{
+	@_SYSCALL_MQ_TIMEDSEND_NAME
+	mqdes = __int32($mqdes)
+	msg_ptr_uaddr = @__pointer($u_msg_ptr)
+	msg_prio = __uint32($msg_prio)
+	abs_timeout_uaddr = @__pointer($u_abs_timeout)
+%( CONFIG_64BIT == "y" %?
+	msg_len = @__compat_ulong($msg_len)
+%:
+	msg_len = __uint32($msg_len)
+%)
+	@_SYSCALL_MQ_TIMEDSEND_ARGSTR
+}
+probe __syscall.mq_timedsend = kernel.function("sys_mq_timedsend").call
+{
+        @__syscall_gate(@const("__NR_mq_timedsend"))
+}
+probe dw_syscall.mq_timedsend.return =
+        __syscall.mq_timedsend.return,
+        kernel.function("compat_sys_mq_timedsend").return ?
+{
+	@_SYSCALL_MQ_TIMEDSEND_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.mq_timedsend.return = kernel.function("sys_mq_timedsend").return
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_mq_timedsend _____________________________________________________
+
+probe nd_syscall.mq_timedsend =
+        __nd_syscall.mq_timedsend ?,
+        __nd_syscall.compat_mq_timedsend ?
+{
+	@_SYSCALL_MQ_TIMEDSEND_NAME
+	asmlinkage()
+	mqdes = int_arg(1)
+	msg_ptr_uaddr = pointer_arg(2)
+	msg_prio = uint_arg(4)
+	abs_timeout_uaddr = pointer_arg(5)
+	@_SYSCALL_MQ_TIMEDSEND_ARGSTR
+}
+probe __nd_syscall.compat_mq_timedsend = kprobe.function("compat_sys_mq_timedsend")
+{
+	asmlinkage()
+	msg_len = uint_arg(3)
+}
+probe __nd_syscall.mq_timedsend = kprobe.function("sys_mq_timedsend")
+{
+	asmlinkage()
+        @__syscall_gate(@const("__NR_mq_timedsend"))
+%( CONFIG_64BIT == "y" %?
+	msg_len = ulong_arg(3)
+%:
+	msg_len = uint_arg(3)
+%)
+}
+probe nd_syscall.mq_timedsend.return =
+        __nd_syscall.mq_timedsend.return ?,
+        kprobe.function("compat_sys_mq_timedsend").return ?
+{
+	@_SYSCALL_MQ_TIMEDSEND_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.mq_timedsend.return = kprobe.function("sys_mq_timedsend").return
+{
+        @__syscall_gate(@const("__NR_mq_timedsend"))
+}

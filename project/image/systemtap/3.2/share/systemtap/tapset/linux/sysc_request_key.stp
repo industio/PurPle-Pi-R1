@@ -1,0 +1,62 @@
+# request_key ________________________________________________
+#
+# long sys_request_key(const char __user *_type,
+#		     const char __user *_description,
+#		     const char __user *_callout_info,
+#		     key_serial_t destringid)
+# compat_sys_request_key() calls sys_request_key, so don't need probe there.
+#
+
+@define _SYSCALL_REQUEST_KEY_NAME
+%(
+	name = "request_key"
+%)
+
+@define _SYSCALL_REQUEST_KEY_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %p, %d", type_str, description_str,
+	                 callout_info_uaddr, destringid)
+%)
+
+probe syscall.request_key = dw_syscall.request_key !, nd_syscall.request_key ? {}
+probe syscall.request_key.return = dw_syscall.request_key.return !,
+                                   nd_syscall.request_key.return ? {}
+
+# dw_request_key _____________________________________________________
+
+probe dw_syscall.request_key = kernel.function("sys_request_key").call ?
+{
+	@_SYSCALL_REQUEST_KEY_NAME
+	type_uaddr = $_type
+	type_str = user_string_quoted(type_uaddr)
+	description_uaddr = $_description
+	description_str = user_string_quoted(description_uaddr)
+	callout_info_uaddr = $_callout_info
+	destringid = __int32($destringid)
+	@_SYSCALL_REQUEST_KEY_ARGSTR
+}
+probe dw_syscall.request_key.return = kernel.function("sys_request_key").return ?
+{
+	@_SYSCALL_REQUEST_KEY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_request_key _____________________________________________________
+
+probe nd_syscall.request_key = kprobe.function("sys_request_key") ?
+{
+	@_SYSCALL_REQUEST_KEY_NAME
+	asmlinkage()
+	type_uaddr = pointer_arg(1)
+	type_str = user_string_quoted(type_uaddr)
+	description_uaddr = pointer_arg(2)
+	description_str = user_string_quoted(description_uaddr)
+	callout_info_uaddr = pointer_arg(3)
+	destringid = int_arg(4)
+	@_SYSCALL_REQUEST_KEY_ARGSTR
+}
+probe nd_syscall.request_key.return = kprobe.function("sys_request_key").return ?
+{
+	@_SYSCALL_REQUEST_KEY_NAME
+	retstr = returnstr(1)
+}

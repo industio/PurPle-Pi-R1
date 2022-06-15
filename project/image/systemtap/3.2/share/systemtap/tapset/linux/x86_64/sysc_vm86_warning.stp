@@ -1,0 +1,47 @@
+# vm86_warning _____________________________________________________
+#
+# long sys32_vm86_warning(void)
+#
+
+@define _SYSCALL_VM86_WARNING_NAME
+%(
+	name = "vm86_warning"
+%)
+
+@define _SYSCALL_VM86_WARNING_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.vm86_warning = dw_syscall.vm86_warning !,
+                             nd_syscall.vm86_warning ? {}
+probe syscall.vm86_warning.return = dw_syscall.vm86_warning.return !,
+                                    nd_syscall.vm86_warning.return ? {}
+
+# dw_vm86_warning _____________________________________________________
+
+probe dw_syscall.vm86_warning = kernel.function("sys32_vm86_warning") ?
+{
+	@_SYSCALL_VM86_WARNING_NAME
+	@_SYSCALL_VM86_WARNING_ARGSTR
+}
+probe dw_syscall.vm86_warning.return =
+	kernel.function("sys32_vm86_warning").return ?
+{
+	@_SYSCALL_VM86_WARNING_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_vm86_warning _____________________________________________________
+
+probe nd_syscall.vm86_warning = kprobe.function("sys32_vm86_warning") ?
+{
+	@_SYSCALL_VM86_WARNING_NAME
+	@_SYSCALL_VM86_WARNING_ARGSTR
+}
+probe nd_syscall.vm86_warning.return =
+	kprobe.function("sys32_vm86_warning").return ?
+{
+	@_SYSCALL_VM86_WARNING_NAME
+	retstr = returnstr(1)
+}

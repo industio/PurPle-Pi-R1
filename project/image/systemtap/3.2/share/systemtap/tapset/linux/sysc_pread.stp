@@ -1,0 +1,117 @@
+# pread64 ____________________________________________________
+#
+# ssize_t sys_pread64(unsigned int fd,
+#		 char __user *buf,
+#		 size_t count,
+#		 loff_t pos)
+# COMPAT_SYSCALL_DEFINE5(s390_pread64, unsigned int, fd, char __user *, ubuf,
+#		         compat_size_t, count, u32, high, u32, low)
+#
+
+@define _SYSCALL_PREAD_NAME
+%(
+	name = "pread"
+%)
+
+@define _SYSCALL_PREAD_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u, %d", fd, buf_uaddr, count, offset)
+%)
+
+probe syscall.pread = dw_syscall.pread !, nd_syscall.pread ? {}
+probe syscall.pread.return = dw_syscall.pread.return !,
+                             nd_syscall.pread.return ? {}
+
+# dw_pread _____________________________________________________
+
+probe dw_syscall.pread =
+%( arch == "s390" %?
+	__syscall.compat_pread ?,
+%)
+	__syscall.pread
+{
+	@_SYSCALL_PREAD_NAME
+	fd = __int32($fd)
+	buf_uaddr = @__pointer(@choose_defined($buf, $ubuf))
+	count = @__compat_ulong($count)
+	@_SYSCALL_PREAD_ARGSTR
+}
+probe __syscall.pread = kernel.function("sys_pread64").call
+{
+%( arch == "s390" %?
+	@__syscall_gate(@const("__NR_pread64"))
+%)
+	offset = $pos
+}
+%( arch == "s390" %?
+probe __syscall.compat_pread = kernel.function("sys32_pread64").call ?,
+	kernel.function("compat_sys_s390_pread64").call ?
+{
+	offset = ((@choose_defined($poshi, $high) << 32)
+		  + __uint32(@choose_defined($poslo, $low)))
+}
+%)
+probe dw_syscall.pread.return =
+%( arch == "s390" %?
+	kernel.function("sys32_pread64").return ?,
+	kernel.function("compat_sys_s390_pread64").return ?,
+%)
+	__syscall.pread.return
+{
+	@_SYSCALL_PREAD_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.pread.return = kernel.function("sys_pread64").return
+{
+%( arch == "s390" %?
+	@__syscall_gate(@const("__NR_pread64"))
+%)
+}
+
+# nd_pread _____________________________________________________
+
+probe nd_syscall.pread =
+%( arch == "s390" %?
+	__nd_syscall.compat_pread ?,
+%)
+	__nd_syscall.pread
+{
+	@_SYSCALL_PREAD_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	buf_uaddr = pointer_arg(2)
+	count = ulong_arg(3)
+	@_SYSCALL_PREAD_ARGSTR
+}
+probe __nd_syscall.pread = kprobe.function("sys_pread64")
+{
+	asmlinkage()
+%( arch == "s390" %?
+	@__syscall_gate(@const("__NR_pread64"))
+%)
+	offset = longlong_arg(4)
+}
+%( arch == "s390" %?
+probe __nd_syscall.compat_pread = kprobe.function("sys32_pread64") ?,
+	kprobe.function("compat_sys_s390_pread64") ?
+{
+	asmlinkage()
+	offset = (u32_arg(4) << 32) + u32_arg(5)
+}
+%)
+probe nd_syscall.pread.return =
+%( arch == "s390" %?
+	kprobe.function("sys32_pread64").return ?,
+	kprobe.function("compat_sys_s390_pread64").return ?,
+%)
+	__nd_syscall.pread.return
+{
+	@_SYSCALL_PREAD_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.pread.return = kprobe.function("sys_pread64").return
+{
+%( arch == "s390" %?
+	@__syscall_gate(@const("__NR_pread64"))
+%)
+}

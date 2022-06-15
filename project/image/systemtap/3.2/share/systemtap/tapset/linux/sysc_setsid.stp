@@ -1,0 +1,44 @@
+# setsid _____________________________________________________
+#
+# long sys_setsid(void)
+#
+
+@define _SYSCALL_SETSID_NAME
+%(
+	name = "setsid"
+%)
+
+@define _SYSCALL_SETSID_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.setsid = dw_syscall.setsid !, nd_syscall.setsid {}
+probe syscall.setsid.return = dw_syscall.setsid.return !,
+                              nd_syscall.setsid.return {}
+
+# dw_setsid _____________________________________________________
+
+probe dw_syscall.setsid = kernel.function("sys_setsid").call
+{
+	@_SYSCALL_SETSID_NAME
+	@_SYSCALL_SETSID_ARGSTR
+}
+probe dw_syscall.setsid.return = kernel.function("sys_setsid").return
+{
+	@_SYSCALL_SETSID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setsid _____________________________________________________
+
+probe nd_syscall.setsid = kprobe.function("sys_setsid")
+{
+	@_SYSCALL_SETSID_NAME
+	@_SYSCALL_SETSID_ARGSTR
+}
+probe nd_syscall.setsid.return = kprobe.function("sys_setsid").return
+{
+	@_SYSCALL_SETSID_NAME
+	retstr = returnstr(1)
+}

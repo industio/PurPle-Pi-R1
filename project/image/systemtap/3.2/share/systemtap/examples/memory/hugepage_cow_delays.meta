@@ -1,0 +1,13 @@
+title: Summarize the time each process spends doing copy on write for huge pages
+name: hugepage_cow_delays.stp
+version: 1.0
+author: William Cohen
+keywords: memory
+subsystem: memory
+status: production
+exit: user-controlled
+output: sorted-list
+scope: system-wide
+description: The system may attempt to reduce memory use by having two or more difference processes share the same writeable page in memory.  However, when one of the processes write to shared page that is marked copy on write (COW) the page must be duplicated and then modified.  On x86_64 machines the huge pages are 2MB in size, 512 times larger than a normal 4KB page.  Thus, copy on write operation on a huge page can delay program execution by a hundred or more microseconds and maybe noticeable to latency sensitive programs.  This script will tally the number of times that each process triggers a huge page copy on write, the total time in microseconds spent copying the pages, and the average time in microseconds of the huge page copy.
+test_check: stap -p4 hugepage_cow_delays.stp
+test_installcheck: stap hugepage_cow_delays.stp -T 1

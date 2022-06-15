@@ -1,0 +1,121 @@
+# getpeername ________________________________________________
+# long sys_getpeername(int fd, struct sockaddr __user *usockaddr,
+#		       int __user *usockaddr_len)
+#
+
+@define _SYSCALL_GETPEERNAME_NAME
+%(
+	name = "getpeername"
+%)
+
+@define _SYSCALL_GETPEERNAME_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %p", s, name_uaddr, namelen_uaddr)
+%)
+
+probe syscall.getpeername = dw_syscall.getpeername !, nd_syscall.getpeername ? {}
+probe syscall.getpeername.return = dw_syscall.getpeername.return !, nd_syscall.getpeername.return ? {}
+
+# dw_getpeername _____________________________________________________
+
+probe dw_syscall.getpeername = __syscall.getpeername ?,
+	__syscall.socketcall.getpeername ?,
+	__syscall.compat_socketcall.getpeername ?
+{
+	@_SYSCALL_GETPEERNAME_NAME
+	@_SYSCALL_GETPEERNAME_ARGSTR
+}
+probe __syscall.getpeername = kernel.function("sys_getpeername").call ?
+{
+	@__syscall_gate(@const("__NR_getpeername"))
+	s = __int32($fd)
+	name_uaddr = $usockaddr
+	namelen_uaddr = $usockaddr_len
+}
+probe __syscall.socketcall.getpeername = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_GETPEERNAME")) next;
+	s = __int32(user_ulong(&@ulong_cast($args)[0]))
+	name_uaddr = user_ulong(&@ulong_cast($args)[1])
+	namelen_uaddr = user_ulong(&@ulong_cast($args)[2])
+}
+probe __syscall.compat_socketcall.getpeername =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_GETPEERNAME")) next;
+	s = user_int(&@uint_cast($args)[0])
+	name_uaddr = user_uint32(&@uint_cast($args)[1])
+	namelen_uaddr = user_uint32(&@uint_cast($args)[2])
+}
+probe dw_syscall.getpeername.return = __syscall.getpeername.return ?,
+	__syscall.socketcall.getpeername.return ?
+{
+	@_SYSCALL_GETPEERNAME_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.getpeername.return = kernel.function("sys_getpeername").return ?
+{
+	@__syscall_gate(@const("__NR_getpeername"))
+}
+probe __syscall.socketcall.getpeername.return =
+	kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_GETPEERNAME")) next;
+}
+
+# nd_getpeername _____________________________________________________
+
+probe nd_syscall.getpeername = __nd_syscall.getpeername ?,
+	__nd_syscall.socketcall.getpeername ?,
+	__nd_syscall.compat_socketcall.getpeername ?
+{
+	@_SYSCALL_GETPEERNAME_NAME
+	@_SYSCALL_GETPEERNAME_ARGSTR
+}
+probe __nd_syscall.getpeername = kprobe.function("sys_getpeername") ?
+{
+	@__syscall_gate(@const("__NR_getpeername"))
+	asmlinkage()
+	s = int_arg(1)
+	name_uaddr = pointer_arg(2)
+	namelen_uaddr = pointer_arg(3)
+}
+probe __nd_syscall.socketcall.getpeername =
+	kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_GETPEERNAME")) next;
+	__args = &@ulong_cast(pointer_arg(2))
+	s = __int32(user_ulong(&@ulong_cast(__args)[0]))
+	name_uaddr = user_ulong(&@ulong_cast(__args)[1])
+	namelen_uaddr = user_ulong(&@ulong_cast(__args)[2])
+}
+probe __nd_syscall.compat_socketcall.getpeername =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_GETPEERNAME")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	s = user_int(&@uint_cast(__args)[0])
+	name_uaddr = user_uint32(&@uint_cast(__args)[1])
+	namelen_uaddr = user_uint32(&@uint_cast(__args)[2])
+}
+probe nd_syscall.getpeername.return =
+	__nd_syscall.getpeername.return ?,
+	__nd_syscall.socketcall.getpeername.return ?
+{
+	@_SYSCALL_GETPEERNAME_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.getpeername.return =
+	kprobe.function("sys_getpeername").return ?
+{
+	@__syscall_gate(@const("__NR_getpeername"))
+}
+probe __nd_syscall.socketcall.getpeername.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_GETPEERNAME")) next;
+}

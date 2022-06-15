@@ -1,0 +1,73 @@
+# getrusage __________________________________________________
+# long sys_getrusage(int who, struct rusage __user *ru)
+# COMPAT_SYSCALL_DEFINE2(getrusage, int, who, struct compat_rusage __user *,
+#			 ru)
+#
+
+@define _SYSCALL_GETRUSAGE_NAME
+%(
+	name = "getrusage"
+%)
+
+@define _SYSCALL_GETRUSAGE_ARGSTR
+%(
+	argstr = sprintf("%s, %p", who_str, usage_uaddr)
+%)
+
+probe syscall.getrusage = dw_syscall.getrusage !,
+                          nd_syscall.getrusage ? {}
+probe syscall.getrusage.return = dw_syscall.getrusage.return !,
+                                 nd_syscall.getrusage.return ? {}
+
+# dw_getrusage _____________________________________________________
+
+probe dw_syscall.getrusage = __syscall.getrusage,
+	kernel.function("compat_sys_getrusage").call ?
+{
+	@_SYSCALL_GETRUSAGE_NAME
+	who = __int32($who)
+	who_str = _rusage_who_str(who)
+	usage_uaddr = @__pointer($ru)
+	@_SYSCALL_GETRUSAGE_ARGSTR
+}
+probe __syscall.getrusage = kernel.function("sys_getrusage").call
+{
+	@__syscall_gate(@const("__NR_getrusage"))
+}
+probe dw_syscall.getrusage.return = __syscall.getrusage.return,
+	kernel.function("compat_sys_getrusage").return ?
+{
+	@_SYSCALL_GETRUSAGE_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.getrusage.return = kernel.function("sys_getrusage").return
+{
+	@__syscall_gate(@const("__NR_getrusage"))
+}
+
+# nd_getrusage _____________________________________________________
+
+probe nd_syscall.getrusage = __nd_syscall.getrusage,
+	kprobe.function("compat_sys_getrusage").call ?
+{
+	@_SYSCALL_GETRUSAGE_NAME
+	asmlinkage()
+	who = int_arg(1)
+	who_str = _rusage_who_str(who)
+	usage_uaddr = pointer_arg(2)
+	@_SYSCALL_GETRUSAGE_ARGSTR
+}
+probe __nd_syscall.getrusage = kprobe.function("sys_getrusage").call
+{
+	@__syscall_gate(@const("__NR_getrusage"))
+}
+probe nd_syscall.getrusage.return = __nd_syscall.getrusage.return,
+	kprobe.function("compat_sys_getrusage").return ?
+{
+	@_SYSCALL_GETRUSAGE_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.getrusage.return = kprobe.function("sys_getrusage").return
+{
+	@__syscall_gate(@const("__NR_getrusage"))
+}

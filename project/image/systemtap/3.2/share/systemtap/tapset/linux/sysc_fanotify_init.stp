@@ -1,0 +1,54 @@
+# fanotify_init ______________________________________________
+# fanotify_init() was enabled in kernel version 2.6.37.
+# SYSCALL_DEFINE2(fanotify_init, unsigned int, flags,
+#		  unsigned int, event_f_flags)
+
+@define _SYSCALL_FANOTIFY_INIT_NAME
+%(
+	name = "fanotify_init"
+%)
+
+@define _SYSCALL_FANOTIFY_INIT_ARGSTR
+%(
+	argstr = sprintf("%s, %s", flags_str, event_f_flags_str)
+%)
+
+probe syscall.fanotify_init = dw_syscall.fanotify_init !, nd_syscall.fanotify_init ? {}
+probe syscall.fanotify_init.return = dw_syscall.fanotify_init.return !, nd_syscall.fanotify_init.return ? {}
+
+# dw_fanotify_init _____________________________________________________
+
+probe dw_syscall.fanotify_init = kernel.function("sys_fanotify_init").call ?
+{
+	@_SYSCALL_FANOTIFY_INIT_NAME
+	flags = __uint32($flags)
+	flags_str = _fanotify_init_flags_str(flags)
+	event_f_flags = __uint32($event_f_flags)
+	event_f_flags_str = _sys_open_flag_str(event_f_flags)
+	@_SYSCALL_FANOTIFY_INIT_ARGSTR
+}
+probe dw_syscall.fanotify_init.return =
+	kernel.function("sys_fanotify_init").return ?
+{
+	@_SYSCALL_FANOTIFY_INIT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fanotify_init _____________________________________________________
+
+probe nd_syscall.fanotify_init = kprobe.function("sys_fanotify_init") ?
+{
+	@_SYSCALL_FANOTIFY_INIT_NAME
+	asmlinkage()
+	flags = uint_arg(1)
+	flags_str = _fanotify_init_flags_str(flags)
+	event_f_flags = uint_arg(2)
+	event_f_flags_str = _sys_open_flag_str(event_f_flags)
+	@_SYSCALL_FANOTIFY_INIT_ARGSTR
+}
+probe nd_syscall.fanotify_init.return =
+	kprobe.function("sys_fanotify_init").return ?
+{
+	@_SYSCALL_FANOTIFY_INIT_NAME
+	retstr = returnstr(1)
+}

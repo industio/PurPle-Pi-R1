@@ -1,0 +1,166 @@
+# shmctl _____________________________________________________
+#
+# long sys_shmctl (int shmid,
+#                  int cmd,
+#                  struct shmid_ds __user *buf)
+#
+
+@define _SYSCALL_SHMCTL_NAME
+%(
+	name = "shmctl"
+%)
+
+@define _SYSCALL_SHMCTL_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %p", shmid, cmd_str, buf_uaddr)
+%)
+
+probe syscall.shmctl = dw_syscall.shmctl !, nd_syscall.shmctl ? {}
+probe syscall.shmctl.return = dw_syscall.shmctl.return !,
+                              nd_syscall.shmctl.return ? {}
+
+# dw_shmctl _____________________________________________________
+
+probe dw_syscall.shmctl = kernel.function("sys_shmctl").call ?
+{
+#%( arch == "powerpc" || arch == "s390" %?
+	@__syscall_gate_compat_simple
+#%)
+	@_SYSCALL_SHMCTL_NAME
+	shmid = __int32($shmid)
+	cmd = __int32($cmd)
+	cmd_str = _semctl_cmd(__int32($cmd))
+	buf_uaddr = $buf
+	@_SYSCALL_SHMCTL_ARGSTR
+}
+probe dw_syscall.shmctl.return = kernel.function("sys_shmctl").return ?
+{
+#%( arch == "powerpc" || arch == "s390" %?
+	@__syscall_gate_compat_simple
+#%)
+	@_SYSCALL_SHMCTL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_shmctl _____________________________________________________
+
+probe nd_syscall.shmctl = kprobe.function("sys_shmctl") ?
+{
+#%( arch == "powerpc" || arch == "s390" %?
+	@__syscall_gate_compat_simple
+#%)
+	@_SYSCALL_SHMCTL_NAME
+	asmlinkage()
+	shmid = int_arg(1)
+	cmd = int_arg(2)
+	cmd_str = _semctl_cmd(cmd)
+	buf_uaddr = pointer_arg(3)
+	@_SYSCALL_SHMCTL_ARGSTR
+}
+probe nd_syscall.shmctl.return = kprobe.function("sys_shmctl").return ?
+{
+#%( arch == "powerpc" || arch == "s390" %?
+	@__syscall_gate_compat_simple
+#%)
+	@_SYSCALL_SHMCTL_NAME
+	retstr = returnstr(1)
+}
+
+# compat_sys_shmctl ________________________________________
+#
+# long compat_sys_shmctl(int first, int second, void __user *uptr)
+#
+
+probe syscall.compat_sys_shmctl = dw_syscall.compat_sys_shmctl !,
+                                  nd_syscall.compat_sys_shmctl ? {}
+probe syscall.compat_sys_shmctl.return = dw_syscall.compat_sys_shmctl.return !,
+                                         nd_syscall.compat_sys_shmctl.return ? {}
+
+# dw_compat_sys_shmctl _____________________________________________________
+
+probe dw_syscall.compat_sys_shmctl = __syscall.compat_shmctl ?,
+	__syscall.compat_ipc.shmctl ?
+{
+	@_SYSCALL_SHMCTL_NAME
+%( systemtap_v <= "2.5" %?
+	first = @choose_defined($first, $shmid)
+	second = @choose_defined($second, $cmd)
+	uptr_uaddr = @choose_defined($uptr, $ptr)
+%)
+	shmid = __int32(@choose_defined($first, $shmid))
+	cmd = __int32(@choose_defined($second, $cmd))
+	cmd_str = _semctl_cmd(__int32(@choose_defined($second, $cmd)))
+	buf_uaddr = @choose_defined($uptr, $ptr)
+	@_SYSCALL_SHMCTL_ARGSTR
+}
+probe __syscall.compat_shmctl = kernel.function("compat_sys_shmctl").call ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_shmctl"))
+}
+probe __syscall.compat_ipc.shmctl = kernel.function("compat_sys_ipc").call ?,
+	kernel.function("sys32_ipc").call ?
+{
+	if ($call != @const("SHMCTL")) next;
+}
+
+probe dw_syscall.compat_sys_shmctl.return =
+	kernel.function("compat_sys_shmctl").return ?,
+	__syscall.compat_ipc.shmctl.return ?
+{
+	@_SYSCALL_SHMCTL_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.compat_ipc.shmctl.return =
+	kernel.function("compat_sys_ipc").return ?,
+	kernel.function("sys32_ipc").return ?
+{
+	if (@entry($call) != @const("SHMCTL")) next;
+}
+
+# nd_compat_sys_shmctl _____________________________________________________
+
+probe nd_syscall.compat_sys_shmctl = __nd_syscall.compat_shmctl ?,
+	__nd_syscall.compat_ipc.shmctl ?
+{
+	@_SYSCALL_SHMCTL_NAME
+	cmd_str = _semctl_cmd(cmd)
+	@_SYSCALL_SHMCTL_ARGSTR
+}
+probe __nd_syscall.compat_shmctl = kprobe.function("compat_sys_shmctl") ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_shmctl"))
+%( systemtap_v <= "2.5" %?
+	first = int_arg(1)
+	second = int_arg(2)
+	uptr_uaddr = pointer_arg(3)
+%)
+	shmid = int_arg(1)
+	cmd = int_arg(2)
+	buf_uaddr = pointer_arg(3)
+}
+probe __nd_syscall.compat_ipc.shmctl = kprobe.function("compat_sys_ipc") ?,
+	kprobe.function("sys32_ipc") ?
+{
+	if (int_arg(1) != @const("SHMCTL")) next;
+%( systemtap_v <= "2.5" %?
+	first = int_arg(2)
+	second = int_arg(3)
+	uptr_uaddr = pointer_arg(5)
+%)
+	shmid = int_arg(2)
+	cmd = int_arg(3)
+	buf_uaddr = pointer_arg(5)
+}
+probe nd_syscall.compat_sys_shmctl.return =
+	kprobe.function("compat_sys_shmctl").return ?,
+	__nd_syscall.compat_ipc.shmctl.return ?
+{
+	@_SYSCALL_SHMCTL_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.compat_ipc.shmctl.return =
+	kprobe.function("compat_sys_ipc").return ?,
+	kprobe.function("sys32_ipc").return ?
+{
+	if (@entry(int_arg(1)) != @const("SHMCTL")) next;
+}

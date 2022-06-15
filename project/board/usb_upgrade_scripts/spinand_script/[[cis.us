@@ -1,0 +1,19 @@
+# <- this is for comment / total file size must be less than 4KB
+
+
+fatload usb 0 0x21000000 $(usb_folder)/SPINANDINFO.sni
+fatload usb 0 0x21800000 $(usb_folder)/PARTINFO.pni
+
+writecis 0x21000000 0x21800000
+
+
+
+#nand env.oob get
+
+
+
+saveenv
+
+
+
+% <- this is end of file symbol

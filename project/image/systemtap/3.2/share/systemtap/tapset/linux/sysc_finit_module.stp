@@ -1,0 +1,53 @@
+# finit_module ________________________________________________
+# SYSCALL_DEFINE3(finit_module, int, fd, const char __user *, uargs,
+#		  int, flags)
+#
+
+@define _SYSCALL_FINIT_MODULE_NAME
+%(
+	name = "finit_module"
+%)
+
+@define _SYSCALL_FINIT_MODULE_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %s", fd, uargs, flags_str)
+%)
+
+probe syscall.finit_module = dw_syscall.finit_module !, nd_syscall.finit_module ? {}
+probe syscall.finit_module.return = dw_syscall.finit_module.return !, nd_syscall.finit_module.return ? {}
+
+# dw_finit_module _____________________________________________________
+
+probe dw_syscall.finit_module = kernel.function("sys_finit_module").call ?
+{
+	@_SYSCALL_FINIT_MODULE_NAME
+	fd = __int32($fd)
+	uargs = user_string_quoted($uargs)
+	flags = __int32($flags)
+	flags_str = _finit_module_flags_str(__int32($flags))
+	@_SYSCALL_FINIT_MODULE_ARGSTR
+}
+probe dw_syscall.finit_module.return = kernel.function("sys_finit_module").return ?
+{
+	@_SYSCALL_FINIT_MODULE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_finit_module _____________________________________________________
+
+probe nd_syscall.finit_module = kprobe.function("sys_finit_module").call ?
+{
+	@_SYSCALL_FINIT_MODULE_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	uargs = user_string_quoted(pointer_arg(2))
+	flags = int_arg(3)
+	flags_str = _finit_module_flags_str(flags)
+	@_SYSCALL_FINIT_MODULE_ARGSTR
+}
+probe nd_syscall.finit_module.return =
+	kprobe.function("sys_finit_module").return ?
+{
+	@_SYSCALL_FINIT_MODULE_NAME
+	retstr = returnstr(1)
+}

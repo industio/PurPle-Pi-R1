@@ -1,0 +1,53 @@
+# compat_set_mempolicy ________________________________________
+#
+# asmlinkage long compat_set_mempolicy(int mode, compat_ulong_t __user *nmask,
+#				compat_ulong_t maxnode)
+#
+
+@define _SYSCALL_COMPAT_SET_MEMPOLICY_NAME
+%(
+	name = "compat_set_mempolicy"
+%)
+
+@define _SYSCALL_COMPAT_SET_MEMPOLICY_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d", policy, nodemask_uaddr, maxnode)
+%)
+
+probe syscall.compat_set_mempolicy = dw_syscall.compat_set_mempolicy !,
+                                     nd_syscall.compat_set_mempolicy ? {}
+probe syscall.compat_set_mempolicy.return = dw_syscall.compat_set_mempolicy.return !,
+                                            nd_syscall.compat_set_mempolicy.return ? {}
+
+# dw_compat_set_mempolicy _____________________________________________________
+
+probe dw_syscall.compat_set_mempolicy = kernel.function("compat_set_mempolicy") ?
+{
+	@_SYSCALL_COMPAT_SET_MEMPOLICY_NAME
+	policy = $mode
+	nodemask_uaddr = $nmask
+	maxnode = $maxnode
+	@_SYSCALL_COMPAT_SET_MEMPOLICY_ARGSTR
+}
+probe dw_syscall.compat_set_mempolicy.return = kernel.function("compat_set_mempolicy").return ?
+{
+	@_SYSCALL_COMPAT_SET_MEMPOLICY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_set_mempolicy _____________________________________________________
+
+probe nd_syscall.compat_set_mempolicy = kprobe.function("compat_set_mempolicy") ?
+{
+	@_SYSCALL_COMPAT_SET_MEMPOLICY_NAME
+	asmlinkage()
+	policy = int_arg(1)
+	nodemask_uaddr = uint_arg(2)
+	maxnode = uint_arg(3)
+	@_SYSCALL_COMPAT_SET_MEMPOLICY_ARGSTR
+}
+probe nd_syscall.compat_set_mempolicy.return = kprobe.function("compat_set_mempolicy").return ?
+{
+	@_SYSCALL_COMPAT_SET_MEMPOLICY_NAME
+	retstr = returnstr(1)
+}

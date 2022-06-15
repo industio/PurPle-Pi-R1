@@ -1,0 +1,109 @@
+# truncate ___________________________________________________
+#
+# sys_truncate(const char __user * path, unsigned long length)
+# sys_truncate64(const char __user * path, loff_t length)
+# COMPAT_SYSCALL_DEFINE2(truncate, const char __user *, path,
+#			 compat_off_t, length)
+#
+
+@define _SYSCALL_TRUNCATE_NAME
+%(
+	name = "truncate"
+%)
+
+@define _SYSCALL_TRUNCATE_ARGSTR
+%(
+	argstr = sprintf("%s, %d", path, length)
+%)
+
+@define _SYSCALL_GATE
+%(
+    %( arch == "x86_64" || arch == "s390" %?
+	// On x86_64 and s390x RHL6 kernels, the 32-bit compat
+	// truncate syscall is hooked up directly to sys_truncate(),
+	// instead of going through compat_sys_truncate().
+	@__syscall_compat_gate(@const("__NR_truncate"),
+			       @const("__NR_compat_truncate"))
+    %:
+	@__syscall_gate_compat_simple
+    %)
+%)
+
+probe syscall.truncate = dw_syscall.truncate !, nd_syscall.truncate ? {}
+probe syscall.truncate.return = dw_syscall.truncate.return !,
+                                nd_syscall.truncate.return ? {}
+
+# dw_truncate _____________________________________________________
+
+probe dw_syscall.truncate = __syscall.truncate ?, __syscall.truncate64 ?,
+	__syscall.compat_truncate ?
+{
+	@_SYSCALL_TRUNCATE_NAME
+	path_uaddr = @__pointer($path)
+	path = user_string_quoted(path_uaddr)
+	@_SYSCALL_TRUNCATE_ARGSTR
+}
+probe __syscall.truncate = kernel.function("sys_truncate").call ?
+{
+	@_SYSCALL_GATE
+	length = @__compat_long($length)
+}
+probe __syscall.truncate64 = kernel.function("sys_truncate64").call ?
+{
+	length = $length
+}
+probe __syscall.compat_truncate = kernel.function("compat_sys_truncate").call ?
+{
+	length = __int32($length)
+}
+probe dw_syscall.truncate.return = __syscall.truncate.return ?,
+                                kernel.function("sys_truncate64").return ?,
+				kernel.function("compat_sys_truncate").return ?
+{
+	@_SYSCALL_TRUNCATE_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.truncate.return = kernel.function("sys_truncate").return ?
+{
+	@_SYSCALL_GATE
+}
+
+# nd_truncate _____________________________________________________
+
+probe nd_syscall.truncate = __nd_syscall.truncate ?,
+			    __nd_syscall.truncate64 ?,
+			    __nd_syscall.compat_truncate ?
+{
+	@_SYSCALL_TRUNCATE_NAME
+	asmlinkage()
+	path_uaddr = pointer_arg(1)
+	path = user_string_quoted(path_uaddr)
+	@_SYSCALL_TRUNCATE_ARGSTR
+}
+probe __nd_syscall.truncate = kprobe.function("sys_truncate") ?
+{
+	@_SYSCALL_GATE
+	asmlinkage()
+	length = long_arg(2)
+}
+probe __nd_syscall.truncate64 = kprobe.function("sys_truncate64") ?
+{
+	asmlinkage()
+	length = longlong_arg(2)
+}
+probe __nd_syscall.compat_truncate = kprobe.function("compat_sys_truncate") ?
+{
+	asmlinkage()
+	length = int_arg(2)
+}
+probe nd_syscall.truncate.return = __nd_syscall.truncate.return ?,
+	kprobe.function("sys_truncate64").return ?,
+	kprobe.function("compat_sys_truncate").return ?
+{
+	@_SYSCALL_TRUNCATE_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.truncate.return = kprobe.function("sys_truncate").return ?
+{
+	@_SYSCALL_GATE
+}

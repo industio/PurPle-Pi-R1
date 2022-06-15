@@ -1,0 +1,49 @@
+# mincore ____________________________________________________
+# long sys_mincore(unsigned long start, size_t len, unsigned char __user * vec)
+#
+
+@define _SYSCALL_MINCORE_NAME
+%(
+	name = "mincore"
+%)
+
+@define _SYSCALL_MINCORE_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %p", start, length, vec_uaddr)
+%)
+
+probe syscall.mincore = dw_syscall.mincore !, nd_syscall.mincore ? {}
+probe syscall.mincore.return = dw_syscall.mincore.return !, nd_syscall.mincore.return ? {}
+
+# dw_mincore _____________________________________________________
+
+probe dw_syscall.mincore = kernel.function("sys_mincore").call ?
+{
+	@_SYSCALL_MINCORE_NAME
+	start = $start
+	length = __ulong($len)
+	vec_uaddr = $vec
+	@_SYSCALL_MINCORE_ARGSTR
+}
+probe dw_syscall.mincore.return = kernel.function("sys_mincore").return ?
+{
+	@_SYSCALL_MINCORE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mincore _____________________________________________________
+
+probe nd_syscall.mincore = kprobe.function("sys_mincore") ?
+{
+	@_SYSCALL_MINCORE_NAME
+	asmlinkage()
+	start = pointer_arg(1)
+	length = ulong_arg(2)
+	vec_uaddr = pointer_arg(3)
+	@_SYSCALL_MINCORE_ARGSTR
+}
+probe nd_syscall.mincore.return = kprobe.function("sys_mincore").return ?
+{
+	@_SYSCALL_MINCORE_NAME
+	retstr = returnstr(1)
+}

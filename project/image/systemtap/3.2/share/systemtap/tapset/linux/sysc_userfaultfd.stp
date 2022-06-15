@@ -1,0 +1,48 @@
+# userfaultfd ________________________________________________
+# SYSCALL_DEFINE2(userfaultfd, int, flags)
+
+@define _SYSCALL_USERFAULTFD_NAME
+%(
+	name = "userfaultfd"
+%)
+
+@define _SYSCALL_USERFAULTFD_ARGSTR
+%(
+	argstr = sprintf("%s", flags_str)
+%)
+
+probe syscall.userfaultfd = dw_syscall.userfaultfd !, nd_syscall.userfaultfd ? {}
+probe syscall.userfaultfd.return = dw_syscall.userfaultfd.return !,
+                                   nd_syscall.userfaultfd.return ? {}
+
+# dw_userfaultfd _____________________________________________________
+
+probe dw_syscall.userfaultfd = kernel.function("sys_userfaultfd").call ?
+{
+	@_SYSCALL_USERFAULTFD_NAME
+	flags = __int32($flags)
+	flags_str = _userfaultfd_flags_str(flags)
+	@_SYSCALL_USERFAULTFD_ARGSTR
+}
+probe dw_syscall.userfaultfd.return = kernel.function("sys_userfaultfd").return ?
+{
+	@_SYSCALL_USERFAULTFD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_userfaultfd _____________________________________________________
+
+probe nd_syscall.userfaultfd = kprobe.function("sys_userfaultfd").call ?
+{
+	@_SYSCALL_USERFAULTFD_NAME
+	asmlinkage()
+	flags = int_arg(1)
+	flags_str = _userfaultfd_flags_str(flags)
+	@_SYSCALL_USERFAULTFD_ARGSTR
+}
+probe nd_syscall.userfaultfd.return =
+	kprobe.function("sys_userfaultfd").return ?
+{
+	@_SYSCALL_USERFAULTFD_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,88 @@
+# move_pages ____________________________________________________
+# long sys_move_pages(pid_t pid, unsigned long nr_pages,
+#			const void __user * __user *pages,
+#			const int __user *nodes,
+#			int __user *status,
+#			int flags)
+#
+# long compat_sys_move_pages(pid_t pid, unsigned long nr_pages,
+#                compat_uptr_t __user *pages32,
+#                const int __user *nodes,
+#                int __user *status,
+#                int flags)
+#
+
+@define _SYSCALL_MOVE_PAGES_NAME
+%(
+	name = "move_pages"
+%)
+
+@define _SYSCALL_MOVE_PAGES_ARGSTR
+%(
+	argstr = sprintf("%d, %u, %p, %p, %p, %s", pid, nr_pages, pages,
+	                 nodes, status, flags_str)
+%)
+
+probe syscall.move_pages = dw_syscall.move_pages !, nd_syscall.move_pages ? {}
+probe syscall.move_pages.return = dw_syscall.move_pages.return !, nd_syscall.move_pages.return ? {}
+
+# dw_move_pages _____________________________________________________
+
+probe dw_syscall.move_pages = __syscall.move_pages ?,
+                           kernel.function("compat_sys_move_pages").call ?
+{
+	@_SYSCALL_MOVE_PAGES_NAME
+	pages = @choose_defined($pages32, $pages)
+	pid = __int32($pid)
+	nodes = $nodes
+	status = $status
+	flags = __int32($flags)
+	flags_str = _mempolicy_flags_str(flags)
+	nr_pages = @__compat_ulong($nr_pages)
+	@_SYSCALL_MOVE_PAGES_ARGSTR
+}
+probe __syscall.move_pages = kernel.function("sys_move_pages").call
+{
+	@__syscall_gate(@const("__NR_move_pages"))
+}
+probe dw_syscall.move_pages.return = __syscall.move_pages.return ?,
+                                  kernel.function("compat_sys_move_pages").return ?
+{
+	@_SYSCALL_MOVE_PAGES_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.move_pages.return = kernel.function("sys_move_pages").return
+{
+	@__syscall_gate(@const("__NR_move_pages"))
+}
+
+# nd_move_pages _____________________________________________________
+
+probe nd_syscall.move_pages = __nd_syscall.move_pages ?,
+                              kprobe.function("compat_sys_move_pages") ?
+{
+	@_SYSCALL_MOVE_PAGES_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	nr_pages = ulong_arg(2)
+	pages = pointer_arg(3)
+	nodes = pointer_arg(4)
+	status = pointer_arg(5)
+	flags = int_arg(6)
+	flags_str = _mempolicy_flags_str(flags)
+	@_SYSCALL_MOVE_PAGES_ARGSTR
+}
+probe __nd_syscall.move_pages = kprobe.function("sys_move_pages")
+{
+	@__syscall_gate(@const("__NR_move_pages"))
+}
+probe nd_syscall.move_pages.return = __nd_syscall.move_pages.return ?,
+                                     kprobe.function("compat_sys_move_pages").return ?
+{
+	@_SYSCALL_MOVE_PAGES_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.move_pages.return = kprobe.function("sys_move_pages").return
+{
+	@__syscall_gate(@const("__NR_move_pages"))
+}

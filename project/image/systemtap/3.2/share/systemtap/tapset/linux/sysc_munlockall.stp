@@ -1,0 +1,42 @@
+# munlockall _________________________________________________
+# long sys_munlockall(void)
+
+@define _SYSCALL_MUNLOCKALL_NAME
+%(
+	name = "munlockall"
+%)
+
+@define _SYSCALL_MUNLOCKALL_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.munlockall = dw_syscall.munlockall !, nd_syscall.munlockall ? {}
+probe syscall.munlockall.return = dw_syscall.munlockall.return !,
+                                  nd_syscall.munlockall.return ? {}
+
+# dw_munlockall _____________________________________________________
+
+probe dw_syscall.munlockall = kernel.function("sys_munlockall").call ?
+{
+	@_SYSCALL_MUNLOCKALL_NAME
+	@_SYSCALL_MUNLOCKALL_ARGSTR
+}
+probe dw_syscall.munlockall.return = kernel.function("sys_munlockall").return ?
+{
+	@_SYSCALL_MUNLOCKALL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_munlockall _____________________________________________________
+
+probe nd_syscall.munlockall = kprobe.function("sys_munlockall") ?
+{
+	@_SYSCALL_MUNLOCKALL_NAME
+	@_SYSCALL_MUNLOCKALL_ARGSTR
+}
+probe nd_syscall.munlockall.return = kprobe.function("sys_munlockall").return ?
+{
+	@_SYSCALL_MUNLOCKALL_NAME
+	retstr = returnstr(1)
+}

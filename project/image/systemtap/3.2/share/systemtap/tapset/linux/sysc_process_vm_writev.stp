@@ -1,0 +1,76 @@
+# process_vm_writev ____________________________________________
+# process_vm_writev was added in linux 3.2.
+#
+# SYSCALL_DEFINE6(process_vm_writev, pid_t, pid,
+#		const struct iovec __user *, lvec,
+#		unsigned long, liovcnt, const struct iovec __user *, rvec,
+#		unsigned long, riovcnt,	unsigned long, flags)
+# COMPAT_SYSCALL_DEFINE6(process_vm_writev, compat_pid_t, pid,
+#		       const struct compat_iovec __user *, lvec,
+#		       compat_ulong_t, liovcnt,
+#		       const struct compat_iovec __user *, rvec,
+#		       compat_ulong_t, riovcnt,
+#		       compat_ulong_t, flags)
+
+@define _SYSCALL_PROCESS_VM_WRITEV_NAME
+%(
+	name = "process_vm_writev"
+%)
+
+@define _SYSCALL_PROCESS_VM_WRITEV_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u, %p, %u, %u", pid, local_iov_uaddr,
+			 liovcnt, remote_iov_uaddr, riovcnt, flags)
+%)
+
+probe syscall.process_vm_writev = dw_syscall.process_vm_writev !,
+                                  nd_syscall.process_vm_writev ? {}
+probe syscall.process_vm_writev.return = dw_syscall.process_vm_writev.return !,
+                                         nd_syscall.process_vm_writev.return ? {}
+
+# dw_process_vm_writev _____________________________________________________
+
+probe dw_syscall.process_vm_writev =
+	kernel.function("sys_process_vm_writev").call ?,
+	kernel.function("compat_sys_process_vm_writev").call ?
+{
+	@_SYSCALL_PROCESS_VM_WRITEV_NAME
+	pid = __int32($pid)
+	local_iov_uaddr = @__pointer($lvec)
+	liovcnt = @__compat_ulong($liovcnt)
+	remote_iov_uaddr = @__pointer($rvec)
+	riovcnt = @__compat_ulong($riovcnt)
+	flags = @__compat_ulong($flags)
+	@_SYSCALL_PROCESS_VM_WRITEV_ARGSTR
+}
+probe dw_syscall.process_vm_writev.return =
+	kernel.function("sys_process_vm_writev").return ?,
+	kernel.function("compat_sys_process_vm_writev").return ?
+{
+	@_SYSCALL_PROCESS_VM_WRITEV_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_process_vm_writev _____________________________________________________
+
+probe nd_syscall.process_vm_writev =
+	kprobe.function("sys_process_vm_writev") ?,
+	kprobe.function("compat_sys_process_vm_writev") ?
+{
+	@_SYSCALL_PROCESS_VM_WRITEV_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	local_iov_uaddr = pointer_arg(2)
+	liovcnt = ulong_arg(3)
+	remote_iov_uaddr = pointer_arg(4)
+	riovcnt = ulong_arg(5)
+	flags = ulong_arg(6)
+	@_SYSCALL_PROCESS_VM_WRITEV_ARGSTR
+}
+probe nd_syscall.process_vm_writev.return =
+	kprobe.function("sys_process_vm_writev").return ?,
+	kprobe.function("compat_sys_process_vm_writev").return ?
+{
+	@_SYSCALL_PROCESS_VM_WRITEV_NAME
+	retstr = returnstr(1)
+}

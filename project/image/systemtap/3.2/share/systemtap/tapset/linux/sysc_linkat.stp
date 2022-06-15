@@ -1,0 +1,66 @@
+# linkat _____________________________________________________
+# new function with 2.6.16
+# long sys_linkat(int olddfd, const char __user *oldname,
+#	int newdfd, const char __user *newname, int flags)
+
+@define _SYSCALL_LINKAT_NAME
+%(
+	name = "linkat"
+%)
+
+@define _SYSCALL_LINKAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %s, %s", olddirfd_str, oldpath,
+	                 newdirfd_str, newpath, flags_str)
+%)
+
+probe syscall.linkat = dw_syscall.linkat !, nd_syscall.linkat ? {}
+probe syscall.linkat.return = dw_syscall.linkat.return !,
+                              nd_syscall.linkat.return ? {}
+
+# dw_linkat _____________________________________________________
+
+probe dw_syscall.linkat = kernel.function("sys_linkat").call ?
+{
+	@__syscall_compat_gate(@const("__NR_linkat"), @const("__NR_compat_linkat"))
+	@_SYSCALL_LINKAT_NAME
+	olddirfd = __int32($olddfd)
+	olddirfd_str = _dfd_str(__int32($olddfd))
+	oldpath = user_string_quoted($oldname)
+	newdirfd = __int32($newdfd)
+	newdirfd_str = _dfd_str(__int32($newdfd))
+	newpath = user_string_quoted($newname)
+	flags = __int32($flags)
+	flags_str = _at_flag_str(__int32($flags))
+	@_SYSCALL_LINKAT_ARGSTR
+}
+probe dw_syscall.linkat.return = kernel.function("sys_linkat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_linkat"), @const("__NR_compat_linkat"))
+	@_SYSCALL_LINKAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_linkat _____________________________________________________
+
+probe nd_syscall.linkat = kprobe.function("sys_linkat") ?
+{
+	@__syscall_compat_gate(@const("__NR_linkat"), @const("__NR_compat_linkat"))
+	@_SYSCALL_LINKAT_NAME
+	asmlinkage()
+	olddirfd = int_arg(1)
+	olddirfd_str = _dfd_str(olddirfd)
+	oldpath = user_string_quoted(pointer_arg(2))
+	newdirfd = int_arg(3)
+	newdirfd_str = _dfd_str(newdirfd)
+	newpath = user_string_quoted(pointer_arg(4))
+	flags = int_arg(5)
+	flags_str = _at_flag_str(flags)
+	@_SYSCALL_LINKAT_ARGSTR
+}
+probe nd_syscall.linkat.return = kprobe.function("sys_linkat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_linkat"), @const("__NR_compat_linkat"))
+	@_SYSCALL_LINKAT_NAME
+	retstr = returnstr(1)
+}

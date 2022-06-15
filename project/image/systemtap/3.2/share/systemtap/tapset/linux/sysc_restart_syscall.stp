@@ -1,0 +1,46 @@
+# restart_syscall ____________________________________________
+#
+# asmlinkage long
+# sys_restart_syscall(void)
+#
+
+@define _SYSCALL_RESTART_SYSCALL_NAME
+%(
+	name = "restart_syscall"
+%)
+
+@define _SYSCALL_RESTART_SYSCALL_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.restart_syscall = dw_syscall.restart_syscall !,
+                                nd_syscall.restart_syscall {}
+probe syscall.restart_syscall.return = dw_syscall.restart_syscall.return !,
+                                       nd_syscall.restart_syscall.return {}
+
+# dw_restart_syscall _____________________________________________________
+
+probe dw_syscall.restart_syscall = kernel.function("sys_restart_syscall").call
+{
+	@_SYSCALL_RESTART_SYSCALL_NAME
+	@_SYSCALL_RESTART_SYSCALL_ARGSTR
+}
+probe dw_syscall.restart_syscall.return = kernel.function("sys_restart_syscall").return
+{
+	@_SYSCALL_RESTART_SYSCALL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_restart_syscall _____________________________________________________
+
+probe nd_syscall.restart_syscall = kprobe.function("sys_restart_syscall")
+{
+	@_SYSCALL_RESTART_SYSCALL_NAME
+	@_SYSCALL_RESTART_SYSCALL_ARGSTR
+}
+probe nd_syscall.restart_syscall.return = kprobe.function("sys_restart_syscall").return
+{
+	@_SYSCALL_RESTART_SYSCALL_NAME
+	retstr = returnstr(1)
+}

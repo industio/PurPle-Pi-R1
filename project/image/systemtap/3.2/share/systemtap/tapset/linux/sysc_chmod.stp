@@ -1,0 +1,53 @@
+# chmod ______________________________________________________
+# long sys_chmod(const char __user * filename, mode_t mode)
+
+@define _SYSCALL_CHMOD_NAME
+%(
+	name = "chmod"
+%)
+
+@define _SYSCALL_CHMOD_ARGSTR
+%(
+	argstr = sprintf("%s, %#o", path, mode)
+%)
+
+probe syscall.chmod = dw_syscall.chmod !, nd_syscall.chmod ? {}
+probe syscall.chmod.return = dw_syscall.chmod.return !, nd_syscall.chmod.return ? {}
+
+# dw_chmod _____________________________________________________
+
+probe dw_syscall.chmod = kernel.function("sys_chmod").call
+{
+	@_SYSCALL_CHMOD_NAME
+	path = user_string_quoted($filename)
+%( arch == "i386" %?
+	# Why @cast() here? Even though the user passes an unsigned
+	# int (32-bits), some kernels (2.6.32-431.el6.i686) get an
+	# unsigned short (16-bits).
+	mode = @uint_cast(&$mode)
+%:
+	mode = __uint32($mode)
+%)
+	@_SYSCALL_CHMOD_ARGSTR
+}
+probe dw_syscall.chmod.return = kernel.function("sys_chmod").return
+{
+	@_SYSCALL_CHMOD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_chmod _____________________________________________________
+
+probe nd_syscall.chmod = kprobe.function("sys_chmod") ?
+{
+	@_SYSCALL_CHMOD_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+	mode = uint_arg(2)
+	@_SYSCALL_CHMOD_ARGSTR
+}
+probe nd_syscall.chmod.return = kprobe.function("sys_chmod").return ?
+{
+	@_SYSCALL_CHMOD_NAME
+	retstr = returnstr(1)
+}

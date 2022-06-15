@@ -1,0 +1,52 @@
+# tee _____________________________________________________
+#
+# long sys_tee(int fdin, int fdout, size_t len, unsigned int flags)
+#
+
+@define _SYSCALL_TEE_NAME
+%(
+	name = "tee"
+%)
+
+@define _SYSCALL_TEE_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %u, 0x%x", fdin, fdout, len, flags)
+%)
+
+probe syscall.tee = dw_syscall.tee !, nd_syscall.tee ? {}
+probe syscall.tee.return = dw_syscall.tee.return !, nd_syscall.tee.return ? {}
+
+# dw_tee _____________________________________________________
+
+probe dw_syscall.tee = kernel.function("sys_tee").call ?
+{
+	@_SYSCALL_TEE_NAME
+	fdin = __int32($fdin)
+	fdout = __int32($fdout)
+	len = @__compat_ulong($len)
+	flags = __uint32($flags)
+	@_SYSCALL_TEE_ARGSTR
+}
+probe dw_syscall.tee.return = kernel.function("sys_tee").return ?
+{
+	@_SYSCALL_TEE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_tee _____________________________________________________
+
+probe nd_syscall.tee = kprobe.function("sys_tee") ?
+{
+	@_SYSCALL_TEE_NAME
+	asmlinkage()
+	fdin = int_arg(1)
+	fdout = int_arg(2)
+	len = ulong_arg(3)
+	flags = uint_arg(4)
+	@_SYSCALL_TEE_ARGSTR
+}
+probe nd_syscall.tee.return = kprobe.function("sys_tee").return ?
+{
+	@_SYSCALL_TEE_NAME
+	retstr = returnstr(1)
+}

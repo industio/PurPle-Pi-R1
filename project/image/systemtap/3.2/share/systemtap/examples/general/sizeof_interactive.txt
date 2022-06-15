@@ -1,0 +1,6 @@
+% stap sizeof_interactive.stp 
+Ready
+% FILE '</usr/include/stdio.h>'
+type FILE in </usr/include/stdio.h> byte-size: 148
+% size_t
+type size_t byte-size: 8

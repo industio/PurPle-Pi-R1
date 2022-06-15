@@ -1,0 +1,54 @@
+# io_cancel __________________________________________________
+# long sys_io_cancel(aio_context_t ctx_id,
+#               struct iocb __user *iocb,
+#               struct io_event __user *result)
+
+@define _SYSCALL_IO_CANCEL_NAME
+%(
+	name = "io_cancel"
+%)
+
+@define _SYSCALL_IO_CANCEL_ARGSTR
+%(
+	argstr = sprintf("%u, %p, %p", ctx_id, iocb_uaddr, result_uaddr)
+%)
+
+probe syscall.io_cancel = dw_syscall.io_cancel !, nd_syscall.io_cancel ? {}
+probe syscall.io_cancel.return = dw_syscall.io_cancel.return !, nd_syscall.io_cancel.return ? {}
+
+# dw_io_cancel __________________________________________________
+# long sys_io_cancel(aio_context_t ctx_id,
+#		struct iocb __user *iocb,
+#		struct io_event __user *result)
+probe dw_syscall.io_cancel = kernel.function("sys_io_cancel").call
+{
+	@_SYSCALL_IO_CANCEL_NAME
+	ctx_id = @__compat_ulong($ctx_id)
+	iocb_uaddr = $iocb
+	result_uaddr = $result
+	@_SYSCALL_IO_CANCEL_ARGSTR
+}
+probe dw_syscall.io_cancel.return = kernel.function("sys_io_cancel").return
+{
+	@_SYSCALL_IO_CANCEL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_io_cancel __________________________________________________
+# long sys_io_cancel(aio_context_t ctx_id,
+#		struct iocb __user *iocb,
+#		struct io_event __user *result)
+probe nd_syscall.io_cancel = kprobe.function("sys_io_cancel") ?
+{
+	@_SYSCALL_IO_CANCEL_NAME
+	asmlinkage()
+	ctx_id = ulong_arg(1)
+	iocb_uaddr = pointer_arg(2)
+	result_uaddr = pointer_arg(3)
+	@_SYSCALL_IO_CANCEL_ARGSTR
+}
+probe nd_syscall.io_cancel.return = kprobe.function("sys_io_cancel").return ?
+{
+	@_SYSCALL_IO_CANCEL_NAME
+	retstr = returnstr(1)
+}

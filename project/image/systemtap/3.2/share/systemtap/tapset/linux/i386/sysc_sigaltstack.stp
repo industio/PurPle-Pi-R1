@@ -1,0 +1,87 @@
+%( CONFIG_GENERIC_SIGALTSTACK == "n" || kernel_v < "3.8" %?
+# sigaltstack ________________________________________________
+# int sys_sigaltstack(unsigned long ebx)
+#
+# NOTE: args vary between archs.
+#
+
+@define _SYSCALL_SIGALTSTACK_NAME
+%(
+	name = "sigaltstack"
+%)
+
+@define _SYSCALL_SIGALTSTACK_ARGSTR
+%(
+	argstr = sprintf("%s, %p", uss_str, uoss_uaddr)
+%)
+
+probe syscall.sigaltstack = dw_syscall.sigaltstack !, nd_syscall.sigaltstack {}
+probe syscall.sigaltstack.return = dw_syscall.sigaltstack.return !,
+                                   nd_syscall.sigaltstack.return {}
+
+# dw_sigaltstack _____________________________________________________
+
+probe dw_syscall.sigaltstack = kernel.function("sys_sigaltstack")
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+# 'ussp' should have been 'uss_uaddr.  Deprecate the old name.
+%(systemtap_v <= "1.4" %?
+	ussp = %( kernel_vr < "2.6.25" %? $ebx %: %( kernel_vr < "2.6.30" %? $bx %: $regs->bx %) %)
+%)
+	if (@defined($regs)) {
+		uss_uaddr = @choose_defined($uss, $regs->bx)
+		uoss_uaddr = @choose_defined($uoss, $regs->cx)
+%(systemtap_v < "2.3" %?
+		regs = $regs
+%)
+	}
+	else if (@defined($bx)) {	# kernels < "2.6.30"
+		uss_uaddr = $bx
+		# Make sure the register value didn't get sign extended.
+		uoss_uaddr = __ulong(@cast(&$bx, "pt_regs", "kernel<asm/ptrace.h>")->cx)
+%(systemtap_v < "2.3" %?
+		regs = &$bx
+%)
+	}
+	else {				# kernels < "2.6.25"
+		uss_uaddr = $ebx
+		# Make sure the register value didn't get sign extended.
+		uoss_uaddr = __ulong(@cast(&$ebx, "pt_regs", "kernel<asm/ptrace.h>")->ecx)
+%(systemtap_v < "2.3" %?
+		regs = &$ebx
+%)
+	}
+	uss_str = _stp_sigaltstack_u(uss_uaddr)
+	@_SYSCALL_SIGALTSTACK_ARGSTR
+}
+probe dw_syscall.sigaltstack.return = kernel.function("sys_sigaltstack").return
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sigaltstack _____________________________________________________
+
+probe nd_syscall.sigaltstack = kprobe.function("sys_sigaltstack")
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	asmlinkage()
+	// Sigh, it doesn't seem possible to get the address of regs
+	// here without dipping down into deep mojo.
+	__regs = __ulong(register("esp")) + 4
+	uss_uaddr = __ulong(@choose_defined(@cast(__regs, "pt_regs", "kernel<asm/ptrace.h>")->bx,
+					    @cast(__regs, "pt_regs", "kernel<asm/ptrace.h>")->ebx))
+%(systemtap_v <= "1.4" %?
+	ussp = uss_uaddr
+%)
+	uoss_uaddr = __ulong(@choose_defined(@cast(__regs, "pt_regs", "kernel<asm/ptrace.h>")->cx,
+					     @cast(__regs, "pt_regs", "kernel<asm/ptrace.h>")->ecx))
+	uss_str = _stp_sigaltstack_u(uss_uaddr)
+	@_SYSCALL_SIGALTSTACK_ARGSTR
+}
+probe nd_syscall.sigaltstack.return = kprobe.function("sys_sigaltstack").return
+{
+	@_SYSCALL_SIGALTSTACK_NAME
+	retstr = returnstr(1)
+}
+%)

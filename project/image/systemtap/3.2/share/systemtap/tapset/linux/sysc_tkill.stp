@@ -1,0 +1,53 @@
+# tkill ______________________________________________________
+#
+# asmlinkage long
+# sys_tkill(int pid,
+#	     int sig)
+#
+
+@define _SYSCALL_TKILL_NAME
+%(
+	name = "tkill"
+%)
+
+@define _SYSCALL_TKILL_ARGSTR
+%(
+	argstr = sprintf("%d, %s", pid, sig_str)
+%)
+
+probe syscall.tkill = dw_syscall.tkill !, nd_syscall.tkill ? {}
+probe syscall.tkill.return = dw_syscall.tkill.return !,
+                             nd_syscall.tkill.return ? {}
+
+# dw_tkill _____________________________________________________
+
+probe dw_syscall.tkill = kernel.function("sys_tkill").call
+{
+	@_SYSCALL_TKILL_NAME
+	pid = __int32($pid)
+	sig = __int32($sig)
+	sig_str = _signal_name(sig)
+	@_SYSCALL_TKILL_ARGSTR
+}
+probe dw_syscall.tkill.return = kernel.function("sys_tkill").return
+{
+	@_SYSCALL_TKILL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_tkill _____________________________________________________
+
+probe nd_syscall.tkill = kprobe.function("sys_tkill") ?
+{
+	@_SYSCALL_TKILL_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	sig = int_arg(2)
+	sig_str = _signal_name(sig)
+	@_SYSCALL_TKILL_ARGSTR
+}
+probe nd_syscall.tkill.return = kprobe.function("sys_tkill").return ?
+{
+	@_SYSCALL_TKILL_NAME
+	retstr = returnstr(1)
+}

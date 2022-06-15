@@ -1,0 +1,11 @@
+title: Interactive Print the Size of a C Type
+name: sizeof_interactive.stp
+version: 1.0
+author: Aaron Merey
+keywords: statistics memory interactive
+subsystem: any
+status: proposed
+exit: user-controlled 
+output: user-controlled 
+scope: system-wide
+description: This script prints the size of a type, based on dwarf debuginfo for any kernel or userspace module, or trial-compilation of a given header file name. Types and corresponding locations are provided to the script at runtime via keyboard input. The format of the input is identical to that of sizeof.stp (see script source for more information). Types and locations can be repeatedly given until the process is terminated. 

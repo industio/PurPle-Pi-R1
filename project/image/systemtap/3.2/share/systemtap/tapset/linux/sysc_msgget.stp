@@ -1,0 +1,51 @@
+# msgget _____________________________________________________
+# long sys_msgget (key_t key, int msgflg)
+#
+
+@define _SYSCALL_MSGGET_NAME
+%(
+	name = "msgget"
+%)
+
+@define _SYSCALL_MSGGET_ARGSTR
+%(
+	argstr = sprintf("%s, %s", key_str, msgflg_str)
+%)
+
+probe syscall.msgget = dw_syscall.msgget !, nd_syscall.msgget ? {}
+probe syscall.msgget.return = dw_syscall.msgget.return !, nd_syscall.msgget.return ? {}
+
+# dw_msgget _____________________________________________________
+
+probe dw_syscall.msgget = kernel.function("sys_msgget").call ?
+{
+	@_SYSCALL_MSGGET_NAME
+	key = __int32($key)
+	key_str = _stp_msgget_key_str(__int32($key))
+	msgflg = __int32($msgflg)
+	msgflg_str = __sem_flags(__int32($msgflg))
+	@_SYSCALL_MSGGET_ARGSTR
+}
+probe dw_syscall.msgget.return = kernel.function("sys_msgget").return ?
+{
+	@_SYSCALL_MSGGET_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_msgget _____________________________________________________
+
+probe nd_syscall.msgget = kprobe.function("sys_msgget") ?
+{
+	@_SYSCALL_MSGGET_NAME
+	asmlinkage()
+	key = int_arg(1)
+	key_str = _stp_msgget_key_str(key)
+	msgflg = int_arg(2)
+	msgflg_str = __sem_flags(msgflg)
+	@_SYSCALL_MSGGET_ARGSTR
+}
+probe nd_syscall.msgget.return = kprobe.function("sys_msgget").return ?
+{
+	@_SYSCALL_MSGGET_NAME
+	retstr = returnstr(1)
+}

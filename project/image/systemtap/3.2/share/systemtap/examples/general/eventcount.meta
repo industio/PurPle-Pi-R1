@@ -1,0 +1,13 @@
+title: Interactive Count Specified Events
+name: eventcount.stp
+version: 1.1
+author: Lukas Berk, Aaron Merey
+keywords: interactive statistics thread process
+subsystem: none
+status: proposed
+exit: user-controlled
+output: batch on-exit
+scope: system-wide
+description: The script periodically prints a count of specified events and their related tid's over the course of execution. Numerous configuration options exist to control filtering / reporting, some of which can be modified at runtime. See the script source for more information.
+test_check: stap -p4 eventcount.stp
+test_installcheck: stap eventcount.stp 'syscall.*' -c 'sleep 3'

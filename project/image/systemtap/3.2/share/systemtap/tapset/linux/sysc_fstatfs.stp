@@ -1,0 +1,52 @@
+# fstatfs ____________________________________________________
+# long sys_fstatfs(unsigned int fd, struct statfs __user * buf)
+# long compat_sys_fstatfs(unsigned int fd, struct compat_statfs __user *buf)
+#
+
+@define _SYSCALL_FSTATFS_NAME
+%(
+	name = "fstatfs"
+%)
+
+@define _SYSCALL_FSTATFS_ARGSTR
+%(
+	argstr = sprintf("%d, %p", fd, buf_uaddr)
+%)
+
+probe syscall.fstatfs = dw_syscall.fstatfs !, nd_syscall.fstatfs ? {}
+probe syscall.fstatfs.return = dw_syscall.fstatfs.return !, nd_syscall.fstatfs.return ? {}
+
+# dw_fstatfs _____________________________________________________
+
+probe dw_syscall.fstatfs = kernel.function("compat_sys_fstatfs").call ?,
+                        kernel.function("sys_fstatfs").call
+{
+	@_SYSCALL_FSTATFS_NAME
+	fd = __int32($fd)
+	buf_uaddr = $buf
+	@_SYSCALL_FSTATFS_ARGSTR
+}
+probe dw_syscall.fstatfs.return = kernel.function("compat_sys_fstatfs").return ?,
+                               kernel.function("sys_fstatfs").return
+{
+	@_SYSCALL_FSTATFS_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fstatfs _____________________________________________________
+
+probe nd_syscall.fstatfs = kprobe.function("compat_sys_fstatfs") ?,
+                           kprobe.function("sys_fstatfs") ?
+{
+	@_SYSCALL_FSTATFS_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	buf_uaddr = pointer_arg(2)
+	@_SYSCALL_FSTATFS_ARGSTR
+}
+probe nd_syscall.fstatfs.return = kprobe.function("compat_sys_fstatfs").return ?,
+                                  kprobe.function("sys_fstatfs").return ?
+{
+	@_SYSCALL_FSTATFS_NAME
+	retstr = returnstr(1)
+}

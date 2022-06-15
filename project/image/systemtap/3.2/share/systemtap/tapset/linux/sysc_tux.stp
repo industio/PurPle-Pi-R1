@@ -1,0 +1,47 @@
+# tux ________________________________________________________
+# long sys_tux (unsigned int action, user_req_t *u_info)
+#
+
+@define _SYSCALL_TUX_NAME
+%(
+	name = "tux"
+%)
+
+@define _SYSCALL_TUX_ARGSTR
+%(
+	argstr = sprintf("%d, %p", action, u_info_uaddr)
+%)
+
+probe syscall.tux = dw_syscall.tux !, nd_syscall.tux ? {}
+probe syscall.tux.return = dw_syscall.tux.return !, nd_syscall.tux.return ? {}
+
+# dw_tux _____________________________________________________
+
+probe dw_syscall.tux = kernel.function("sys_tux").call ?
+{
+	@_SYSCALL_TUX_NAME
+	action = $action
+	u_info_uaddr = $u_info
+	@_SYSCALL_TUX_ARGSTR
+}
+probe dw_syscall.tux.return = kernel.function("sys_tux").return ?
+{
+	@_SYSCALL_TUX_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_tux _____________________________________________________
+
+probe nd_syscall.tux = kprobe.function("sys_tux") ?
+{
+	@_SYSCALL_TUX_NAME
+	asmlinkage()
+	action = uint_arg(1)
+	u_info_uaddr = pointer_arg(2)
+	@_SYSCALL_TUX_ARGSTR
+}
+probe nd_syscall.tux.return = kprobe.function("sys_tux").return ?
+{
+	@_SYSCALL_TUX_NAME
+	retstr = returnstr(1)
+}

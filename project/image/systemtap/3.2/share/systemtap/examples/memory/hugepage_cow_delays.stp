@@ -1,0 +1,22 @@
+#! /usr/bin/env stap
+
+global huge_cow
+
+probe kernel.function("copy_user_huge_page").return
+{
+  huge_cow [execname(), pid()]
+    <<< (gettimeofday_us() - @entry(gettimeofday_us()))
+}
+
+probe begin { printf("Collecting data... press Ctrl-C to stop.\n") }
+
+probe end
+{
+  printf("\n")
+  foreach([name, p] in huge_cow-) {
+    printf("%16s(%5d) count=%d sum(us)=%d avg(us)=%d\n",
+      name, p, @count(huge_cow[name,p]),
+      @sum(huge_cow[name,p]),
+      @avg(huge_cow[name,p]))
+  }
+}

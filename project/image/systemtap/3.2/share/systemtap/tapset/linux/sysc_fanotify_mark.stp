@@ -1,0 +1,115 @@
+# fanotify_mark ______________________________________________
+# fanotify_mark() was enabled in kernel version 2.6.37.
+#
+# SYSCALL_DEFINE5(fanotify_mark, int, fanotify_fd, unsigned int, flags,
+#		  __u64, mask, int, dfd,
+#		  const char  __user *, pathname)
+# COMPAT_SYSCALL_DEFINE6(fanotify_mark,
+#				int, fanotify_fd, unsigned int, flags,
+#				__u32, mask0, __u32, mask1, int, dfd,
+#				const char  __user *, pathname)
+
+@define _SYSCALL_FANOTIFY_MARK_NAME
+%(
+	name = "fanotify_mark"
+%)
+
+@define _SYSCALL_FANOTIFY_MARK_ARGSTR
+%(
+	argstr = sprintf("%d, %s, %s, %s, %s", fanotify_fd, flags_str, mask_str,
+	                 dirfd_str, pathname)
+%)
+
+probe syscall.fanotify_mark = dw_syscall.fanotify_mark !, nd_syscall.fanotify_mark ? {}
+probe syscall.fanotify_mark.return = dw_syscall.fanotify_mark.return !, nd_syscall.fanotify_mark.return ? {}
+
+# dw_fanotify_mark _____________________________________________________
+
+probe dw_syscall.fanotify_mark = __syscall.fanotify_mark ?,
+	__syscall.compat_fanotify_mark ?
+{
+	@_SYSCALL_FANOTIFY_MARK_NAME
+	flags_str = _fanotify_mark_flags_str(flags)
+	mask_str = _fanotify_mark_mask_str(mask)
+	dirfd_str = _dfd_str(dirfd)
+	@_SYSCALL_FANOTIFY_MARK_ARGSTR
+}
+probe __syscall.fanotify_mark = kernel.function("sys_fanotify_mark").call ?
+{
+	@__syscall_gate_compat_simple
+	fanotify_fd = __int32($fanotify_fd)
+	flags = __uint32($flags)
+	mask = $mask
+	dirfd = __int32($dfd)
+	pathname = user_string_quoted(@__pointer($pathname))
+}
+probe __syscall.compat_fanotify_mark =
+	kernel.function("compat_sys_fanotify_mark").call ?
+{
+	fanotify_fd = __int32($fanotify_fd)
+	flags = __uint32($flags)
+	if (@__BIG_ENDIAN)
+		mask = ((__uint32($mask0) << 32) | __uint32($mask1))
+	else
+		mask = ((__uint32($mask1) << 32) | __uint32($mask0))
+	dirfd = __int32($dfd)
+	pathname = user_string_quoted(@__pointer($pathname))
+}
+probe dw_syscall.fanotify_mark.return =
+	kernel.function("sys_fanotify_mark").return ?,
+	kernel.function("compat_sys_fanotify_mark").return ?
+{
+	@_SYSCALL_FANOTIFY_MARK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fanotify_mark _____________________________________________________
+
+probe nd_syscall.fanotify_mark = __nd_syscall.fanotify_mark ?,
+	__nd_syscall.compat_fanotify_mark ?
+{
+	@_SYSCALL_FANOTIFY_MARK_NAME
+	flags_str = _fanotify_mark_flags_str(flags)
+	mask_str = _fanotify_mark_mask_str(mask)
+        dirfd_str = _dfd_str(dirfd)
+	@_SYSCALL_FANOTIFY_MARK_ARGSTR
+}
+probe __nd_syscall.fanotify_mark = kprobe.function("sys_fanotify_mark") ?
+{
+	@__syscall_gate_compat_simple
+	asmlinkage()
+	fanotify_fd = int_arg(1)
+	flags = uint_arg(2)
+%( CONFIG_64BIT == "y" %?
+	mask = ulonglong_arg(3)
+	dirfd = int_arg(4)
+	pathname = user_string_quoted(pointer_arg(5))
+%:
+	# On a 32-bit kernel, 'long long' arguments take the space of
+	# 2 arguments, so we have to adjust the following argument
+	# numbers.
+	mask = ulonglong_arg(3)
+	dirfd = int_arg(5)
+	pathname = user_string_quoted(pointer_arg(6))
+%)
+}
+probe __nd_syscall.compat_fanotify_mark =
+	kprobe.function("compat_sys_fanotify_mark") ?
+{
+	asmlinkage()
+	fanotify_fd = int_arg(1)
+	flags = uint_arg(2)
+	if (@__BIG_ENDIAN)
+		mask = ((uint_arg(3) << 32) | uint_arg(4))
+	else
+		mask = ((uint_arg(4) << 32) | uint_arg(3))
+	dirfd = int_arg(5)
+	pathname = user_string_quoted(pointer_arg(6))
+}
+probe nd_syscall.fanotify_mark.return =
+	kprobe.function("sys_fanotify_mark").return ?,
+	kprobe.function("compat_sys_fanotify_mark").return ?
+{
+	@_SYSCALL_FANOTIFY_MARK_NAME
+	retstr = returnstr(1)
+}

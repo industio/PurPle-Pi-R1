@@ -1,0 +1,73 @@
+%( kernel_v >= "2.6.33" %?
+# In newer kernels (2.6.33+), all the sys_mmap() variants are just
+# wrappers around sys_mmap_pgoff(), which is in arch-generic code.
+#
+# long sys_mmap_pgoff(unsigned long addr, unsigned long len,
+#		unsigned long prot, unsigned long flags,
+#		unsigned long fd, unsigned long pgoff)
+
+@define _SYSCALL_MMAP2_NAME
+%(
+	name = "mmap2"
+%)
+
+@define _SYSCALL_MMAP2_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s, %s, %d, %d", start, length,
+	                 prot_str, flags_str, fd, pgoffset)
+%)
+
+probe syscall.mmap2 = dw_syscall.mmap2 !, nd_syscall.mmap2 ? {}
+probe syscall.mmap2.return = dw_syscall.mmap2.return !, nd_syscall.mmap2.return ? {}
+
+# dw_mmap2 _____________________________________________________
+
+probe dw_syscall.mmap2 = kernel.function("sys_mmap_pgoff") ?
+{
+	@_SYSCALL_MMAP2_NAME
+	start = $addr
+	length = __ulong($len)
+	prot = $prot
+	prot_str = _mprotect_prot_str(prot)
+	flags = $flags
+	flags_str = _mmap_flags(flags)
+	# Although the kernel gets an unsigned long fd, on the
+	# user-side it is a signed int.  Fix this.
+	fd = __int32($fd)
+	# $pgoff is the number of pages. Convert this back into a
+	# number of bytes.
+	pgoffset = $pgoff * @const("PAGE_SIZE")
+	@_SYSCALL_MMAP2_ARGSTR
+}
+probe dw_syscall.mmap2.return = kernel.function("sys_mmap_pgoff").return ?
+{
+        @_SYSCALL_MMAP2_NAME
+        retstr = return_str(2, $return)
+}
+
+# nd_mmap2 _____________________________________________________
+
+probe nd_syscall.mmap2 = kprobe.function("sys_mmap_pgoff") ?
+{
+	@_SYSCALL_MMAP2_NAME
+	asmlinkage()
+	start = ulong_arg(1)
+	length = ulong_arg(2)
+	prot = ulong_arg(3)
+	prot_str = _mprotect_prot_str(prot)
+	flags = ulong_arg(4)
+	flags_str = _mmap_flags(flags)
+	# Although the kernel gets an unsigned long fd, on the
+	# user-side it is a signed int.  Fix this.
+	fd = int_arg(5)
+	# $pgoff is the number of pages. Convert this back into a
+	# number of bytes.
+	pgoffset = ulong_arg(6) * @const("PAGE_SIZE")
+	@_SYSCALL_MMAP2_ARGSTR
+}
+probe nd_syscall.mmap2.return = kprobe.function("sys_mmap_pgoff").return ?
+{
+        @_SYSCALL_MMAP2_NAME
+        retstr = returnstr(2)
+}
+%)

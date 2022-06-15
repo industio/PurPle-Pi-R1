@@ -1,0 +1,65 @@
+# readdir ___________________________________________________
+#
+# long compat_sys_old_readdir(unsigned int fd, struct compat_old_linux_dirent __user *dirent, unsigned int count)
+# int old32_readdir(unsigned int fd, struct old_linux_dirent32 *dirent, unsigned int count)
+# long sys_old_readdir(unsigned int fd, struct old_linux_dirent __user *dirent, unsigned int count);
+#
+
+@define _SYSCALL_READDIR_NAME
+%(
+	name = "readdir"
+%)
+
+@define _SYSCALL_READDIR_ARGSTR
+%(
+	argstr = sprintf("%u, %p, %u", fd, dirent, count)
+%)
+
+probe syscall.readdir = dw_syscall.readdir !, nd_syscall.readdir ? {}
+probe syscall.readdir.return = dw_syscall.readdir.return !,
+                               nd_syscall.readdir.return ? {}
+
+# dw_readdir _____________________________________________________
+
+probe dw_syscall.readdir = kernel.function("compat_sys_old_readdir").call ?,
+                        kernel.function("old32_readdir").call ?,
+                        kernel.function("old_readdir").call ?,
+                        kernel.function("sys_old_readdir").call ?
+{
+	@_SYSCALL_READDIR_NAME
+	fd = __uint32($fd)
+	dirent = $dirent
+	count = __uint32($count)
+	@_SYSCALL_READDIR_ARGSTR
+}
+probe dw_syscall.readdir.return = kernel.function("compat_sys_old_readdir").return ?,
+                               kernel.function("old32_readdir").return ?,
+                               kernel.function("old_readdir").return ?,
+                               kernel.function("sys_old_readdir").return ?
+{
+	@_SYSCALL_READDIR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_readdir _____________________________________________________
+
+probe nd_syscall.readdir = kprobe.function("compat_sys_old_readdir") ?,
+                           kprobe.function("old32_readdir") ?,
+                           kprobe.function("old_readdir") ?,
+                           kprobe.function("sys_old_readdir").call ?
+{
+	@_SYSCALL_READDIR_NAME
+	asmlinkage()
+	fd = uint_arg(1)
+	dirent = pointer_arg(2)
+	count = uint_arg(3)
+	@_SYSCALL_READDIR_ARGSTR
+}
+probe nd_syscall.readdir.return = kprobe.function("compat_sys_old_readdir").return ?,
+                                  kprobe.function("old32_readdir").return ?,
+                                  kprobe.function("old_readdir").return ?,
+                                  kprobe.function("sys_old_readdir").return ?
+{
+	@_SYSCALL_READDIR_NAME
+	retstr = returnstr(1)
+}

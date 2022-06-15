@@ -1,0 +1,82 @@
+# eventfd _____________________________________________________
+# long sys_eventfd(unsigned int count)
+# SYSCALL_DEFINE2(eventfd2, unsigned int, count, int, flags)
+
+probe syscall.eventfd = dw_syscall.eventfd !, nd_syscall.eventfd ? {}
+probe syscall.eventfd.return = dw_syscall.eventfd.return !, nd_syscall.eventfd.return ? {}
+
+# dw_eventfd _____________________________________________________
+
+probe dw_syscall.eventfd = __syscall.eventfd2 ?, __syscall.eventfd ?
+{
+}
+probe __syscall.eventfd2 = kernel.function("sys_eventfd2").call
+{
+	@__syscall_compat_gate(@const("__NR_eventfd2"), @const("__NR_compat_eventfd2"))
+	name = "eventfd2"
+	count = __uint32($count)
+	flags = __int32($flags)
+	flags_str = _eventfd2_flag_str(flags)
+	argstr = sprintf("%u, %s", count, _eventfd2_flag_str(flags))
+}
+probe __syscall.eventfd = kernel.function("sys_eventfd").call
+{
+	name = "eventfd"
+	count = __uint32($count)
+	flags = 0
+	flags_str = "0x0"
+	argstr = sprint(count)
+}
+probe dw_syscall.eventfd.return = __syscall.eventfd2.return ?,
+			       __syscall.eventfd.return ?
+{
+	retstr = return_str(1, $return)
+}
+probe __syscall.eventfd2.return = kernel.function("sys_eventfd2").return
+{
+	@__syscall_compat_gate(@const("__NR_eventfd2"), @const("__NR_compat_eventfd2"))
+	name = "eventfd2"
+}
+probe __syscall.eventfd.return = kernel.function("sys_eventfd").return
+{
+	name = "eventfd"
+}
+
+# nd_eventfd _____________________________________________________
+
+probe nd_syscall.eventfd = __nd_syscall.eventfd2 ?, __nd_syscall.eventfd ?
+{
+}
+probe __nd_syscall.eventfd2 = kprobe.function("sys_eventfd2")
+{
+	@__syscall_compat_gate(@const("__NR_eventfd2"), @const("__NR_compat_eventfd2"))
+	name = "eventfd2"
+	asmlinkage()
+	count = uint_arg(1)
+	flags = int_arg(2)
+	flags_str = _eventfd2_flag_str(flags)
+	argstr = sprintf("%u, %s", count, flags_str)
+}
+probe __nd_syscall.eventfd = kprobe.function("sys_eventfd")
+{
+	name = "eventfd"
+	asmlinkage()
+	count = uint_arg(1)
+	flags = 0
+	flags_str = "0x0"
+	argstr = sprint(count)
+}
+probe nd_syscall.eventfd.return = __nd_syscall.eventfd2.return ?,
+                                  __nd_syscall.eventfd.return ?
+{
+	retstr = returnstr(1)
+}
+probe __nd_syscall.eventfd2.return = kprobe.function("sys_eventfd2").return
+{
+	@__syscall_compat_gate(@const("__NR_eventfd2"), @const("__NR_compat_eventfd2"))
+	name = "eventfd2"
+}
+probe __nd_syscall.eventfd.return = kprobe.function("sys_eventfd").return
+{
+	name = "eventfd"
+}

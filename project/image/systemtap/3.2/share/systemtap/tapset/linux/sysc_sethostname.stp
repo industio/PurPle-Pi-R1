@@ -1,0 +1,52 @@
+# sethostname ________________________________________________
+#
+# asmlinkage long
+# sys_sethostname(char __user *name, int len)
+#
+
+@define _SYSCALL_SETHOSTNAME_NAME
+%(
+	name = "sethostname"
+%)
+
+@define _SYSCALL_SETHOSTNAME_ARGSTR
+%(
+	argstr = sprintf("%s, %d", name_str, len)
+%)
+
+probe syscall.sethostname = dw_syscall.sethostname !, nd_syscall.sethostname ? {}
+probe syscall.sethostname.return = dw_syscall.sethostname.return !,
+                                   nd_syscall.sethostname.return ? {}
+
+# dw_sethostname _____________________________________________________
+
+probe dw_syscall.sethostname = kernel.function("sys_sethostname").call
+{
+	@_SYSCALL_SETHOSTNAME_NAME
+	hostname_uaddr = $name
+	name_str = user_string_quoted($name)
+	len = __int32($len)
+	@_SYSCALL_SETHOSTNAME_ARGSTR
+}
+probe dw_syscall.sethostname.return = kernel.function("sys_sethostname").return
+{
+	@_SYSCALL_SETHOSTNAME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sethostname _____________________________________________________
+
+probe nd_syscall.sethostname = kprobe.function("sys_sethostname") ?
+{
+	@_SYSCALL_SETHOSTNAME_NAME
+	asmlinkage()
+	hostname_uaddr = pointer_arg(1)
+	name_str = user_string_quoted(hostname_uaddr)
+	len = int_arg(2)
+	@_SYSCALL_SETHOSTNAME_ARGSTR
+}
+probe nd_syscall.sethostname.return = kprobe.function("sys_sethostname").return ?
+{
+	@_SYSCALL_SETHOSTNAME_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,74 @@
+# chown ______________________________________________________
+# long sys_chown(const char __user * filename, uid_t user, gid_t group)
+
+@define _SYSCALL_CHOWN_NAME
+%(
+	name = "chown"
+%)
+
+@define _SYSCALL_CHOWN_ARGSTR
+%(
+	argstr = sprintf("%s, %d, %d", path, owner, group)
+%)
+
+probe syscall.chown = dw_syscall.chown !, nd_syscall.chown ? {}
+probe syscall.chown.return = dw_syscall.chown.return !, nd_syscall.chown.return ? {}
+
+# dw_chown _____________________________________________________
+
+probe dw_syscall.chown = kernel.function("sys_chown").call
+{
+	// Avoid chown16() calling chown().
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_chown"), @const("__NR_ia32_chown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_chown32"))
+%)
+	@_SYSCALL_CHOWN_NAME
+	path = user_string_quoted($filename)
+	owner = __int32($user)
+	group = __int32($group)
+	@_SYSCALL_CHOWN_ARGSTR
+}
+probe dw_syscall.chown.return = kernel.function("sys_chown").return
+{
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_chown"), @const("__NR_ia32_chown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_chown32"))
+%)
+	@_SYSCALL_CHOWN_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_chown _____________________________________________________
+
+probe nd_syscall.chown = kprobe.function("sys_chown") ?
+{
+	// Avoid chown16() calling chown().
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_chown"), @const("__NR_ia32_chown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_chown32"))
+%)
+	@_SYSCALL_CHOWN_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+	owner = __int32(uint_arg(2))
+	group = __int32(uint_arg(3))
+	@_SYSCALL_CHOWN_ARGSTR
+}
+probe nd_syscall.chown.return = kprobe.function("sys_chown").return ?
+{
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_chown"), @const("__NR_ia32_chown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_chown32"))
+%)
+	@_SYSCALL_CHOWN_NAME
+	retstr = returnstr(1)
+}

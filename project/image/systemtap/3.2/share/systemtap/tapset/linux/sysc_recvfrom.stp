@@ -1,0 +1,147 @@
+# recvfrom ___________________________________________________
+#
+# long sys_recvfrom(int fd,
+#		  void __user * ubuf,
+#		  size_t size,
+#		  unsigned flags,
+#		  struct sockaddr __user *addr,
+#		  int __user *addr_len)
+#
+# On some kernels, sys_recv() is just a wrapper for sys_recvfrom(). We
+# check the syscall value (and the 'call' value in the case of
+# sys_socketcall) to make sure we're really in a recvfrom() call.
+#
+
+@define _SYSCALL_RECVFROM_NAME
+%(
+	name = "recvfrom"
+%)
+
+@define _SYSCALL_RECVFROM_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u, %s, %p, %p", s, buf_uaddr, len,
+	                 flags_str, addr_uaddr, addrlen_uaddr)
+%)
+
+probe syscall.recvfrom = dw_syscall.recvfrom !, nd_syscall.recvfrom ? {}
+probe syscall.recvfrom.return = dw_syscall.recvfrom.return !,
+                                nd_syscall.recvfrom.return ? {}
+
+# dw_recvfrom _____________________________________________________
+
+probe dw_syscall.recvfrom = __syscall.socketcall.recvfrom ?,
+	__syscall.compat_socketcall.recvfrom ?, __syscall.recvfrom ?
+{
+	@_SYSCALL_RECVFROM_NAME
+	flags_str = _msg_flags_str(flags)
+	@_SYSCALL_RECVFROM_ARGSTR
+}
+probe __syscall.socketcall.recvfrom = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_RECVFROM")) next
+	s = __int32(user_ulong(&@ulong_cast($args)[0]))
+	buf_uaddr = user_ulong(&@ulong_cast($args)[1])
+	len = user_ulong(&@ulong_cast($args)[2])
+	flags = __uint32(user_ulong(&@ulong_cast($args)[3]))
+	addr_uaddr = user_ulong(&@ulong_cast($args)[4])
+	addrlen_uaddr = __uint32(user_ulong(&@ulong_cast($args)[5]))
+}
+probe __syscall.compat_socketcall.recvfrom =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_RECVFROM")) next
+	s = user_int(&@uint_cast($args)[0])
+	buf_uaddr = user_uint32(&@uint_cast($args)[1])
+	len = user_uint32(&@uint_cast($args)[2])
+	flags = user_uint32(&@uint_cast($args)[3])
+	addr_uaddr = user_uint32(&@uint_cast($args)[4])
+	addrlen_uaddr = user_uint32(&@uint_cast($args)[5])
+}
+probe __syscall.recvfrom = kernel.function("sys_recvfrom").call ?
+{
+	@__syscall_gate(@const("__NR_recvfrom"))
+	s = __int32($fd)
+	buf_uaddr = $ubuf
+	len = __ulong($size)
+	flags = __uint32($flags)
+	addr_uaddr = $addr
+	addrlen_uaddr = $addr_len
+}
+probe dw_syscall.recvfrom.return = __syscall.socketcall.return ?,
+	__syscall.recvfrom.return ?
+{
+	@_SYSCALL_RECVFROM_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.socketcall.return = kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_RECVFROM")) next
+}
+probe __syscall.recvfrom.return = kernel.function("sys_recvfrom").return ?
+{
+	@__syscall_gate(@const("__NR_recvfrom"))
+}
+
+# nd_recvfrom _____________________________________________________
+
+probe nd_syscall.recvfrom = __nd_syscall.socketcall.recvfrom ?,
+	__nd_syscall.compat_socketcall.recvfrom ?, __nd_syscall.recvfrom ?
+{
+	@_SYSCALL_RECVFROM_NAME
+	flags_str = _msg_flags_str(flags)
+	@_SYSCALL_RECVFROM_ARGSTR
+}
+probe __nd_syscall.socketcall.recvfrom =
+	kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_RECVFROM")) next
+	__args = &@ulong_cast(pointer_arg(2))
+	s = __int32(user_ulong(&@ulong_cast(__args)[0]))
+	buf_uaddr = user_ulong(&@ulong_cast(__args)[1])
+	len = user_ulong(&@ulong_cast(__args)[2])
+	flags = __uint32(user_ulong(&@ulong_cast(__args)[3]))
+	addr_uaddr = user_ulong(&@ulong_cast(__args)[4])
+	addrlen_uaddr = __uint32(user_ulong(&@ulong_cast(__args)[5]))
+}
+probe __nd_syscall.compat_socketcall.recvfrom =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_RECVFROM")) next
+	__args = &@uint_cast(pointer_arg(2))
+	s = user_int(&@uint_cast(__args)[0])
+	buf_uaddr = user_uint32(&@uint_cast(__args)[1])
+	len = user_uint32(&@uint_cast(__args)[2])
+	flags = user_uint32(&@uint_cast(__args)[3])
+	addr_uaddr = user_uint32(&@uint_cast(__args)[4])
+	addrlen_uaddr = user_uint32(&@uint_cast(__args)[5])
+}
+probe __nd_syscall.recvfrom = kprobe.function("sys_recvfrom").call ?
+{
+	@__syscall_gate(@const("__NR_recvfrom"))
+	asmlinkage()
+	s = int_arg(1)
+	buf_uaddr = pointer_arg(2)
+	len = ulong_arg(3)
+	flags = uint_arg(4)
+	addr_uaddr = pointer_arg(5)
+	addrlen_uaddr = pointer_arg(6)
+}
+probe nd_syscall.recvfrom.return = __nd_syscall.socketcall.return ?,
+	__nd_syscall.recvfrom.return ?
+{
+	@_SYSCALL_RECVFROM_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.socketcall.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_RECVFROM")) next;
+}
+probe __nd_syscall.recvfrom.return = kprobe.function("sys_recvfrom").return ?
+{
+	@__syscall_gate(@const("__NR_recvfrom"))
+}

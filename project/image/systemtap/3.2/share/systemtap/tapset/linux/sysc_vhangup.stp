@@ -1,0 +1,45 @@
+# vhangup ____________________________________________________
+#
+# asmlinkage long
+# sys_vhangup(void)
+#
+
+@define _SYSCALL_VHANGUP_NAME
+%(
+	name = "vhangup"
+%)
+
+@define _SYSCALL_VHANGUP_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.vhangup = dw_syscall.vhangup !, nd_syscall.vhangup ? {}
+probe syscall.vhangup.return = dw_syscall.vhangup.return !,
+                               nd_syscall.vhangup.return ? {}
+
+# dw_vhangup _____________________________________________________
+
+probe dw_syscall.vhangup = kernel.function("sys_vhangup").call
+{
+	@_SYSCALL_VHANGUP_NAME
+	@_SYSCALL_VHANGUP_ARGSTR
+}
+probe dw_syscall.vhangup.return = kernel.function("sys_vhangup").return
+{
+	@_SYSCALL_VHANGUP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_vhangup _____________________________________________________
+
+probe nd_syscall.vhangup = kprobe.function("sys_vhangup")
+{
+	@_SYSCALL_VHANGUP_NAME
+	@_SYSCALL_VHANGUP_ARGSTR
+}
+probe nd_syscall.vhangup.return = kprobe.function("sys_vhangup").return
+{
+	@_SYSCALL_VHANGUP_NAME
+	retstr = returnstr(1)
+}

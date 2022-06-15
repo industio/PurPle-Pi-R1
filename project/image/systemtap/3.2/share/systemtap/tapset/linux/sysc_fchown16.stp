@@ -1,0 +1,48 @@
+# fchown16 ___________________________________________________
+# long sys_fchown16(unsigned int fd, old_uid_t user, old_gid_t group)
+
+@define _SYSCALL_FCHOWN16_NAME
+%(
+	name = "fchown16"
+%)
+
+@define _SYSCALL_FCHOWN16_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %d", fd, owner, group)
+%)
+
+probe syscall.fchown16 = dw_syscall.fchown16 !, nd_syscall.fchown16 ? {}
+probe syscall.fchown16.return = dw_syscall.fchown16.return !, nd_syscall.fchown16.return ? {}
+
+# dw_fchown16 _____________________________________________________
+
+probe dw_syscall.fchown16 = kernel.function("sys_fchown16").call ?
+{
+	@_SYSCALL_FCHOWN16_NAME
+	fd = $fd
+	owner = __short($user)
+	group = __short($group)
+	@_SYSCALL_FCHOWN16_ARGSTR
+}
+probe dw_syscall.fchown16.return = kernel.function("sys_fchown16").return ?
+{
+	@_SYSCALL_FCHOWN16_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fchown16 _____________________________________________________
+
+probe nd_syscall.fchown16 = kprobe.function("sys_fchown16") ?
+{
+	@_SYSCALL_FCHOWN16_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	owner = __short(uint_arg(2))
+	group = __short(uint_arg(3))
+	@_SYSCALL_FCHOWN16_ARGSTR
+}
+probe nd_syscall.fchown16.return = kprobe.function("sys_fchown16").return ?
+{
+	@_SYSCALL_FCHOWN16_NAME
+	retstr = returnstr(1)
+}

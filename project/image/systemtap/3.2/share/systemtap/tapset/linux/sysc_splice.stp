@@ -1,0 +1,62 @@
+# splice ___________________________________________________
+#
+# long sys_splice(int fd_in, loff_t __user *off_in,
+#                 int fd_out, loff_t __user *off_out,
+#                 size_t len, unsigned int flags)
+#
+
+@define _SYSCALL_SPLICE_NAME
+%(
+	name = "splice"
+%)
+
+@define _SYSCALL_SPLICE_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d, %p, %u, %s", fd_in, off_in, fd_out,
+	                 off_out, len, flags_str);
+%)
+
+probe syscall.splice = dw_syscall.splice !, nd_syscall.splice ? {}
+probe syscall.splice.return = dw_syscall.splice.return !,
+                              nd_syscall.splice.return ? {}
+
+# dw_splice _____________________________________________________
+
+probe dw_syscall.splice = kernel.function("sys_splice").call ?
+{
+	@_SYSCALL_SPLICE_NAME
+	fd_in = __int32($fd_in)
+	off_in = $off_in
+	fd_out = __int32($fd_out)
+	off_out = $off_out
+	len = __ulong($len)
+	flags = $flags
+	flags_str = (_stp_splice_flags_str(flags))
+	@_SYSCALL_SPLICE_ARGSTR
+}
+probe dw_syscall.splice.return = kernel.function("sys_splice").return ?
+{
+	@_SYSCALL_SPLICE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_splice _____________________________________________________
+
+probe nd_syscall.splice = kprobe.function("sys_splice") ?
+{
+	@_SYSCALL_SPLICE_NAME
+	asmlinkage()
+	fd_in = int_arg(1)
+	off_in = pointer_arg(2)
+	fd_out = int_arg(3)
+	off_out = pointer_arg(4)
+	len = ulong_arg(5)
+	flags = uint_arg(6)
+	flags_str = (_stp_splice_flags_str(flags))
+	@_SYSCALL_SPLICE_ARGSTR
+}
+probe nd_syscall.splice.return = kprobe.function("sys_splice").return ?
+{
+	@_SYSCALL_SPLICE_NAME
+	retstr = returnstr(1)
+}

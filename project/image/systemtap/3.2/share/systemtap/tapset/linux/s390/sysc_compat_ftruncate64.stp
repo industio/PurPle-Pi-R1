@@ -1,0 +1,58 @@
+# ftruncate64 _________________________________________________
+#
+# COMPAT_SYSCALL_DEFINE3(s390_ftruncate64, unsigned int, fd, u32, high,
+#			 u32, low)
+#
+
+@define _SYSCALL_COMPAT_FTRUNCATE64_NAME
+%(
+	name = "ftruncate"
+%)
+
+@define _SYSCALL_COMPAT_FTRUNCATE64_ARGSTR
+%(
+	argstr = sprintf("%d, %d", fd, length)
+%)
+
+probe syscall.compat_ftruncate64 = dw_syscall.compat_ftruncate64 !,
+                                   nd_syscall.compat_ftruncate64 ? {}
+probe syscall.compat_ftruncate64.return = dw_syscall.compat_ftruncate64.return !,
+                                          nd_syscall.compat_ftruncate64.return ? {}
+
+# dw_compat_ftruncate64 _____________________________________________________
+
+probe dw_syscall.compat_ftruncate64 =
+	kernel.function("sys32_ftruncate64").call ?,
+	kernel.function("compat_sys_s390_ftruncate64").call ?
+{
+        @_SYSCALL_COMPAT_FTRUNCATE64_NAME
+        fd = __int32($fd)
+        length = (($high << 32) | __uint32($low))
+        @_SYSCALL_COMPAT_FTRUNCATE64_ARGSTR
+}
+probe dw_syscall.compat_ftruncate64.return =
+	kernel.function("sys32_ftruncate64").return ?,
+	kernel.function("compat_sys_s390_ftruncate64").return ?
+{
+	@_SYSCALL_COMPAT_FTRUNCATE64_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_ftruncate64 _____________________________________________________
+
+probe nd_syscall.compat_ftruncate64 = kprobe.function("sys32_ftruncate64") ?,
+	kprobe.function("compat_sys_s390_ftruncate64") ?
+{
+	asmlinkage()
+        @_SYSCALL_COMPAT_FTRUNCATE64_NAME
+        fd = int_arg(1)
+        length = ((uint_arg(2) << 32) | uint_arg(3))
+        @_SYSCALL_COMPAT_FTRUNCATE64_ARGSTR
+}
+probe nd_syscall.compat_ftruncate64.return =
+	kprobe.function("sys32_ftruncate64").return ?,
+	kprobe.function("compat_sys_s390_ftruncate64").return ?
+{
+	@_SYSCALL_COMPAT_FTRUNCATE64_NAME
+	retstr = returnstr(1)
+}

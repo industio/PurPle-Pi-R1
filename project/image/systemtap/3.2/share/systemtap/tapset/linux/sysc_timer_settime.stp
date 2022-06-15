@@ -1,0 +1,105 @@
+# timer_settime ______________________________________________
+#
+# long sys_timer_settime(timer_t timer_id,
+#			 int flags,
+#			 const struct itimerspec __user *new_setting,
+#			 struct itimerspec __user *old_setting)
+# long compat_sys_timer_settime(timer_t timer_id, int flags,
+#			  struct compat_itimerspec __user *new,
+#			  struct compat_itimerspec __user *old)
+#
+
+@define _SYSCALL_TIMER_SETTIME_NAME
+%(
+	name = "timer_settime"
+%)
+
+@define _SYSCALL_TIMER_SETTIME_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %s, %p", timerid, flags,
+	                 value_str, ovalue_uaddr)
+%)
+
+probe syscall.timer_settime = dw_syscall.timer_settime !,
+                              nd_syscall.timer_settime ? {}
+probe syscall.timer_settime.return = dw_syscall.timer_settime.return !,
+                                     nd_syscall.timer_settime.return ? {}
+
+# dw_timer_settime _____________________________________________________
+
+probe dw_syscall.timer_settime = __syscall.timer_settime,
+                              kernel.function("compat_sys_timer_settime").call ?
+{
+	@_SYSCALL_TIMER_SETTIME_NAME
+	timerid = __int32($timer_id)
+	flags = __int32($flags)
+	value_uaddr  = @__pointer(@choose_defined($new, $new_setting))
+	ovalue_uaddr = @__pointer(@choose_defined($old, $old_setting))
+%( CONFIG_COMPAT == "y" %?
+	value_str = (@__compat_task ? _struct_compat_itimerspec_u(value_uaddr)
+	             : _struct_itimerspec_u(value_uaddr))
+%:
+	value_str = _struct_itimerspec_u(value_uaddr)
+%)
+	@_SYSCALL_TIMER_SETTIME_ARGSTR
+}
+probe __syscall.timer_settime = kernel.function("sys_timer_settime").call
+{
+	@__syscall_gate(@const("__NR_timer_settime"))
+}
+probe dw_syscall.timer_settime.return =
+	__syscall.timer_settime.return,
+	kernel.function("compat_sys_timer_settime").return ?
+{
+	@_SYSCALL_TIMER_SETTIME_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.timer_settime.return =
+	kernel.function("sys_timer_settime").return
+{
+	@__syscall_gate(@const("__NR_timer_settime"))
+}
+
+# nd_timer_settime _____________________________________________________
+
+probe nd_syscall.timer_settime = __nd_syscall.timer_settime,
+				 __nd_syscall.compat_timer_settime ?
+{
+	@_SYSCALL_TIMER_SETTIME_NAME
+	asmlinkage()
+}
+probe __nd_syscall.timer_settime = kprobe.function("sys_timer_settime").call
+{
+	@__syscall_gate(@const("__NR_timer_settime"))
+	asmlinkage()
+	timerid = int_arg(1)
+	flags = int_arg(2)
+	value_uaddr  = pointer_arg(3)
+	value_str = _struct_itimerspec_u(value_uaddr)
+	ovalue_uaddr = pointer_arg(4)
+
+	@_SYSCALL_TIMER_SETTIME_ARGSTR
+}
+probe __nd_syscall.compat_timer_settime =
+	kprobe.function("compat_sys_timer_settime").call ?
+{
+	asmlinkage()
+	timerid = int_arg(1)
+	flags = int_arg(2)
+	value_uaddr  = pointer_arg(3)
+	value_str = _struct_compat_itimerspec_u(value_uaddr)
+	ovalue_uaddr = pointer_arg(4)
+	@_SYSCALL_TIMER_SETTIME_ARGSTR
+}
+probe nd_syscall.timer_settime.return =
+	__nd_syscall.timer_settime.return,
+	kprobe.function("compat_sys_timer_settime").return ?
+{
+	@_SYSCALL_TIMER_SETTIME_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.timer_settime.return =
+	kprobe.function("sys_timer_settime").return
+{
+	@__syscall_gate(@const("__NR_timer_settime"))
+}

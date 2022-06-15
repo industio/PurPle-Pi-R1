@@ -1,0 +1,57 @@
+# rt_sigreturn _______________________________________________
+# int sys_rt_sigreturn(unsigned long __unused)
+#
+
+@define _SYSCALL_RT_SIGRETURN_NAME
+%(
+	name = "rt_sigreturn"
+%)
+
+@define _SYSCALL_RT_SIGRETURN_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.rt_sigreturn = dw_syscall.rt_sigreturn !, nd_syscall.rt_sigreturn ? {}
+probe syscall.rt_sigreturn.return = dw_syscall.rt_sigreturn.return !,
+                                    nd_syscall.rt_sigreturn.return ? {}
+
+# dw_rt_sigreturn _____________________________________________________
+
+probe dw_syscall.rt_sigreturn = kernel.function("ia64_rt_sigreturn").call !,
+			     kernel.function("sys_rt_sigreturn").call ?,
+                             kernel.function("sys32_rt_sigreturn").call ?
+{
+	@_SYSCALL_RT_SIGRETURN_NAME
+	@_SYSCALL_RT_SIGRETURN_ARGSTR
+}
+probe dw_syscall.rt_sigreturn.return =
+	kernel.function("ia64_rt_sigreturn").return !,
+	kernel.function("sys_rt_sigreturn").return ?,
+	kernel.function("sys32_rt_sigreturn").return ?
+{
+	@_SYSCALL_RT_SIGRETURN_NAME
+%( arch == "mips" %?
+	retstr = "void"
+%:
+	retstr = return_str(1, $return)
+%)
+}
+
+# nd_rt_sigreturn _____________________________________________________
+
+probe nd_syscall.rt_sigreturn = kprobe.function("ia64_rt_sigreturn").call !,
+	kprobe.function("sys_rt_sigreturn").call ?,
+	kprobe.function("sys32_rt_sigreturn").call ?
+{
+	@_SYSCALL_RT_SIGRETURN_NAME
+	@_SYSCALL_RT_SIGRETURN_ARGSTR
+}
+probe nd_syscall.rt_sigreturn.return =
+	kprobe.function("ia64_rt_sigreturn").return !,
+	kprobe.function("sys_rt_sigreturn").return ?,
+	kprobe.function("sys32_rt_sigreturn").return ?
+{
+	@_SYSCALL_RT_SIGRETURN_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,118 @@
+# wait4 ______________________________________________________
+#
+# long sys_wait4(pid_t pid,
+#	     int __user *stat_addr,
+#	     int options,
+#	     struct rusage __user *ru)
+# COMPAT_SYSCALL_DEFINE4(wait4,
+#	compat_pid_t, pid,
+#	compat_uint_t __user *, stat_addr,
+#	int, options,
+#	struct compat_rusage __user *, ru)
+#
+
+@define _SYSCALL_WAIT4_NAME
+%(
+	name = "wait4"
+%)
+
+@define _SYSCALL_WAIT4_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %s, %p", pid, status_uaddr,
+	                 options_str, rusage_uaddr)
+%)
+
+probe syscall.wait4 = dw_syscall.wait4 !, nd_syscall.wait4 ? {}
+probe syscall.wait4.return = dw_syscall.wait4.return !,
+                             nd_syscall.wait4.return ? {}
+
+# dw_wait4 _____________________________________________________
+
+probe dw_syscall.wait4 = __syscall.wait4, __syscall.compat_wait4 ?
+{
+	@_SYSCALL_WAIT4_NAME
+	pid = __int32(@choose_defined($upid, $pid))
+	status_uaddr = @__pointer($stat_addr)
+	options = __int32($options)
+	options_str = _wait4_opt_str(options)
+	rusage_uaddr = @__pointer($ru)
+	@_SYSCALL_WAIT4_ARGSTR
+}
+probe __syscall.wait4 = kernel.function("sys_wait4").call
+{
+	@__syscall_gate(@const("__NR_wait4"))
+}
+probe __syscall.compat_wait4 = kernel.function("compat_sys_wait4").call ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_wait4"))
+}
+probe dw_syscall.wait4.return = __syscall.wait4.return,
+	__syscall.compat_wait4.return ?
+{
+	@_SYSCALL_WAIT4_NAME
+
+	if (returnval () <= 0)
+		status_str = "N/A"
+	else if (@entry($stat_addr) == 0)
+		status_str = "NULL"
+	else
+		status_str = _wait_status_str(user_int(@entry($stat_addr)))
+
+	retstr = return_str(1, $return)
+}
+probe __syscall.wait4.return = kernel.function("sys_wait4").return
+{
+	@__syscall_gate(@const("__NR_wait4"))
+}
+probe __syscall.compat_wait4.return =
+	kernel.function("compat_sys_wait4").return ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_wait4"))
+}
+
+# nd_wait4 _____________________________________________________
+
+probe nd_syscall.wait4 = __nd_syscall.wait4, __nd_syscall.compat_wait4 ?
+{
+	@_SYSCALL_WAIT4_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	status_uaddr = pointer_arg(2)
+	options = int_arg(3)
+	options_str = _wait4_opt_str(options)
+	rusage_uaddr = pointer_arg(4)
+	@_SYSCALL_WAIT4_ARGSTR
+}
+probe __nd_syscall.wait4 = kprobe.function("sys_wait4")
+{
+	@__syscall_gate(@const("__NR_wait4"))
+}
+probe __nd_syscall.compat_wait4 = kprobe.function("compat_sys_wait4") ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_wait4"))
+}
+probe nd_syscall.wait4.return = __nd_syscall.wait4.return,
+	__nd_syscall.compat_wait4.return ?
+{
+	@_SYSCALL_WAIT4_NAME
+
+	asmlinkage()
+	status_uaddr = pointer_arg(2)
+	if (returnval () <= 0)
+		status_str = "N/A"
+	else if (status_uaddr == 0)
+		status_str = "NULL"
+	else
+		status_str = _wait_status_str(user_int(status_uaddr))
+
+	retstr = returnstr(1)
+}
+probe __nd_syscall.wait4.return = kprobe.function("sys_wait4").return
+{
+	@__syscall_gate(@const("__NR_wait4"))
+}
+probe __nd_syscall.compat_wait4.return =
+	kprobe.function("compat_sys_wait4").return ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_wait4"))
+}

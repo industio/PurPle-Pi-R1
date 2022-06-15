@@ -1,0 +1,67 @@
+# setxattr ___________________________________________________
+# long sys_setxattr(char __user *path,
+#		  char __user *name,
+#		  void __user *value,
+#		  size_t size,
+#		  int flags)
+#
+
+@define _SYSCALL_SETXATTR_NAME
+%(
+	name = "setxattr"
+%)
+
+@define _SYSCALL_SETXATTR_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %u, %s", path, name_str, value_str,
+	                 size, flags_str)
+%)
+
+probe syscall.setxattr = dw_syscall.setxattr !, nd_syscall.setxattr ? {}
+probe syscall.setxattr.return = dw_syscall.setxattr.return !,
+                                nd_syscall.setxattr.return ? {}
+
+# dw_setxattr _____________________________________________________
+
+probe dw_syscall.setxattr = kernel.function("sys_setxattr").call
+{
+	@_SYSCALL_SETXATTR_NAME
+	path_uaddr = @choose_defined($pathname, $path)
+	path = user_string_quoted(@choose_defined($pathname, $path))
+	name_uaddr = $name
+	name_str = user_string_quoted($name)
+	value_uaddr = $value
+	value_str = _stp_xattr_val_str($value, $size)
+	size = __ulong($size)
+	flags = __int32($flags)
+	flags_str = _stp_xattr_flags_str(__int32($flags))
+	@_SYSCALL_SETXATTR_ARGSTR
+}
+probe dw_syscall.setxattr.return = kernel.function("sys_setxattr").return
+{
+	@_SYSCALL_SETXATTR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setxattr _____________________________________________________
+
+probe nd_syscall.setxattr = kprobe.function("sys_setxattr") ?
+{
+	@_SYSCALL_SETXATTR_NAME
+	asmlinkage()
+	path_uaddr = pointer_arg(1)
+	path = user_string_quoted(path_uaddr)
+	name_uaddr = pointer_arg(2)
+	name_str = user_string_quoted(name_uaddr)
+	value_uaddr = pointer_arg(3)
+	size = ulong_arg(4)
+	value_str = _stp_xattr_val_str(value_uaddr, size)
+	flags = int_arg(5)
+	flags_str = _stp_xattr_flags_str(flags)
+	@_SYSCALL_SETXATTR_ARGSTR
+}
+probe nd_syscall.setxattr.return = kprobe.function("sys_setxattr").return ?
+{
+	@_SYSCALL_SETXATTR_NAME
+	retstr = returnstr(1)
+}

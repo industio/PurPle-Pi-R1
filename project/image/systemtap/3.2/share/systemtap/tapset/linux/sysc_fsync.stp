@@ -1,0 +1,44 @@
+# fsync ______________________________________________________
+# long sys_fsync(unsigned int fd)
+
+@define _SYSCALL_FSYNC_NAME
+%(
+	name = "fsync"
+%)
+
+@define _SYSCALL_FSYNC_ARGSTR
+%(
+	argstr = sprint(fd)
+%)
+
+probe syscall.fsync = dw_syscall.fsync !, nd_syscall.fsync ? {}
+probe syscall.fsync.return = dw_syscall.fsync.return !, nd_syscall.fsync.return ? {}
+
+# dw_fsync _____________________________________________________
+
+probe dw_syscall.fsync = kernel.function("sys_fsync").call
+{
+	@_SYSCALL_FSYNC_NAME
+	fd = __int32($fd)
+	@_SYSCALL_FSYNC_ARGSTR
+}
+probe dw_syscall.fsync.return = kernel.function("sys_fsync").return
+{
+	@_SYSCALL_FSYNC_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fsync _____________________________________________________
+
+probe nd_syscall.fsync = kprobe.function("sys_fsync") ?
+{
+	@_SYSCALL_FSYNC_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	@_SYSCALL_FSYNC_ARGSTR
+}
+probe nd_syscall.fsync.return = kprobe.function("sys_fsync").return ?
+{
+	@_SYSCALL_FSYNC_NAME
+	retstr = returnstr(1)
+}

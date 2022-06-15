@@ -1,0 +1,79 @@
+# adjtimex ___________________________________________________
+# long sys_adjtimex(struct timex __user *txc_p)
+
+@define _SYSCALL_ADJTIMEX_NAME
+%(
+	name = "adjtimex"
+%)
+
+@define _SYSCALL_ADJTIMEX_ARGSTR
+%(
+	argstr = sprintf("%s", buf_str)
+%)
+
+probe syscall.adjtimex = dw_syscall.adjtimex !, nd_syscall.adjtimex ? {}
+probe syscall.adjtimex.return = dw_syscall.adjtimex.return !,
+                                nd_syscall.adjtimex.return ? {}
+
+probe syscall.compat_adjtimex = dw_syscall.compat_adjtimex !,
+                                nd_syscall.compat_adjtimex ? {}
+probe syscall.compat_adjtimex.return = dw_syscall.compat_adjtimex.return !,
+                                       nd_syscall.compat_adjtimex.return ? {}
+
+# dw_adjtimex _____________________________________________________
+
+probe dw_syscall.adjtimex = kernel.function("sys_adjtimex").call
+{
+	@_SYSCALL_ADJTIMEX_NAME
+	buf_uaddr = $txc_p
+	buf_str = _struct_timex_u(buf_uaddr)
+	@_SYSCALL_ADJTIMEX_ARGSTR
+}
+probe dw_syscall.adjtimex.return = kernel.function("sys_adjtimex").return
+{
+	@_SYSCALL_ADJTIMEX_NAME
+	retstr = _adjtimex_return_str($return)
+}
+# long compat_sys_adjtimex(struct compat_timex __user *utp)
+probe dw_syscall.compat_adjtimex = kernel.function("compat_sys_adjtimex").call ?
+{
+	@_SYSCALL_ADJTIMEX_NAME
+	buf_uaddr = $utp
+	buf_str = _struct_compat_timex_u(buf_uaddr)
+	@_SYSCALL_ADJTIMEX_ARGSTR
+}
+probe dw_syscall.compat_adjtimex.return = kernel.function("compat_sys_adjtimex").return ?
+{
+	@_SYSCALL_ADJTIMEX_NAME
+	retstr = _adjtimex_return_str($return)
+}
+
+# nd_adjtimex _____________________________________________________
+
+probe nd_syscall.adjtimex = kprobe.function("sys_adjtimex") ?
+{
+	@_SYSCALL_ADJTIMEX_NAME
+	asmlinkage()
+	buf_uaddr = pointer_arg(1)
+	buf_str = _struct_timex_u(buf_uaddr)
+	@_SYSCALL_ADJTIMEX_ARGSTR
+}
+probe nd_syscall.adjtimex.return = kprobe.function("sys_adjtimex").return ?
+{
+	@_SYSCALL_ADJTIMEX_NAME
+	retstr = _adjtimex_return_str(returnval())
+}
+# long compat_sys_adjtimex(struct compat_timex __user *utp)
+probe nd_syscall.compat_adjtimex = kprobe.function("compat_sys_adjtimex") ?
+{
+	@_SYSCALL_ADJTIMEX_NAME
+	asmlinkage()
+	buf_uaddr = pointer_arg(1)
+	buf_str = _struct_compat_timex_u(buf_uaddr)
+	@_SYSCALL_ADJTIMEX_ARGSTR
+}
+probe nd_syscall.compat_adjtimex.return = kprobe.function("compat_sys_adjtimex").return ?
+{
+	@_SYSCALL_ADJTIMEX_NAME
+	retstr = _adjtimex_return_str(returnval())
+}

@@ -1,0 +1,121 @@
+# pselect7 _____________________________________________________
+#
+# long sys_pselect7(int n, fd_set __user *inp, fd_set __user *outp,
+#	fd_set __user *exp, struct timespec __user *tsp,
+#	const sigset_t __user *sigmask, size_t sigsetsize)
+#
+
+@define _SYSCALL_PSELECT7_NAME
+%(
+	name = "pselect7"
+%)
+
+@define _SYSCALL_PSELECT7_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %p, %p, %s, %p, %d", nfds, readfds, writefds,
+	                 exceptfds, timeout_str, sigmask, sigsetsize)
+%)
+
+probe syscall.pselect7 = dw_syscall.pselect7 !, nd_syscall.pselect7 ? {}
+probe syscall.pselect7.return = dw_syscall.pselect7.return !,
+                                nd_syscall.pselect7.return ? {}
+
+# dw_pselect7 _____________________________________________________
+
+probe dw_syscall.pselect7 = kernel.function("sys_pselect7").call ?
+{
+	@__syscall_gate(@const("__NR_pselect7"))
+	@_SYSCALL_PSELECT7_NAME
+	nfds = __int32($n)
+	readfds = $inp
+	writefds = $outp
+	exceptfds = $exp
+	timeout = $tsp
+	timeout_str = _struct_timespec_u(timeout, 1)
+	sigmask = $sig
+	sigsetsize = $sigsetsize
+	@_SYSCALL_PSELECT7_ARGSTR
+}
+probe dw_syscall.pselect7.return = kernel.function("sys_pselect7").return ?
+{
+	@__syscall_gate(@const("__NR_pselect7"))
+	@_SYSCALL_PSELECT7_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_pselect7 _____________________________________________________
+
+probe nd_syscall.pselect7 = kprobe.function("sys_pselect7") ?
+{
+	@__syscall_gate(@const("__NR_pselect7"))
+	@_SYSCALL_PSELECT7_NAME
+	asmlinkage()
+	nfds = int_arg(1)
+	readfds = pointer_arg(2)
+	writefds = pointer_arg(3)
+	exceptfds = pointer_arg(4)
+	timeout = pointer_arg(5)
+	timeout_str = _struct_timespec_u(timeout, 1)
+	sigmask = pointer_arg(6)
+	sigsetsize = ulong_arg(7)
+	@_SYSCALL_PSELECT7_ARGSTR
+}
+probe nd_syscall.pselect7.return = kprobe.function("sys_pselect7").return ?
+{
+	@__syscall_gate(@const("__NR_pselect7"))
+	@_SYSCALL_PSELECT7_NAME
+	retstr = returnstr(1)
+}
+# compat_pselect7 ______________________________________________
+
+probe syscall.compat_pselect7 = dw_syscall.compat_pselect7 !,
+                                nd_syscall.compat_pselect7 ? {}
+probe syscall.compat_pselect7.return = dw_syscall.compat_pselect7.return !,
+                                       nd_syscall.compat_pselect7.return ? {}
+
+# dw_compat_pselect7 _____________________________________________________
+
+probe dw_syscall.compat_pselect7 = kernel.function("compat_sys_pselect7").call ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_pselect7"))
+	@_SYSCALL_PSELECT7_NAME
+	nfds = __int32($n)
+	readfds = @__pointer($inp)
+	writefds = @__pointer($outp)
+	exceptfds = @__pointer($exp)
+	timeout = @__pointer($tsp)
+	timeout_str = _struct_compat_timespec_u(timeout, 1)
+	sigmask = $sig
+	sigsetsize = $sigsetsize
+	@_SYSCALL_PSELECT7_ARGSTR
+}
+probe dw_syscall.compat_pselect7.return = kernel.function("compat_sys_pselect7").return ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_pselect7"))
+	@_SYSCALL_PSELECT7_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_pselect7 _____________________________________________________
+
+probe nd_syscall.compat_pselect7 = kprobe.function("compat_sys_pselect7") ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_pselect7"))
+	@_SYSCALL_PSELECT7_NAME
+	asmlinkage()
+	nfds = int_arg(1)
+	readfds = pointer_arg(2)
+	writefds = pointer_arg(3)
+	exceptfds = pointer_arg(4)
+	timeout = pointer_arg(5)
+	timeout_str = _struct_compat_timespec_u(timeout, 1)
+	sigmask = pointer_arg(6)
+	sigsetsize = ulong_arg(7)
+	@_SYSCALL_PSELECT7_ARGSTR
+}
+probe nd_syscall.compat_pselect7.return = kprobe.function("compat_sys_pselect7").return ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_pselect7"))
+	@_SYSCALL_PSELECT7_NAME
+	retstr = returnstr(1)
+}

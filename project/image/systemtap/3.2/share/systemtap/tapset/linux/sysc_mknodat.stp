@@ -1,0 +1,62 @@
+# mknodat ____________________________________________________
+# long sys_mknodat(int dfd, const char __user *filename,
+#	int mode, unsigned dev)
+# new function with 2.6.16
+
+@define _SYSCALL_MKNODAT_NAME
+%(
+	name = "mknodat"
+%)
+
+@define _SYSCALL_MKNODAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %u",
+	                 dirfd_str, pathname, mode_str, dev)
+%)
+
+probe syscall.mknodat = dw_syscall.mknodat !, nd_syscall.mknodat ? {}
+probe syscall.mknodat.return = dw_syscall.mknodat.return !,
+                               nd_syscall.mknodat.return ? {}
+
+# dw_mknodat _____________________________________________________
+
+probe dw_syscall.mknodat = kernel.function("sys_mknodat").call ?
+{
+	@__syscall_compat_gate(@const("__NR_mknodat"), @const("__NR_compat_mknodat"))
+	@_SYSCALL_MKNODAT_NAME
+	dirfd = __int32($dfd)
+	dirfd_str = _dfd_str(dirfd)
+	pathname = user_string_quoted($filename)
+	mode = __uint32($mode)
+	mode_str = _mknod_mode_str(mode)
+	dev = __uint32($dev)
+	@_SYSCALL_MKNODAT_ARGSTR
+}
+probe dw_syscall.mknodat.return = kernel.function("sys_mknodat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_mknodat"), @const("__NR_compat_mknodat"))
+	@_SYSCALL_MKNODAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mknodat _____________________________________________________
+
+probe nd_syscall.mknodat = kprobe.function("sys_mknodat") ?
+{
+	@__syscall_compat_gate(@const("__NR_mknodat"), @const("__NR_compat_mknodat"))
+	@_SYSCALL_MKNODAT_NAME
+	asmlinkage()
+	dirfd = int_arg(1)
+	dirfd_str = _dfd_str(dirfd)
+	pathname = user_string_quoted(pointer_arg(2))
+	mode = uint_arg(3)
+	mode_str = _mknod_mode_str(mode)
+	dev = uint_arg(4)
+	@_SYSCALL_MKNODAT_ARGSTR
+}
+probe nd_syscall.mknodat.return = kprobe.function("sys_mknodat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_mknodat"), @const("__NR_compat_mknodat"))
+	@_SYSCALL_MKNODAT_NAME
+	retstr = returnstr(1)
+}

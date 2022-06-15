@@ -1,0 +1,52 @@
+# pause ______________________________________________________
+#
+# sys_pause(void)
+#
+
+@define _SYSCALL_PAUSE_NAME
+%(
+	name = "pause"
+%)
+
+@define _SYSCALL_PAUSE_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.pause = dw_syscall.pause !, nd_syscall.pause ? {}
+probe syscall.pause.return = dw_syscall.pause.return !,
+                             nd_syscall.pause.return ? {}
+
+# dw_pause _____________________________________________________
+
+probe dw_syscall.pause = kernel.function("sys_pause").call ?,
+                      kernel.function("sys32_pause").call ?,
+                      kernel.function("compat_sys_pause").call ?
+{
+	@_SYSCALL_PAUSE_NAME
+	@_SYSCALL_PAUSE_ARGSTR
+}
+probe dw_syscall.pause.return = kernel.function("sys_pause").return ?,
+                             kernel.function("sys32_pause").return ?,
+                             kernel.function("compat_sys_pause").return ?
+{
+	@_SYSCALL_PAUSE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_pause _____________________________________________________
+
+probe nd_syscall.pause = kprobe.function("sys_pause") ?,
+                         kprobe.function("sys32_pause") ?,
+                         kprobe.function("compat_sys_pause") ?
+{
+	@_SYSCALL_PAUSE_NAME
+	@_SYSCALL_PAUSE_ARGSTR
+}
+probe nd_syscall.pause.return = kprobe.function("sys_pause").return ?,
+                                kprobe.function("sys32_pause").return ?,
+                                kprobe.function("compat_sys_pause").return ?
+{
+	@_SYSCALL_PAUSE_NAME
+	retstr = returnstr(1)
+}

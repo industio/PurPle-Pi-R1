@@ -1,0 +1,42 @@
+# getppid ____________________________________________________
+# long sys_getppid(void)
+
+@define _SYSCALL_GETPPID_NAME
+%(
+	name = "getppid"
+%)
+
+@define _SYSCALL_GETPPID_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.getppid = dw_syscall.getppid !, nd_syscall.getppid ? {}
+probe syscall.getppid.return = dw_syscall.getppid.return !,
+                               nd_syscall.getppid.return ? {}
+
+# dw_getppid _____________________________________________________
+
+probe dw_syscall.getppid = kernel.function("sys_getppid").call
+{
+	@_SYSCALL_GETPPID_NAME
+	@_SYSCALL_GETPPID_ARGSTR
+}
+probe dw_syscall.getppid.return = kernel.function("sys_getppid").return
+{
+	@_SYSCALL_GETPPID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getppid _____________________________________________________
+
+probe nd_syscall.getppid = kprobe.function("sys_getppid")
+{
+	@_SYSCALL_GETPPID_NAME
+	@_SYSCALL_GETPPID_ARGSTR
+}
+probe nd_syscall.getppid.return = kprobe.function("sys_getppid").return
+{
+	@_SYSCALL_GETPPID_NAME
+	retstr = returnstr(1)
+}

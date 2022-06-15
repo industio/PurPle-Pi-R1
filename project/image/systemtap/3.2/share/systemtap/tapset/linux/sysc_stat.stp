@@ -1,0 +1,86 @@
+# stat _______________________________________________________
+# long sys_stat(char __user * filename, struct __old_stat __user * statbuf)
+# long sys32_stat64(char __user * filename, struct stat64 __user *statbuf)
+# long sys_stat64(char __user * filename, struct stat64 __user * statbuf)
+# long sys_oabi_stat64(char __user * filename, struct oldabi_stat64 __user * statbuf)
+# long compat_sys_newstat(char __user * filename, struct compat_stat __user *statbuf)
+# COMPAT_SYSCALL_DEFINE2(s390_stat64, const char __user *, filename, struct stat64_emu31 __user *, statbuf)
+#
+
+@define _SYSCALL_STAT_NAME
+%(
+	name = "stat"
+%)
+
+@define _SYSCALL_STAT_ARGSTR
+%(
+	argstr = sprintf("%s, %p", filename, buf_uaddr)
+%)
+
+probe syscall.stat = dw_syscall.stat !, nd_syscall.stat ? {}
+probe syscall.stat.return = dw_syscall.stat.return !, nd_syscall.stat.return ? {}
+
+# dw_stat _____________________________________________________
+
+probe dw_syscall.stat = kernel.function("sys_stat").call ?,
+                     kernel.function("sys_newstat").call ?,
+                     kernel.function("sys32_stat64").call ?,
+                     kernel.function("sys_stat64").call ?,
+                     kernel.function("sys_oabi_stat64").call ?,
+%( arch == "s390" %?
+                     kernel.function("compat_sys_s390_stat64").call ?,
+%)
+                     kernel.function("compat_sys_newstat").call ?
+{
+	@_SYSCALL_STAT_NAME
+	filename_uaddr = $filename
+	filename = user_string_quoted($filename)
+	buf_uaddr = $statbuf
+	@_SYSCALL_STAT_ARGSTR
+}
+probe dw_syscall.stat.return = kernel.function("sys_stat").return ?,
+                            kernel.function("sys_newstat").return ?,
+                            kernel.function("sys32_stat64").return ?,
+                            kernel.function("sys_stat64").return ?,
+                            kernel.function("sys_oabi_stat64").return ?,
+%( arch == "s390" %?
+                            kernel.function("compat_sys_s390_stat64").return ?,
+%)
+                            kernel.function("compat_sys_newstat").return ?
+{
+	@_SYSCALL_STAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_stat _____________________________________________________
+
+probe nd_syscall.stat = kprobe.function("sys_stat") ?,
+                        kprobe.function("sys_newstat") ?,
+                        kprobe.function("sys32_stat64") ?,
+                        kprobe.function("sys_stat64") ?,
+                        kprobe.function("sys_oabi_stat64") ?,
+%( arch == "s390" %?
+                        kprobe.function("compat_sys_s390_stat64") ?,
+%)
+                        kprobe.function("compat_sys_newstat") ?
+{
+	@_SYSCALL_STAT_NAME
+	asmlinkage()
+	filename_uaddr = pointer_arg(1)
+	filename = user_string_quoted(filename_uaddr)
+	buf_uaddr = pointer_arg(2)
+	@_SYSCALL_STAT_ARGSTR
+}
+probe nd_syscall.stat.return = kprobe.function("sys_stat").return ?,
+	kprobe.function("sys_newstat").return ?,
+	kprobe.function("sys32_stat64").return ?,
+	kprobe.function("sys_stat64").return ?,
+	kprobe.function("sys_oabi_stat64").return ?,
+%( arch == "s390" %?
+	kprobe.function("compat_sys_s390_stat64").return ?,
+%)
+	kprobe.function("compat_sys_newstat").return ?
+{
+	@_SYSCALL_STAT_NAME
+	retstr = returnstr(1)
+}

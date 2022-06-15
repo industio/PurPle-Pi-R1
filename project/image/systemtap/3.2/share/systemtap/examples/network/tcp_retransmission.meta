@@ -1,0 +1,6 @@
+title: print tcp retransmission packet
+name: tcp_retransmission.stp
+keywords: tcp retransmission
+description: The tcp_retransmission.stp prints out a line for each tcp retransmission packet
+test_check: stap -p4 tcp_retransmission.stp
+test_installcheck: stap tcp_retransmission.stp -T 1

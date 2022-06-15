@@ -1,0 +1,63 @@
+# geteuid ____________________________________________________
+# long sys_geteuid(void)
+# long sys32_geteuid16(void)
+#
+
+@define _SYSCALL_GETEUID_NAME
+%(
+	name = "geteuid"
+%)
+
+@define _SYSCALL_GETEUID_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.geteuid = dw_syscall.geteuid !, nd_syscall.geteuid ? {}
+probe syscall.geteuid.return = dw_syscall.geteuid.return !, nd_syscall.geteuid.return ? {}
+
+# dw_geteuid _____________________________________________________
+
+probe dw_syscall.geteuid = kernel.function("sys_geteuid16").call ?,
+                        kernel.function("sys32_geteuid16").call ?,
+%( arch == "s390" %?
+                        kernel.function("compat_sys_s390_geteuid16").call ?,
+%)
+                        kernel.function("sys_geteuid").call
+{
+	@_SYSCALL_GETEUID_NAME
+	@_SYSCALL_GETEUID_ARGSTR
+}
+probe dw_syscall.geteuid.return = kernel.function("sys_geteuid16").return ?,
+	kernel.function("sys32_geteuid16").return ?,
+%( arch == "s390" %?
+	kernel.function("compat_sys_s390_geteuid16").return ?,
+%)
+	kernel.function("sys_geteuid").return
+{
+	@_SYSCALL_GETEUID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_geteuid _____________________________________________________
+
+probe nd_syscall.geteuid = kprobe.function("sys_geteuid16") ?,
+                           kprobe.function("sys32_geteuid16") ?,
+%( arch == "s390" %?
+                           kprobe.function("compat_sys_s390_geteuid16") ?,
+%)
+                           kprobe.function("sys_geteuid")
+{
+	@_SYSCALL_GETEUID_NAME
+	@_SYSCALL_GETEUID_ARGSTR
+}
+probe nd_syscall.geteuid.return = kprobe.function("sys_geteuid16").return ?,
+	kprobe.function("sys32_geteuid16").return ?,
+%( arch == "s390" %?
+	kprobe.function("compat_sys_s390_geteuid16").return ?,
+%)
+	kprobe.function("sys_geteuid").return
+{
+	@_SYSCALL_GETEUID_NAME
+	retstr = returnstr(1)
+}

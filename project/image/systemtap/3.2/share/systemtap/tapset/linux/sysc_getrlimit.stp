@@ -1,0 +1,75 @@
+# getrlimit __________________________________________________
+# long sys_getrlimit(unsigned int resource, struct rlimit __user *rlim)
+# long sys_old_getrlimit(unsigned int resource, struct rlimit __user *rlim)
+# long compat_sys_getrlimit (unsigned int resource, struct compat_rlimit __user *rlim)
+
+@define _SYSCALL_GETRLIMIT_NAME
+%(
+	name = "getrlimit"
+%)
+
+@define _SYSCALL_GETRLIMIT_ARGSTR
+%(
+	argstr = sprintf("%s, %p", _rlimit_resource_str(resource), rlim_uaddr)
+%)
+
+probe syscall.getrlimit = dw_syscall.getrlimit !, nd_syscall.getrlimit ? {}
+probe syscall.getrlimit.return = dw_syscall.getrlimit.return !,
+                                 nd_syscall.getrlimit.return ? {}
+
+# dw_getrlimit _____________________________________________________
+
+probe dw_syscall.getrlimit = __syscall.getrlimit ?,
+	kernel.function("compat_sys_getrlimit").call ?,
+	kernel.function("sys_old_getrlimit").call ?
+{
+	@_SYSCALL_GETRLIMIT_NAME
+	resource = __int32($resource)
+	rlim_uaddr = $rlim
+	@_SYSCALL_GETRLIMIT_ARGSTR
+}
+probe __syscall.getrlimit = kernel.function("sys_getrlimit").call
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.getrlimit.return =
+	kernel.function("sys_old_getrlimit").return ?,
+	kernel.function("compat_sys_getrlimit").return ?,
+	__syscall.getrlimit.return ?
+{
+	@_SYSCALL_GETRLIMIT_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.getrlimit.return = kernel.function("sys_getrlimit").return
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_getrlimit _____________________________________________________
+
+probe nd_syscall.getrlimit = __nd_syscall.getrlimit ?,
+	kprobe.function("compat_sys_getrlimit") ?,
+	kprobe.function("sys_old_getrlimit") ?
+{
+	@_SYSCALL_GETRLIMIT_NAME
+	asmlinkage()
+	resource = int_arg(1)
+	rlim_uaddr = pointer_arg(2)
+	@_SYSCALL_GETRLIMIT_ARGSTR
+}
+probe __nd_syscall.getrlimit = kprobe.function("sys_getrlimit")
+{
+	@__syscall_gate_compat_simple
+}
+probe nd_syscall.getrlimit.return = __nd_syscall.getrlimit.return ?,
+	kprobe.function("sys_old_getrlimit").return ?,
+	kprobe.function("compat_sys_getrlimit").return ?,
+	__nd_syscall.old_getrlimit.return ?
+{
+	@_SYSCALL_GETRLIMIT_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.getrlimit.return = kprobe.function("sys_getrlimit").return
+{
+	@__syscall_gate_compat_simple
+}

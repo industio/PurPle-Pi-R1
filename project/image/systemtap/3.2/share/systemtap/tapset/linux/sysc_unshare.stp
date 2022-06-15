@@ -1,0 +1,48 @@
+# unshare ____________________________________________________
+# new function with 2.6.16
+# long sys_unshare(unsigned long unshare_flags)
+
+@define _SYSCALL_UNSHARE_NAME
+%(
+	name = "unshare"
+%)
+
+@define _SYSCALL_UNSHARE_ARGSTR
+%(
+	argstr = unshare_flags_str
+%)
+
+probe syscall.unshare = dw_syscall.unshare !, nd_syscall.unshare ? {}
+probe syscall.unshare.return = dw_syscall.unshare.return !,
+                               nd_syscall.unshare.return ? {}
+
+# dw_unshare _____________________________________________________
+
+probe dw_syscall.unshare = kernel.function("sys_unshare").call ?
+{
+	@_SYSCALL_UNSHARE_NAME
+	unshare_flags = $unshare_flags
+	unshare_flags_str = __fork_flags(unshare_flags)
+	@_SYSCALL_UNSHARE_ARGSTR
+}
+probe dw_syscall.unshare.return = kernel.function("sys_unshare").return ?
+{
+	@_SYSCALL_UNSHARE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_unshare _____________________________________________________
+
+probe nd_syscall.unshare = kprobe.function("sys_unshare") ?
+{
+	@_SYSCALL_UNSHARE_NAME
+	asmlinkage()
+	unshare_flags = ulong_arg(1)
+	unshare_flags_str = __fork_flags(unshare_flags)
+	@_SYSCALL_UNSHARE_ARGSTR
+}
+probe nd_syscall.unshare.return = kprobe.function("sys_unshare").return ?
+{
+	@_SYSCALL_UNSHARE_NAME
+	retstr = returnstr(1)
+}

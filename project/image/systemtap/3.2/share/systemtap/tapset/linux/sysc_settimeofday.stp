@@ -1,0 +1,104 @@
+# settimeofday _______________________________________________
+#
+# long sys_settimeofday(struct timeval __user *tv,
+#			struct timezone __user *tz)
+#
+
+@define _SYSCALL_SETTIMEOFDAY_NAME
+%(
+	name = "settimeofday"
+%)
+
+@define _SYSCALL_SETTIMEOFDAY_ARGSTR
+%(
+	argstr = sprintf("%s, %s", tv_str, tz_str)
+%)
+
+probe syscall.settimeofday = dw_syscall.settimeofday !,
+                             nd_syscall.settimeofday ? {}
+probe syscall.settimeofday.return = dw_syscall.settimeofday.return !,
+                                    nd_syscall.settimeofday.return ? {}
+
+# dw_settimeofday _____________________________________________________
+
+probe dw_syscall.settimeofday = kernel.function("sys_settimeofday").call
+{
+	@_SYSCALL_SETTIMEOFDAY_NAME
+	tv_uaddr = $tv
+	tv_str = _struct_timeval_u(tv_uaddr, 1)
+	tz_uaddr = $tz
+	tz_str = _struct_timezone_u(tz_uaddr)
+	@_SYSCALL_SETTIMEOFDAY_ARGSTR
+}
+probe dw_syscall.settimeofday.return = kernel.function("sys_settimeofday").return
+{
+	@_SYSCALL_SETTIMEOFDAY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_settimeofday _____________________________________________________
+
+probe nd_syscall.settimeofday = kprobe.function("sys_settimeofday") ?
+{
+	@_SYSCALL_SETTIMEOFDAY_NAME
+	asmlinkage()
+	tv_uaddr = pointer_arg(1)
+	tv_str = _struct_timeval_u(tv_uaddr, 1)
+	tz_uaddr = pointer_arg(2)
+	tz_str = _struct_timezone_u(tz_uaddr)
+	@_SYSCALL_SETTIMEOFDAY_ARGSTR
+}
+probe nd_syscall.settimeofday.return = kprobe.function("sys_settimeofday").return ?
+{
+	@_SYSCALL_SETTIMEOFDAY_NAME
+	retstr = returnstr(1)
+}
+
+#
+# long sys32_settimeofday(struct compat_timeval __user *tv, struct timezone __user *tz)
+# long compat_sys_settimeofday(struct compat_timeval __user *tv, struct timezone __user *tz)
+#
+
+probe syscall.settimeofday32 = dw_syscall.settimeofday32 !,
+                               nd_syscall.settimeofday32 ? {}
+probe syscall.settimeofday32.return = dw_syscall.settimeofday32.return !,
+                                      nd_syscall.settimeofday32.return ? {}
+
+# dw_settimeofday32 _____________________________________________________
+
+probe dw_syscall.settimeofday32 = kernel.function("sys32_settimeofday").call ?,
+                               kernel.function("compat_sys_settimeofday").call ?
+{
+	@_SYSCALL_SETTIMEOFDAY_NAME
+	tv_uaddr = @__pointer($tv)
+	tv_str = _struct_compat_timeval_u(tv_uaddr, 1)
+	tz_uaddr = @__pointer($tz)
+	tz_str = _struct_timezone_u(tz_uaddr)
+	@_SYSCALL_SETTIMEOFDAY_ARGSTR
+}
+probe dw_syscall.settimeofday32.return = kernel.function("sys32_settimeofday").return ?,
+                                      kernel.function("compat_sys_settimeofday").return ?
+{
+	@_SYSCALL_SETTIMEOFDAY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_settimeofday32 _____________________________________________________
+
+probe nd_syscall.settimeofday32 = kprobe.function("sys32_settimeofday") ?,
+                                  kprobe.function("compat_sys_settimeofday") ?
+{
+	@_SYSCALL_SETTIMEOFDAY_NAME
+	asmlinkage()
+	tv_uaddr = pointer_arg(1)
+	tv_str = _struct_compat_timeval_u(tv_uaddr, 1)
+	tz_uaddr = pointer_arg(2)
+	tz_str = _struct_timezone_u(tz_uaddr)
+	@_SYSCALL_SETTIMEOFDAY_ARGSTR
+}
+probe nd_syscall.settimeofday32.return = kprobe.function("sys32_settimeofday").return ?,
+                                         kprobe.function("compat_sys_settimeofday").return ?
+{
+	@_SYSCALL_SETTIMEOFDAY_NAME
+	retstr = returnstr(1)
+}

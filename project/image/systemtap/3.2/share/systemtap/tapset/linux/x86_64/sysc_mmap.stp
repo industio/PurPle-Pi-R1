@@ -1,0 +1,140 @@
+# In kernels < 2.6.33, mmap()/mmap2() was handled by arch-specific
+# code.  In kernels >= 2.6.33, the arch-specific code just calls
+# generic sys_mmap_pgoff().
+%( kernel_v < "2.6.33" %?
+# mmap
+# long sys_mmap(unsigned long addr, unsigned long len,
+#          unsigned long prot, unsigned long flags,
+#          unsigned long fd, unsigned long off)
+
+@define _SYSCALL_MMAP_NAME
+%(
+	name = "mmap"
+%)
+
+@define _SYSCALL_MMAP_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s, %s, %d, %d", start, len,
+	                 prot_str, flags_str, fd, offset)
+%)
+
+probe syscall.mmap = dw_syscall.mmap !, nd_syscall.mmap ? {}
+probe syscall.mmap.return = dw_syscall.mmap.return !, nd_syscall.mmap.return ? {}
+
+# dw_mmap _____________________________________________________
+
+probe dw_syscall.mmap = kernel.function("sys_mmap") ?
+{
+	@_SYSCALL_MMAP_NAME
+	start = $addr
+	len = $len
+	prot = $prot
+	prot_str = _mprotect_prot_str(prot)
+	flags = $flags
+	flags_str = _mmap_flags(flags)
+	# Although the kernel gets an unsigned long fd, on the
+	# user-side it is a signed int.  Fix this.
+	fd = __int32($fd)
+	offset = $off
+	@_SYSCALL_MMAP_ARGSTR
+}
+
+probe dw_syscall.mmap.return = kernel.function("sys_mmap").return ?
+{
+	@_SYSCALL_MMAP_NAME
+	retstr = return_str(2, $return)
+}
+
+# nd_mmap _____________________________________________________
+
+probe nd_syscall.mmap = kprobe.function("sys_mmap") ?
+{
+	@_SYSCALL_MMAP_NAME
+	asmlinkage()
+	start = ulong_arg(1)
+	len = ulong_arg(2)
+	prot = ulong_arg(3)
+	prot_str = _mprotect_prot_str(prot)
+	flags = ulong_arg(4)
+	flags_str = _mmap_flags(flags)
+	# Although the kernel gets an unsigned long fd, on the
+	# user-side it is a signed int.  Fix this.
+	fd = int_arg(5)
+	offset = ulong_arg(6)
+	@_SYSCALL_MMAP_ARGSTR
+}
+probe nd_syscall.mmap.return = kprobe.function("sys_mmap").return ?
+{
+	@_SYSCALL_MMAP_NAME
+	retstr = returnstr(2)
+}
+
+#
+# sys32_mmap(struct mmap_arg_struct32 __user *arg)
+# sys32_mmap(struct mmap_arg_struct __user *arg)
+#
+
+probe syscall.mmap32 = dw_syscall.mmap32 !, nd_syscall.mmap32 {}
+probe syscall.mmap32.return = dw_syscall.mmap32.return !, nd_syscall.mmap32.return {}
+
+# dw_mmap32 _____________________________________________________
+
+probe dw_syscall.mmap32 = kernel.function("sys32_mmap")
+{
+	@_SYSCALL_MMAP_NAME
+#
+# Work around PR20672 by commenting out code relying on mmap_arg_struct32.
+# In the vanilla kernel, this struct seems to appear firstly in commit
+# a4679373c, which resolves to v2.6.34-rc1-53-ga467937.  But NB the parent
+# kernel_v condition above.
+#
+#	if (@defined(@cast($arg, "mmap_arg_struct32")->addr)) {
+#		start = user_long(&@cast($arg, "mmap_arg_struct32")->addr)
+#		len = user_long(&@cast($arg, "mmap_arg_struct32")->len)
+#		prot = user_long(&@cast($arg, "mmap_arg_struct32")->prot)
+#		flags = user_long(&@cast($arg, "mmap_arg_struct32")->flags)
+#		fd = user_long(&@cast($arg, "mmap_arg_struct32")->fd)
+#		offset = user_long(&@cast($arg, "mmap_arg_struct32")->offset)
+#	}
+#	else {
+		start = user_long(&@cast($arg, "mmap_arg_struct")->addr)
+		len = user_long(&@cast($arg, "mmap_arg_struct")->len)
+		prot = user_long(&@cast($arg, "mmap_arg_struct")->prot)
+		flags = user_long(&@cast($arg, "mmap_arg_struct")->flags)
+		fd = user_long(&@cast($arg, "mmap_arg_struct")->fd)
+		offset = user_long(&@cast($arg, "mmap_arg_struct")->offset)
+#	}
+	prot_str = _mprotect_prot_str(prot)
+	flags_str = _mmap_flags(flags)
+	@_SYSCALL_MMAP_ARGSTR
+}
+
+probe dw_syscall.mmap32.return = kernel.function("sys32_mmap").return
+{
+        @_SYSCALL_MMAP_NAME
+        retstr = return_str(2, $return)
+}
+
+# nd_mmap32 _____________________________________________________
+
+probe nd_syscall.mmap32 = kprobe.function("sys32_mmap")
+{
+	@_SYSCALL_MMAP_NAME
+	asmlinkage()
+	__args = &@uint_cast(pointer_arg(1))
+	start = user_uint32(&(__args)[0])
+	len = user_uint32(&(__args)[1])
+	prot = user_uint32(&(__args)[2])
+	flags = user_uint32(&(__args)[3])
+	fd = user_int(&(__args)[4])
+	offset = user_uint32(&(__args)[5])
+	prot_str = _mprotect_prot_str(prot)
+	flags_str = _mmap_flags(flags)
+	@_SYSCALL_MMAP_ARGSTR
+}
+probe nd_syscall.mmap32.return = kprobe.function("sys32_mmap").return
+{
+	@_SYSCALL_MMAP_NAME
+	retstr = returnstr(2)
+}
+%)

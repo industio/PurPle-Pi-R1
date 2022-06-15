@@ -1,0 +1,49 @@
+# set_tid_address ____________________________________________
+#
+# asmlinkage long
+# sys_set_tid_address(int __user *tidptr)
+#
+
+@define _SYSCALL_SET_TID_ADDRESS_NAME
+%(
+	name = "set_tid_address"
+%)
+
+@define _SYSCALL_SET_TID_ADDRESS_ARGSTR
+%(
+	argstr = sprintf("%p", tidptr_uaddr)
+%)
+
+probe syscall.set_tid_address = dw_syscall.set_tid_address !,
+                                nd_syscall.set_tid_address ? {}
+probe syscall.set_tid_address.return = dw_syscall.set_tid_address.return !,
+                                       nd_syscall.set_tid_address.return ? {}
+
+# dw_set_tid_address _____________________________________________________
+
+probe dw_syscall.set_tid_address = kernel.function("sys_set_tid_address").call
+{
+	@_SYSCALL_SET_TID_ADDRESS_NAME
+	tidptr_uaddr = $tidptr
+	@_SYSCALL_SET_TID_ADDRESS_ARGSTR
+}
+probe dw_syscall.set_tid_address.return = kernel.function("sys_set_tid_address").return
+{
+	@_SYSCALL_SET_TID_ADDRESS_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_set_tid_address _____________________________________________________
+
+probe nd_syscall.set_tid_address = kprobe.function("sys_set_tid_address") ?
+{
+	@_SYSCALL_SET_TID_ADDRESS_NAME
+	asmlinkage()
+	tidptr_uaddr = pointer_arg(1)
+	@_SYSCALL_SET_TID_ADDRESS_ARGSTR
+}
+probe nd_syscall.set_tid_address.return = kprobe.function("sys_set_tid_address").return ?
+{
+	@_SYSCALL_SET_TID_ADDRESS_NAME
+	retstr = returnstr(1)
+}

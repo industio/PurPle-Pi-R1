@@ -1,0 +1,57 @@
+# capget _____________________________________________________
+/*
+ *  NOTE
+ *   this  is  probably not a good function
+ *   to probe. The  structures  are  always
+ *   changing.  It also  seems  like  it is
+ *   not really  used. Cscope  produced  no
+ *   reference  of  this  function  in  the
+ *   kernel  (returned no callers). Perhaps
+ *   cap_get_proc / cap_set_proc are better
+ *   functions to export.
+ */
+# long sys_capget(cap_user_header_t header, cap_user_data_t dataptr)
+
+@define _SYSCALL_CAPGET_NAME
+%(
+	name = "capget"
+%)
+
+@define _SYSCALL_CAPGET_ARGSTR
+%(
+	argstr = sprintf("%p, %p", header_uaddr, data_uaddr)
+%)
+
+probe syscall.capget = dw_syscall.capget !, nd_syscall.capget ? {}
+probe syscall.capget.return = dw_syscall.capget.return !, nd_syscall.capget.return ? {}
+
+# dw_capget _____________________________________________________
+
+probe dw_syscall.capget = kernel.function("sys_capget").call
+{
+	@_SYSCALL_CAPGET_NAME
+	header_uaddr = $header
+	data_uaddr = $dataptr
+	@_SYSCALL_CAPGET_ARGSTR
+}
+probe dw_syscall.capget.return = kernel.function("sys_capget").return
+{
+	@_SYSCALL_CAPGET_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_capget _____________________________________________________
+
+probe nd_syscall.capget = kprobe.function("sys_capget") ?
+{
+	@_SYSCALL_CAPGET_NAME
+	asmlinkage()
+	header_uaddr = pointer_arg(1)
+	data_uaddr = pointer_arg(2)
+	@_SYSCALL_CAPGET_ARGSTR
+}
+probe nd_syscall.capget.return = kprobe.function("sys_capget").return ?
+{
+	@_SYSCALL_CAPGET_NAME
+	retstr = returnstr(1)
+}

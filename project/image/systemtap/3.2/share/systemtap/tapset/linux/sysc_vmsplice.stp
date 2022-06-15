@@ -1,0 +1,112 @@
+# vmsplice ___________________________________________________
+#
+# long sys_vmsplice(int fd, const struct iovec __user *iov,
+#	    unsigned long nr_segs, unsigned int flags)
+# long compat_sys_vmsplice(int fd, const struct compat_iovec __user *iov32,
+#	    unsigned int nr_segs, unsigned int flags)
+#
+
+@define _SYSCALL_VMSPLICE_NAME
+%(
+	name = "vmsplice"
+%)
+
+@define _SYSCALL_VMSPLICE_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u, %s", fd, iov, nr_segs, flags_str)
+%)
+
+probe syscall.vmsplice = dw_syscall.vmsplice !, nd_syscall.vmsplice ? {}
+probe syscall.vmsplice.return = dw_syscall.vmsplice.return !,
+                                nd_syscall.vmsplice.return ? {}
+
+# dw_vmsplice _____________________________________________________
+
+probe dw_syscall.vmsplice = kernel.function("sys_vmsplice").call ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_VMSPLICE_NAME
+	fd = __int32($fd)
+	iov = $iov
+	nr_segs = __ulong($nr_segs)
+	flags = $flags
+	flags_str = _stp_splice_flags_str(flags)
+	@_SYSCALL_VMSPLICE_ARGSTR
+}
+probe dw_syscall.vmsplice.return = kernel.function("sys_vmsplice").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_VMSPLICE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_vmsplice _____________________________________________________
+
+probe nd_syscall.vmsplice = kprobe.function("sys_vmsplice") ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_VMSPLICE_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	iov = pointer_arg(2)
+	nr_segs = ulong_arg(3)
+	flags = uint_arg(4)
+	flags_str = _stp_splice_flags_str(flags)
+	@_SYSCALL_VMSPLICE_ARGSTR
+}
+probe nd_syscall.vmsplice.return = kprobe.function("sys_vmsplice").return ?
+{
+	@__syscall_gate_compat_simple
+	@_SYSCALL_VMSPLICE_NAME
+	retstr = returnstr(1)
+}
+
+# compat_vmsplice ____________________________________________
+#
+# long sys_vmsplice(int fd, const struct iovec __user *iov,
+#	    unsigned long nr_segs, unsigned int flags)
+# long compat_sys_vmsplice(int fd, const struct compat_iovec __user *iov32,
+#	    unsigned int nr_segs, unsigned int flags)
+#
+
+probe syscall.compat_vmsplice = dw_syscall.compat_vmsplice !,
+                                nd_syscall.compat_vmsplice ? {}
+probe syscall.compat_vmsplice.return = dw_syscall.compat_vmsplice.return !,
+                                       nd_syscall.compat_vmsplice.return ? {}
+
+# dw_compat_vmsplice _____________________________________________________
+
+probe dw_syscall.compat_vmsplice = kernel.function("compat_sys_vmsplice").call ?
+{
+	@_SYSCALL_VMSPLICE_NAME
+	fd = __int32($fd)
+	iov = @__pointer($iov32)
+	nr_segs = __uint32($nr_segs)
+	flags = $flags
+	flags_str = _stp_splice_flags_str(flags)
+	@_SYSCALL_VMSPLICE_ARGSTR
+}
+probe dw_syscall.compat_vmsplice.return = kernel.function("compat_sys_vmsplice").return ?
+{
+	@_SYSCALL_VMSPLICE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_vmsplice _____________________________________________________
+
+probe nd_syscall.compat_vmsplice = kprobe.function("compat_sys_vmsplice") ?
+{
+	@_SYSCALL_VMSPLICE_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	iov = pointer_arg(2)
+	nr_segs = ulong_arg(3)
+	flags = uint_arg(4)
+	flags_str = _stp_splice_flags_str(flags)
+	@_SYSCALL_VMSPLICE_ARGSTR
+}
+probe nd_syscall.compat_vmsplice.return = kprobe.function("compat_sys_vmsplice").return ?
+{
+	@_SYSCALL_VMSPLICE_NAME
+	retstr = returnstr(1)
+}

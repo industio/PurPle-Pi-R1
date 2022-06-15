@@ -1,0 +1,101 @@
+# semop ______________________________________________________
+#
+# long sys_semop (int semid,
+#		struct sembuf __user *tsops,
+#		unsigned nsops)
+#
+
+@define _SYSCALL_SEMOP_NAME
+%(
+	name = "semop"
+%)
+
+@define _SYSCALL_SEMOP_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u", semid, sops_uaddr, nsops)
+%)
+
+probe syscall.semop = dw_syscall.semop !, nd_syscall.semop ? {}
+probe syscall.semop.return = dw_syscall.semop.return !,
+                             nd_syscall.semop.return ? {}
+
+# dw_semop _____________________________________________________
+
+probe dw_syscall.semop = __syscall.semop ?, __syscall.compat_semop ?
+{
+	@_SYSCALL_SEMOP_NAME
+	@_SYSCALL_SEMOP_ARGSTR
+}
+probe __syscall.semop = kernel.function("sys_semop").call ?
+{
+	semid = __int32($semid)
+%( systemtap_v < "2.3" %?
+	tsops_uaddr = $tsops
+%)
+	sops_uaddr = $tsops
+	nsops = __uint32($nsops)
+}
+probe __syscall.compat_semop = kernel.function("compat_sys_ipc").call ?,
+        kernel.function("sys32_ipc").call ?
+{
+        if ($call != @const("SEMOP")) next;
+        semid = __int32($first)
+%( systemtap_v < "2.3" %?
+	tsops_uaddr = $ptr
+%)
+        sops_uaddr = $ptr
+        nsops = __uint32($second)
+}
+probe dw_syscall.semop.return = kernel.function("sys_semop").return ?,
+	__syscall.compat_semop.return ?
+{
+	@_SYSCALL_SEMOP_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.compat_semop.return =
+	kernel.function("compat_sys_ipc").return ?,
+	kernel.function("sys32_ipc").return ?
+{
+	if (@entry($call) != @const("SEMOP")) next;
+}
+
+# nd_semop _____________________________________________________
+
+probe nd_syscall.semop = __nd_syscall.semop ?, __nd_syscall.compat_semop ?
+{
+	@_SYSCALL_SEMOP_NAME
+	@_SYSCALL_SEMOP_ARGSTR
+}
+probe __nd_syscall.semop = kprobe.function("sys_semop") ?
+{
+	asmlinkage()
+	semid = int_arg(1)
+%( systemtap_v < "2.3" %?
+	tsops_uaddr = pointer_arg(2)
+%)
+	sops_uaddr = pointer_arg(2)
+	nsops = uint_arg(3)
+}
+probe __nd_syscall.compat_semop = kprobe.function("compat_sys_ipc") ?,
+        kprobe.function("sys32_ipc") ?
+{
+	if (int_arg(1) != @const("SEMOP")) next;
+	semid = int_arg(2)
+%( systemtap_v < "2.3" %?
+	tsops_uaddr = pointer_arg(5)
+%)
+        sops_uaddr = pointer_arg(5)
+        nsops = uint_arg(3)
+}
+probe nd_syscall.semop.return = kprobe.function("sys_semop").return ?,
+	__nd_syscall.compat_semop.return ?
+{
+	@_SYSCALL_SEMOP_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.compat_semop.return =
+	kprobe.function("compat_sys_ipc").return ?,
+	kprobe.function("sys32_ipc").return ?
+{
+	if (@entry(int_arg(1)) != @const("SEMOP")) next;
+}

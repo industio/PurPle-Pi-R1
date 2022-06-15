@@ -1,0 +1,1 @@
+include $(PROJ_ROOT)/release/customer_tailor/ipc_default.mk

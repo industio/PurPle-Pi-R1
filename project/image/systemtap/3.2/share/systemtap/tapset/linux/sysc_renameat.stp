@@ -1,0 +1,65 @@
+# renameat ___________________________________________________
+# long sys_renameat(int olddfd, const char __user *oldname,
+#	int newdfd, const char __user *newname)
+# new function with 2.6.16
+
+@define _SYSCALL_RENAMEAT_NAME
+%(
+	name = "renameat"
+%)
+
+@define _SYSCALL_RENAMEAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %s", olddfd_str, oldname_str, newdfd_str, newname_str)
+%)
+
+probe syscall.renameat = dw_syscall.renameat !, nd_syscall.renameat ? {}
+probe syscall.renameat.return = dw_syscall.renameat.return !,
+                                nd_syscall.renameat.return ? {}
+
+# dw_renameat _____________________________________________________
+
+probe dw_syscall.renameat = kernel.function("sys_renameat").call ?
+{
+	@__syscall_compat_gate(@const("__NR_renameat"), @const("__NR_compat_renameat"))
+	@_SYSCALL_RENAMEAT_NAME
+	olddfd = __int32($olddfd)
+	olddfd_str = _dfd_str(__int32($olddfd))
+	oldname = $oldname
+	oldname_str = user_string_quoted($oldname)
+	newdfd = __int32($newdfd)
+	newdfd_str = _dfd_str(__int32($newdfd))
+	newname = $newname
+	newname_str = user_string_quoted($newname)
+	@_SYSCALL_RENAMEAT_ARGSTR
+}
+probe dw_syscall.renameat.return = kernel.function("sys_renameat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_renameat"), @const("__NR_compat_renameat"))
+	@_SYSCALL_RENAMEAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_renameat _____________________________________________________
+
+probe nd_syscall.renameat = kprobe.function("sys_renameat") ?
+{
+	@__syscall_compat_gate(@const("__NR_renameat"), @const("__NR_compat_renameat"))
+	@_SYSCALL_RENAMEAT_NAME
+	asmlinkage()
+	olddfd = int_arg(1)
+	olddfd_str = _dfd_str(olddfd)
+	oldname = pointer_arg(2)
+	oldname_str = user_string_quoted(oldname)
+	newdfd = int_arg(3)
+	newdfd_str = _dfd_str(newdfd)
+	newname = pointer_arg(4)
+	newname_str = user_string_quoted(newname)
+	@_SYSCALL_RENAMEAT_ARGSTR
+}
+probe nd_syscall.renameat.return = kprobe.function("sys_renameat").return ?
+{
+	@__syscall_compat_gate(@const("__NR_renameat"), @const("__NR_compat_renameat"))
+	@_SYSCALL_RENAMEAT_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,77 @@
+# get_robust_list ____________________________________________
+# SYSCALL_DEFINE3(get_robust_list, int, pid,
+#                 struct robust_list_head __user * __user *, head_ptr,
+#                 size_t __user *, len_ptr)
+# COMPAT_SYSCALL_DEFINE3(get_robust_list, int, pid,
+#                        compat_uptr_t __user *, head_ptr,
+#                        compat_size_t __user *, len_ptr)
+
+@define _SYSCALL_GET_ROBUST_LIST_NAME
+%(
+	name = "get_robust_list"
+%)
+
+@define _SYSCALL_GET_ROBUST_LIST_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %p", pid, list_head_uaddr, len_uaddr)
+%)
+
+probe syscall.get_robust_list = dw_syscall.get_robust_list !,
+                                nd_syscall.get_robust_list ? {}
+probe syscall.get_robust_list.return = dw_syscall.get_robust_list.return !,
+                                       nd_syscall.get_robust_list.return ? {}
+
+# dw_get_robust_list _____________________________________________________
+
+probe dw_syscall.get_robust_list = __syscall.get_robust_list ?,
+                                kernel.function("compat_sys_get_robust_list") ?
+{
+	@_SYSCALL_GET_ROBUST_LIST_NAME
+	pid = __int32($pid)
+	list_head_uaddr = @__pointer($head_ptr)
+	len_uaddr = @__pointer($len_ptr)
+	@_SYSCALL_GET_ROBUST_LIST_ARGSTR
+}
+probe __syscall.get_robust_list = kernel.function("sys_get_robust_list")
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.get_robust_list.return = __syscall.get_robust_list.return ?,
+		kernel.function("compat_sys_get_robust_list").return ?
+{
+	@_SYSCALL_GET_ROBUST_LIST_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.get_robust_list.return =
+		kernel.function("sys_get_robust_list").return
+{
+	@__syscall_gate_compat_simple
+}
+
+# nd_get_robust_list _____________________________________________________
+
+probe nd_syscall.get_robust_list = __nd_syscall.get_robust_list ?,
+                                   kprobe.function("compat_sys_get_robust_list") ?
+{
+	@_SYSCALL_GET_ROBUST_LIST_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	list_head_uaddr = pointer_arg(2)
+	len_uaddr = pointer_arg(3)
+	@_SYSCALL_GET_ROBUST_LIST_ARGSTR
+
+}
+probe __nd_syscall.get_robust_list = kprobe.function("sys_get_robust_list")
+{
+	@__syscall_gate_compat_simple
+}
+probe nd_syscall.get_robust_list.return = __nd_syscall.get_robust_list.return ?,
+                                          kprobe.function("compat_sys_get_robust_list").return ?
+{
+	@_SYSCALL_GET_ROBUST_LIST_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.get_robust_list.return = kprobe.function("sys_get_robust_list").return
+{
+	@__syscall_gate_compat_simple
+}

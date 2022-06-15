@@ -1,0 +1,51 @@
+# removexattr ________________________________________________
+#
+# asmlinkage long
+# sys_removexattr(char __user *path,
+#		     char __user *name)
+#
+
+@define _SYSCALL_REMOVEXATTR_NAME
+%(
+	name = "removexattr"
+%)
+
+@define _SYSCALL_REMOVEXATTR_ARGSTR
+%(
+	argstr = sprintf("%s, %s", path, name_str)
+%)
+
+probe syscall.removexattr = dw_syscall.removexattr !, nd_syscall.removexattr ? {}
+probe syscall.removexattr.return = dw_syscall.removexattr.return !,
+                                   nd_syscall.removexattr.return ? {}
+
+# dw_removexattr _____________________________________________________
+
+probe dw_syscall.removexattr = kernel.function("sys_removexattr").call
+{
+	@_SYSCALL_REMOVEXATTR_NAME
+	path = user_string_quoted(@choose_defined($pathname, $path))
+	name_str = user_string_quoted($name)
+	@_SYSCALL_REMOVEXATTR_ARGSTR
+}
+probe dw_syscall.removexattr.return = kernel.function("sys_removexattr").return
+{
+	@_SYSCALL_REMOVEXATTR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_removexattr _____________________________________________________
+
+probe nd_syscall.removexattr = kprobe.function("sys_removexattr") ?
+{
+	@_SYSCALL_REMOVEXATTR_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+	name_str = user_string_quoted(pointer_arg(2))
+	@_SYSCALL_REMOVEXATTR_ARGSTR
+}
+probe nd_syscall.removexattr.return = kprobe.function("sys_removexattr").return ?
+{
+	@_SYSCALL_REMOVEXATTR_NAME
+	retstr = returnstr(1)
+}

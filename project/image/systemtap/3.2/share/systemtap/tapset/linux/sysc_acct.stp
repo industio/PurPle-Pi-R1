@@ -1,0 +1,44 @@
+# acct _______________________________________________________
+# long sys_acct(const char __user *name)
+
+@define _SYSCALL_ACCT_NAME
+%(
+	name = "acct"
+%)
+
+@define _SYSCALL_ACCT_ARGSTR
+%(
+	argstr = filename
+%)
+
+probe syscall.acct = dw_syscall.acct !, nd_syscall.acct ? {}
+probe syscall.acct.return = dw_syscall.acct.return !, nd_syscall.acct.return ? {}
+
+# dw_acct _____________________________________________________
+
+probe dw_syscall.acct = kernel.function("sys_acct").call ?
+{
+	@_SYSCALL_ACCT_NAME
+	filename = user_string_quoted($name)
+	@_SYSCALL_ACCT_ARGSTR
+}
+probe dw_syscall.acct.return = kernel.function("sys_acct").return ?
+{
+	@_SYSCALL_ACCT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_acct _____________________________________________________
+
+probe nd_syscall.acct = kprobe.function("sys_acct") ?
+{
+	@_SYSCALL_ACCT_NAME
+	asmlinkage()
+	filename = user_string_quoted(pointer_arg(1))
+	@_SYSCALL_ACCT_ARGSTR
+}
+probe nd_syscall.acct.return = kprobe.function("sys_acct").return ?
+{
+	@_SYSCALL_ACCT_NAME
+	retstr = returnstr(1)
+}

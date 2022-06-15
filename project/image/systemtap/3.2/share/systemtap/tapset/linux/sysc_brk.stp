@@ -1,0 +1,48 @@
+# brk ________________________________________________________
+# unsigned long sys_brk(unsigned long brk)
+
+@define _SYSCALL_BRK_NAME
+%(
+	name = "brk"
+%)
+
+@define _SYSCALL_BRK_ARGSTR
+%(
+	argstr = sprintf("%p", brk)
+%)
+
+probe syscall.brk = dw_syscall.brk !, nd_syscall.brk ? {}
+probe syscall.brk.return = dw_syscall.brk.return !, nd_syscall.brk.return ? {}
+
+# dw_brk _____________________________________________________
+
+probe dw_syscall.brk = kernel.function("ia64_brk").call ?,
+                    kernel.function("sys_brk").call
+{
+	@_SYSCALL_BRK_NAME
+	brk = __ulong($brk)
+	@_SYSCALL_BRK_ARGSTR
+}
+probe dw_syscall.brk.return = kernel.function("ia64_brk").return ?,
+                           kernel.function("sys_brk").return
+{
+	@_SYSCALL_BRK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_brk _____________________________________________________
+
+probe nd_syscall.brk = kprobe.function("ia64_brk") ?,
+                       kprobe.function("sys_brk") ?
+{
+	@_SYSCALL_BRK_NAME
+	asmlinkage()
+	brk = ulong_arg(1)
+	@_SYSCALL_BRK_ARGSTR
+}
+probe nd_syscall.brk.return = kprobe.function("ia64_brk").return ?,
+                              kprobe.function("sys_brk").return ?
+{
+	@_SYSCALL_BRK_NAME
+	retstr = returnstr(1)
+}

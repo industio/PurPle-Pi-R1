@@ -1,0 +1,53 @@
+# readlink ___________________________________________________
+#
+# long sys_readlink(const char __user * path,
+#		  char __user * buf,
+#		  int bufsiz)
+#
+
+@define _SYSCALL_READLINK_NAME
+%(
+	name = "readlink"
+%)
+
+@define _SYSCALL_READLINK_ARGSTR
+%(
+	argstr = sprintf("%s, %p, %d", path, buf_uaddr, bufsiz)
+%)
+
+probe syscall.readlink = dw_syscall.readlink !, nd_syscall.readlink ? {}
+probe syscall.readlink.return = dw_syscall.readlink.return !,
+                                nd_syscall.readlink.return ? {}
+
+# dw_readlink _____________________________________________________
+
+probe dw_syscall.readlink = kernel.function("sys_readlink").call
+{
+	@_SYSCALL_READLINK_NAME
+	path = user_string_quoted($path)
+	buf_uaddr = $buf
+	bufsiz = __int32($bufsiz)
+	@_SYSCALL_READLINK_ARGSTR
+}
+probe dw_syscall.readlink.return = kernel.function("sys_readlink").return
+{
+	@_SYSCALL_READLINK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_readlink _____________________________________________________
+
+probe nd_syscall.readlink = kprobe.function("sys_readlink") ?
+{
+	@_SYSCALL_READLINK_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+	buf_uaddr = pointer_arg(2)
+	bufsiz = int_arg(3)
+	@_SYSCALL_READLINK_ARGSTR
+}
+probe nd_syscall.readlink.return = kprobe.function("sys_readlink").return ?
+{
+	@_SYSCALL_READLINK_NAME
+	retstr = returnstr(1)
+}

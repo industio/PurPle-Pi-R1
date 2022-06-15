@@ -1,0 +1,103 @@
+# sigaction __________________________________________________
+# sys_sigaction(int sig, const struct old_sigaction __user *act, struct old_sigaction __user *oact)
+# sys32_sigaction(int sig, struct old_sigaction32 __user *act, struct old_sigaction32 __user *oact)
+#
+
+@define _SYSCALL_SIGACTION_NAME
+%(
+	name = "sigaction"
+%)
+
+@define _SYSCALL_SIGACTION_ARGSTR
+%(
+	argstr = sprintf("%s, {%s}, %p", sig_str, act_str, oact_uaddr)
+%)
+
+probe syscall.sigaction32 = dw_syscall.sigaction32 !, nd_syscall.sigaction32 ? {}
+
+probe syscall.sigaction = dw_syscall.sigaction !, nd_syscall.sigaction ? {}
+probe syscall.sigaction.return = dw_syscall.sigaction.return !,
+                                 nd_syscall.sigaction.return ? {}
+
+# dw_sigaction _____________________________________________________
+
+probe dw_syscall.sigaction = kernel.function("sys_sigaction").call ?
+{
+	@_SYSCALL_SIGACTION_NAME
+	sig = __int32($sig)
+	sig_str = _signal_name(sig)
+	act_uaddr = @__pointer($act)
+	act_str = _struct_sigaction_u(act_uaddr)
+	oact_uaddr = $oact
+	@_SYSCALL_SIGACTION_ARGSTR
+}
+probe dw_syscall.sigaction.return = kernel.function("sys_sigaction").return ?
+{
+	@_SYSCALL_SIGACTION_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sigaction _____________________________________________________
+
+probe nd_syscall.sigaction = kprobe.function("sys_sigaction") ?
+{
+	@_SYSCALL_SIGACTION_NAME
+	%( arch != "powerpc" %? asmlinkage() %)
+	sig = int_arg(1)
+	sig_str = _signal_name(sig)
+	act_uaddr = pointer_arg(2)
+	act_str = _struct_sigaction_u(act_uaddr)
+	oact_uaddr = pointer_arg(3)
+	@_SYSCALL_SIGACTION_ARGSTR
+}
+probe nd_syscall.sigaction.return = kprobe.function("sys_sigaction").return ?
+{
+	@_SYSCALL_SIGACTION_NAME
+	retstr = returnstr(1)
+}
+
+# sigaction _________________________________________________________
+
+probe syscall.sigaction32.return = dw_syscall.sigaction32.return !,
+                                   nd_syscall.sigaction32.return ? {}
+
+# dw_sigaction32 _____________________________________________________
+
+probe dw_syscall.sigaction32 = kernel.function("sys32_sigaction").call ?,
+			    kernel.function("compat_sys_sigaction").call ?
+{
+	@_SYSCALL_SIGACTION_NAME
+	sig = __int32($sig)
+	sig_str = _signal_name(sig)
+	act_uaddr = @__pointer($act)
+	act_str = _struct_old_sigaction32_u(act_uaddr)
+	oact_uaddr = $oact
+	@_SYSCALL_SIGACTION_ARGSTR
+}
+probe dw_syscall.sigaction32.return = kernel.function("sys32_sigaction").return ?,
+				   kernel.function("compat_sys_sigaction").return ?
+{
+	@_SYSCALL_SIGACTION_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sigaction32 _____________________________________________________
+
+probe nd_syscall.sigaction32 = kprobe.function("sys32_sigaction") ?,
+                               kprobe.function("compat_sys_sigaction") ?
+{
+	@_SYSCALL_SIGACTION_NAME
+	asmlinkage()
+	sig = int_arg(1)
+	sig_str = _signal_name(sig)
+	act_uaddr = pointer_arg(2)
+	act_str = _struct_old_sigaction32_u(act_uaddr)
+	oact_uaddr = pointer_arg(3)
+	@_SYSCALL_SIGACTION_ARGSTR
+}
+probe nd_syscall.sigaction32.return = kprobe.function("sys32_sigaction").return ?,
+                                      kprobe.function("compat_sys_sigaction").return ?
+{
+	@_SYSCALL_SIGACTION_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,59 @@
+# llseek _____________________________________________________
+# long sys_llseek(unsigned int fd,
+#            unsigned long offset_high,
+#            unsigned long offset_low,
+#            loff_t __user * result,
+#            unsigned int whence)
+
+@define _SYSCALL_LLSEEK_NAME
+%(
+	name = "llseek"
+%)
+
+@define _SYSCALL_LLSEEK_ARGSTR
+%(
+	argstr = sprintf("%d, 0x%x, 0x%x, %p, %s", fd, offset_high,
+	                 offset_low, result_uaddr, whence_str)
+%)
+
+probe syscall.llseek = dw_syscall.llseek !, nd_syscall.llseek ? {}
+probe syscall.llseek.return = dw_syscall.llseek.return !, nd_syscall.llseek.return ? {}
+
+# dw_llseek _____________________________________________________
+
+probe dw_syscall.llseek = kernel.function("sys_llseek").call ?
+{
+	@_SYSCALL_LLSEEK_NAME
+	fd = __int32($fd)
+	offset_high = $offset_high
+	offset_low = $offset_low
+	result_uaddr = $result
+	whence = @choose_defined($whence, $origin)
+	whence_str = _seek_whence_str(@choose_defined($whence, $origin))
+	@_SYSCALL_LLSEEK_ARGSTR
+}
+probe dw_syscall.llseek.return = kernel.function("sys_llseek").return ?
+{
+	@_SYSCALL_LLSEEK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_llseek _____________________________________________________
+
+probe nd_syscall.llseek = kprobe.function("sys_llseek") ?
+{
+	@_SYSCALL_LLSEEK_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	offset_high = ulong_arg(2)
+	offset_low = ulong_arg(3)
+	result_uaddr = pointer_arg(4)
+	whence = uint_arg(5)
+	whence_str = _seek_whence_str(whence)
+	@_SYSCALL_LLSEEK_ARGSTR
+}
+probe nd_syscall.llseek.return = kprobe.function("sys_llseek").return ?
+{
+	@_SYSCALL_LLSEEK_NAME
+	retstr = returnstr(1)
+}

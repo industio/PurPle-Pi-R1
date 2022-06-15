@@ -1,0 +1,9 @@
+# <- this is for comment / total file size must be less than 4KB
+
+mxp r.info customer
+sf probe 0
+sf erase $(sf_part_start) $(sf_part_size)
+fatload usb 0 0x21000000 $(usb_folder)/customer.jffs2
+sf write 0x21000000 $(sf_part_start) $(filesize)
+
+% <- this is end of file symbol

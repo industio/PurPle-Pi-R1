@@ -1,0 +1,41 @@
+# getpgrp ____________________________________________________
+# long sys_getpgrp(void)
+
+@define _SYSCALL_GETPGRP_NAME
+%(
+	name = "getpgrp"
+%)
+
+@define _SYSCALL_GETPGRP_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.getpgrp = dw_syscall.getpgrp !, nd_syscall.getpgrp ? {}
+probe syscall.getpgrp.return = dw_syscall.getpgrp.return !, nd_syscall.getpgrp.return ? {}
+
+# dw_getpgrp _____________________________________________________
+
+probe dw_syscall.getpgrp = kernel.function("sys_getpgrp").call ?
+{
+	@_SYSCALL_GETPGRP_NAME
+	@_SYSCALL_GETPGRP_ARGSTR
+}
+probe dw_syscall.getpgrp.return = kernel.function("sys_getpgrp").return ?
+{
+	@_SYSCALL_GETPGRP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getpgrp _____________________________________________________
+
+probe nd_syscall.getpgrp = kprobe.function("sys_getpgrp") ?
+{
+	@_SYSCALL_GETPGRP_NAME
+	@_SYSCALL_GETPGRP_ARGSTR
+}
+probe nd_syscall.getpgrp.return = kprobe.function("sys_getpgrp").return ?
+{
+	@_SYSCALL_GETPGRP_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,117 @@
+# setregid ___________________________________________________
+# long sys_setregid(gid_t rgid, gid_t egid)
+#
+
+@define _SYSCALL_SETREGID_NAME
+%(
+	name = "setregid"
+%)
+
+@define _SYSCALL_SETREGID_ARGSTR
+%(
+	argstr = sprintf("%d, %d", rgid, egid)
+%)
+
+@define _SYSCALL_GATE
+%(
+    %( arch == "x86_64" %?
+	// There are actually 3 x86_64 setregid syscalls numbers (which
+	// get mapped to 2 syscall functions:
+	//   - __NR_setregid which gets mapped to sys_setregid()
+	//   - __NR_ia32_setregid32 which also gets mapped to
+	//     sys_setregid() 
+	//   - __NR_ia32_setregid which gets mapped to sys_setregid16()
+	//     (which is a wrapper around sys_setregid())
+	// So, we need to avoid sys_setregid() calls that come from
+	// sys_setregid16().
+	@__syscall_compat_gate(@const("__NR_setregid"),
+			       @const("__NR_ia32_setregid32"))
+    %:
+	%( arch == "i386" %?
+	    // On i386, there are 2 setregid syscall numbers:
+	    //   - __NR_setregid which gets mapped to sys_setregid16
+	    //   - __NR_setregid32 which gets mapped to sys_setregid
+	    // Since this gets called from a probe on sys_setregid, we'll
+	    // make sure this is really __NR_setregid32.
+	    @__syscall_nr_gate(@const("__NR_setregid32"))
+	%)
+    %)
+%)
+
+probe syscall.setregid = dw_syscall.setregid !, nd_syscall.setregid ? {}
+probe syscall.setregid.return = dw_syscall.setregid.return !,
+                                nd_syscall.setregid.return ? {}
+
+# dw_setregid _____________________________________________________
+
+probe dw_syscall.setregid = kernel.function("sys_setregid").call
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_SETREGID_NAME
+	rgid = __int32($rgid)
+	egid = __int32($egid)
+	@_SYSCALL_SETREGID_ARGSTR
+}
+probe dw_syscall.setregid.return = kernel.function("sys_setregid").return
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_SETREGID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setregid _____________________________________________________
+
+probe nd_syscall.setregid = kprobe.function("sys_setregid") ?
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_SETREGID_NAME
+	asmlinkage()
+	rgid = __int32(uint_arg(1))
+	egid = __int32(uint_arg(2))
+	@_SYSCALL_SETREGID_ARGSTR
+}
+probe nd_syscall.setregid.return = kprobe.function("sys_setregid").return ?
+{
+	@_SYSCALL_GATE
+	@_SYSCALL_SETREGID_NAME
+	retstr = returnstr(1)
+}
+
+# setregid16 _________________________________________________
+# long sys_setregid16(old_gid_t rgid, old_gid_t egid)
+#
+
+probe syscall.setregid16 = dw_syscall.setregid16 !, nd_syscall.setregid16 ? {}
+probe syscall.setregid16.return = dw_syscall.setregid16.return !,
+                                  nd_syscall.setregid16.return ? {}
+
+# dw_setregid16 _____________________________________________________
+
+probe dw_syscall.setregid16 = kernel.function("sys_setregid16").call ?
+{
+	@_SYSCALL_SETREGID_NAME
+	rgid = __short($rgid)
+	egid = __short($egid)
+	@_SYSCALL_SETREGID_ARGSTR
+}
+probe dw_syscall.setregid16.return = kernel.function("sys_setregid16").return ?
+{
+	@_SYSCALL_SETREGID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setregid16 _____________________________________________________
+
+probe nd_syscall.setregid16 = kprobe.function("sys_setregid16") ?
+{
+	@_SYSCALL_SETREGID_NAME
+	asmlinkage()
+	rgid = __short(uint_arg(1))
+	egid = __short(uint_arg(2))
+	@_SYSCALL_SETREGID_ARGSTR
+}
+probe nd_syscall.setregid16.return = kprobe.function("sys_setregid16").return ?
+{
+	@_SYSCALL_SETREGID_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,64 @@
+# remap_file_pages ___________________________________________
+#
+# long sys_remap_file_pages(unsigned long start,
+#			    unsigned long size,
+#			    unsigned long __prot,
+#			    unsigned long pgoff,
+#			    unsigned long flags)
+#
+
+@define _SYSCALL_REMAP_FILE_PAGES_NAME
+%(
+	name = "remap_file_pages"
+%)
+
+@define _SYSCALL_REMAP_FILE_PAGES_ARGSTR
+%(
+	argstr = sprintf("%p, %p, %s, %p, %s", start, size, prot_str, pgoff, flags_str)
+%)
+
+probe syscall.remap_file_pages = dw_syscall.remap_file_pages !,
+                                 nd_syscall.remap_file_pages ? {}
+probe syscall.remap_file_pages.return = dw_syscall.remap_file_pages.return !,
+                                        nd_syscall.remap_file_pages.return ? {}
+
+# dw_remap_file_pages _____________________________________________________
+
+probe dw_syscall.remap_file_pages = kernel.function("sys_remap_file_pages").call ?
+{
+	@_SYSCALL_REMAP_FILE_PAGES_NAME
+	start = __ulong($start)
+	size = __ulong($size)
+	prot = __ulong(@choose_defined($prot, $__prot))
+	prot_str = _mprotect_prot_str(prot)
+	pgoff = __ulong($pgoff)
+	flags = __ulong($flags)
+	flags_str = _mmap_flags(flags)
+	@_SYSCALL_REMAP_FILE_PAGES_ARGSTR
+}
+probe dw_syscall.remap_file_pages.return = kernel.function("sys_remap_file_pages").return ?
+{
+	@_SYSCALL_REMAP_FILE_PAGES_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_remap_file_pages _____________________________________________________
+
+probe nd_syscall.remap_file_pages = kprobe.function("sys_remap_file_pages") ?
+{
+	@_SYSCALL_REMAP_FILE_PAGES_NAME
+	asmlinkage()
+	start = ulong_arg(1)
+	size = ulong_arg(2)
+	prot = ulong_arg(3)
+	prot_str = _mprotect_prot_str(prot)
+	pgoff = ulong_arg(4)
+	flags = ulong_arg(5)
+	flags_str = _mmap_flags(flags)
+	@_SYSCALL_REMAP_FILE_PAGES_ARGSTR
+}
+probe nd_syscall.remap_file_pages.return = kprobe.function("sys_remap_file_pages").return ?
+{
+	@_SYSCALL_REMAP_FILE_PAGES_NAME
+	retstr = returnstr(1)
+}

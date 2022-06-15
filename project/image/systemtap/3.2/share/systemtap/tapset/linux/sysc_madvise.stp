@@ -1,0 +1,51 @@
+# madvise ____________________________________________________
+# long sys_madvise(unsigned long start, size_t len_in, int behavior)
+#
+
+@define _SYSCALL_MADVISE_NAME
+%(
+	name = "madvise"
+%)
+
+@define _SYSCALL_MADVISE_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s", start, length, advice_str)
+%)
+
+probe syscall.madvise = dw_syscall.madvise !, nd_syscall.madvise ? {}
+probe syscall.madvise.return = dw_syscall.madvise.return !, nd_syscall.madvise.return ? {}
+
+# dw_madvise _____________________________________________________
+
+probe dw_syscall.madvise = kernel.function("sys_madvise").call ?
+{
+	@_SYSCALL_MADVISE_NAME
+	start = __ulong($start)
+	length = __ulong($len_in)
+	advice = __int32($behavior)
+	advice_str = _madvice_advice_str(advice)
+	@_SYSCALL_MADVISE_ARGSTR
+}
+probe dw_syscall.madvise.return = kernel.function("sys_madvise").return ?
+{
+	@_SYSCALL_MADVISE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_madvise _____________________________________________________
+
+probe nd_syscall.madvise = kprobe.function("sys_madvise") ?
+{
+	@_SYSCALL_MADVISE_NAME
+	asmlinkage()
+	start = ulong_arg(1)
+	length = ulong_arg(2)
+	advice = int_arg(3)
+	advice_str = _madvice_advice_str(advice)
+	@_SYSCALL_MADVISE_ARGSTR
+}
+probe nd_syscall.madvise.return = kprobe.function("sys_madvise").return ?
+{
+	@_SYSCALL_MADVISE_NAME
+	retstr = returnstr(1)
+}

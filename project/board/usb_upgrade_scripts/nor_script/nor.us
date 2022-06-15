@@ -1,0 +1,11 @@
+# <- this is for comment / total file size must be ldss than 4KB
+
+ustar $(usb_folder)/nor_script/[[set_partition.us
+ustar $(usb_folder)/nor_script/[[ipl.us
+ustar $(usb_folder)/nor_script/[[uboot.us
+ustar $(usb_folder)/nor_script/[[kernel.us
+ustar $(usb_folder)/nor_script/[[nvrservice.us
+ustar $(usb_folder)/nor_script/[[customer.us
+ustar $(usb_folder)/nor_script/set_config
+
+% <- this is end of file symbol

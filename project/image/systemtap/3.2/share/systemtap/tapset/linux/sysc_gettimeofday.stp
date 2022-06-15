@@ -1,0 +1,61 @@
+# gettimeofday _______________________________________________
+# long sys_gettimeofday(struct timeval  __user *tv,
+#	struct timezone __user *tz)
+# long sys32_gettimeofday(struct compat_timeval __user *tv,
+#	struct timezone __user *tz)
+# long compat_sys_gettimeofday(struct compat_timeval __user *tv,
+#	struct timezone __user *tz)
+
+@define _SYSCALL_GETTIMEOFDAY_NAME
+%(
+	name = "gettimeofday"
+%)
+
+@define _SYSCALL_GETTIMEOFDAY_ARGSTR
+%(
+	argstr = sprintf("%p, %p", tv_uaddr, tz_uaddr)
+%)
+
+probe syscall.gettimeofday = dw_syscall.gettimeofday !, nd_syscall.gettimeofday ? {}
+probe syscall.gettimeofday.return = dw_syscall.gettimeofday.return !, nd_syscall.gettimeofday.return ? {}
+
+# dw_gettimeofday _____________________________________________________
+
+probe dw_syscall.gettimeofday = kernel.function("compat_sys_gettimeofday").call ?,
+                             kernel.function("sys32_gettimeofday").call ?,
+                             kernel.function("sys_gettimeofday").call
+{
+	@_SYSCALL_GETTIMEOFDAY_NAME
+	tv_uaddr = $tv
+	tz_uaddr = $tz
+	@_SYSCALL_GETTIMEOFDAY_ARGSTR
+}
+
+probe dw_syscall.gettimeofday.return = kernel.function("compat_sys_gettimeofday").return ?,
+                                    kernel.function("sys32_gettimeofday").return ?,
+                                    kernel.function("sys_gettimeofday").return
+{
+	@_SYSCALL_GETTIMEOFDAY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_gettimeofday _____________________________________________________
+
+probe nd_syscall.gettimeofday = kprobe.function("compat_sys_gettimeofday") ?,
+                                kprobe.function("sys32_gettimeofday") ?,
+                                kprobe.function("sys_gettimeofday") ?
+{
+	@_SYSCALL_GETTIMEOFDAY_NAME
+	asmlinkage()
+	tv_uaddr = pointer_arg(1)
+	tz_uaddr = pointer_arg(2)
+	@_SYSCALL_GETTIMEOFDAY_ARGSTR
+}
+
+probe nd_syscall.gettimeofday.return = kprobe.function("compat_sys_gettimeofday").return ?,
+                                       kprobe.function("sys32_gettimeofday").return ?,
+                                       kprobe.function("sys_gettimeofday").return ?
+{
+	@_SYSCALL_GETTIMEOFDAY_NAME
+	retstr = returnstr(1)
+}

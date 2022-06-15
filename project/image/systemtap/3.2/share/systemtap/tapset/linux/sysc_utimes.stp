@@ -1,0 +1,96 @@
+# utimes _____________________________________________________
+#
+# long sys_utimes(char __user * filename, struct timeval __user * utimes)
+#
+
+@define _SYSCALL_UTIMES_NAME
+%(
+	name = "utimes"
+%)
+
+@define _SYSCALL_UTIMES_ARGSTR
+%(
+	argstr = sprintf("%s, %s", filename, tvp_uaddr_str) 
+%)
+
+probe syscall.utimes = dw_syscall.utimes !, nd_syscall.utimes ? {}
+probe syscall.utimes.return = dw_syscall.utimes.return !,
+                              nd_syscall.utimes.return ? {}
+
+# dw_utimes _____________________________________________________
+
+probe dw_syscall.utimes = kernel.function("sys_utimes").call
+{
+	@_SYSCALL_UTIMES_NAME
+	filename_uaddr = $filename
+	filename = user_string_quoted($filename)
+	tvp_uaddr = $utimes
+	tvp_uaddr_str = _struct_timeval_u(tvp_uaddr, 2)
+	@_SYSCALL_UTIMES_ARGSTR
+}
+probe dw_syscall.utimes.return = kernel.function("sys_utimes").return
+{
+	@_SYSCALL_UTIMES_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_utimes _____________________________________________________
+
+probe nd_syscall.utimes = kprobe.function("sys_utimes") ?
+{
+	@_SYSCALL_UTIMES_NAME
+	asmlinkage()
+	filename_uaddr = pointer_arg(1)
+	filename = user_string_quoted(filename_uaddr)
+	tvp_uaddr = pointer_arg(2)
+	tvp_uaddr_str = _struct_timeval_u(tvp_uaddr, 2)
+	@_SYSCALL_UTIMES_ARGSTR
+}
+probe nd_syscall.utimes.return = kprobe.function("sys_utimes").return ?
+{
+	@_SYSCALL_UTIMES_NAME
+	retstr = returnstr(1)
+}
+
+# compat_sys_utimes ________________________________________
+#
+# long compat_sys_utimes(char __user *filename, struct compat_timeval __user *t)
+#
+
+probe syscall.compat_sys_utimes = dw_syscall.compat_sys_utimes !,
+                                  nd_syscall.compat_sys_utimes ? {}
+probe syscall.compat_sys_utimes.return = dw_syscall.compat_sys_utimes.return !,
+                                         nd_syscall.compat_sys_utimes.return ? {}
+
+# dw_compat_sys_utimes _____________________________________________________
+
+probe dw_syscall.compat_sys_utimes = kernel.function("compat_sys_utimes").call ?
+{
+	@_SYSCALL_UTIMES_NAME
+	filename = user_string_quoted(@__pointer($filename))
+	timeval = @__pointer($t)
+	tvp_uaddr_str = _struct_compat_timeval_u(timeval, 2)
+	@_SYSCALL_UTIMES_ARGSTR
+}
+probe dw_syscall.compat_sys_utimes.return = kernel.function("compat_sys_utimes").return ?
+{
+	@_SYSCALL_UTIMES_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_sys_utimes _____________________________________________________
+
+probe nd_syscall.compat_sys_utimes = kprobe.function("compat_sys_utimes") ?
+{
+	@_SYSCALL_UTIMES_NAME
+	asmlinkage()
+	filename = user_string_quoted(pointer_arg(1))
+	timeval = pointer_arg(2)
+	tvp_uaddr_str = _struct_compat_timeval_u(timeval, 2)
+	@_SYSCALL_UTIMES_ARGSTR
+}
+probe nd_syscall.compat_sys_utimes.return = kprobe.function("compat_sys_utimes").return ?
+{
+	@_SYSCALL_UTIMES_NAME
+	retstr = returnstr(1)
+}

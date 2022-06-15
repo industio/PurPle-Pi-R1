@@ -1,0 +1,86 @@
+# nanosleep __________________________________________________
+#
+# long sys_nanosleep(struct timespec __user *rqtp,
+#		struct timespec __user *rmtp)
+# long compat_sys_nanosleep(struct compat_timespec __user *rqtp,
+#		struct compat_timespec __user *rmtp)
+#
+
+@define _SYSCALL_NANOSLEEP_NAME
+%(
+	name = "nanosleep"
+%)
+
+@define _SYSCALL_NANOSLEEP_ARGSTR
+%(
+	argstr = sprintf("%s, %p", req_str, rem_uaddr)
+%)
+
+probe syscall.nanosleep = dw_syscall.nanosleep !, nd_syscall.nanosleep ? {}
+probe syscall.nanosleep.return = dw_syscall.nanosleep.return !,
+                                 nd_syscall.nanosleep.return ? {}
+
+probe syscall.compat_nanosleep = dw_syscall.compat_nanosleep !,
+                                 nd_syscall.compat_nanosleep ? {}
+probe syscall.compat_nanosleep.return = dw_syscall.compat_nanosleep.return !,
+                                        nd_syscall.compat_nanosleep.return ? {}
+
+# dw_nanosleep _____________________________________________________
+
+probe dw_syscall.nanosleep = kernel.function("sys_nanosleep").call
+{
+	@_SYSCALL_NANOSLEEP_NAME
+	req_uaddr = $rqtp
+	req_str = _struct_timespec_u(req_uaddr, 1)
+	rem_uaddr = $rmtp
+	@_SYSCALL_NANOSLEEP_ARGSTR
+}
+probe dw_syscall.nanosleep.return = kernel.function("sys_nanosleep").return
+{
+	@_SYSCALL_NANOSLEEP_NAME
+	retstr = return_str(1, $return)
+}
+probe dw_syscall.compat_nanosleep = kernel.function("compat_sys_nanosleep").call ?
+{
+	@_SYSCALL_NANOSLEEP_NAME
+	req_uaddr = @__pointer($rqtp)
+	req_str = _struct_compat_timespec_u(req_uaddr, 1)
+	rem_uaddr = @__pointer($rmtp)
+	@_SYSCALL_NANOSLEEP_ARGSTR
+}
+probe dw_syscall.compat_nanosleep.return = kernel.function("compat_sys_nanosleep").return ?
+{
+	@_SYSCALL_NANOSLEEP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_nanosleep _____________________________________________________
+
+probe nd_syscall.nanosleep = kprobe.function("sys_nanosleep").call ?
+{
+	@_SYSCALL_NANOSLEEP_NAME
+	asmlinkage()
+	req_uaddr = pointer_arg(1)
+	req_str = _struct_timespec_u(req_uaddr, 1)
+	rem_uaddr = pointer_arg(2)
+	@_SYSCALL_NANOSLEEP_ARGSTR
+}
+probe nd_syscall.nanosleep.return = kprobe.function("sys_nanosleep").return ?
+{
+	@_SYSCALL_NANOSLEEP_NAME
+	retstr = returnstr(1)
+}
+probe nd_syscall.compat_nanosleep = kprobe.function("compat_sys_nanosleep") ?
+{
+	@_SYSCALL_NANOSLEEP_NAME
+	asmlinkage()
+	req_uaddr = pointer_arg(1)
+	req_str = _struct_compat_timespec_u(req_uaddr, 1)
+	rem_uaddr = pointer_arg(2)
+	@_SYSCALL_NANOSLEEP_ARGSTR
+}
+probe nd_syscall.compat_nanosleep.return = kprobe.function("compat_sys_nanosleep").return ?
+{
+	@_SYSCALL_NANOSLEEP_NAME
+	retstr = returnstr(1)
+}

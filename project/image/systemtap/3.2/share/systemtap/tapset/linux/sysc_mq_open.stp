@@ -1,0 +1,105 @@
+# mq_open ____________________________________________________
+# long  sys_mq_open(const char __user *u_name,
+#             int oflag,
+#             mode_t mode,
+#             struct mq_attr __user *u_attr)
+# long compat_sys_mq_open(const char __user *u_name,
+#			int oflag, compat_mode_t mode,
+#			struct compat_mq_attr __user *u_attr)
+#
+
+@define _SYSCALL_MQ_OPEN_NAME
+%(
+	name = "mq_open"
+%)
+
+@define _SYSCALL_MQ_OPEN_ARGSTR_2
+%(
+	argstr = sprintf("%s, %s, %#o, %p", filename, oflag_str, mode, u_attr_uaddr)
+%)
+
+@define _SYSCALL_MQ_OPEN_ARGSTR
+%(
+	argstr = sprintf("%s, %s", filename, oflag_str)
+%)
+
+probe syscall.mq_open = dw_syscall.mq_open !, nd_syscall.mq_open ? {}
+probe syscall.mq_open.return = dw_syscall.mq_open.return !, nd_syscall.mq_open.return ? {}
+
+# dw_mq_open _____________________________________________________
+
+probe dw_syscall.mq_open = __syscall.mq_open,
+                        kernel.function("compat_sys_mq_open").call ?
+{
+	@_SYSCALL_MQ_OPEN_NAME
+	name_uaddr = @__pointer($u_name)
+	filename = user_string_quoted(name_uaddr)
+	u_attr_uaddr = @__pointer($u_attr)
+	oflag = __int32($oflag)
+	oflag_str = _sys_open_flag_str(oflag)
+	mode = (@__compat_task ? __ushort($mode) : __uint32($mode))
+	if (oflag & @const("O_CREAT"))
+		@_SYSCALL_MQ_OPEN_ARGSTR_2
+	else
+		@_SYSCALL_MQ_OPEN_ARGSTR
+}
+
+probe __syscall.mq_open = kernel.function("sys_mq_open").call
+{
+	@__syscall_gate_compat_simple
+}
+probe dw_syscall.mq_open.return =
+        __syscall.mq_open.return,
+        kernel.function("compat_sys_mq_open").return ?
+{
+	@_SYSCALL_MQ_OPEN_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.mq_open.return = kernel.function("sys_mq_open").return
+{
+        @__syscall_gate(@const("__NR_mq_open"))
+}
+
+# nd_mq_open _____________________________________________________
+
+probe nd_syscall.mq_open = __nd_syscall.mq_open,
+                           __nd_syscall.compat_mq_open ?
+{
+	asmlinkage()
+	@_SYSCALL_MQ_OPEN_NAME
+	name_uaddr = pointer_arg(1)
+	filename = user_string_quoted(name_uaddr)
+	u_attr_uaddr = pointer_arg(4)
+	oflag = int_arg(2)
+	oflag_str = _sys_open_flag_str(oflag)
+	if (oflag & @const("O_CREAT"))
+		@_SYSCALL_MQ_OPEN_ARGSTR_2
+	else
+		@_SYSCALL_MQ_OPEN_ARGSTR
+}
+probe __nd_syscall.mq_open = kprobe.function("sys_mq_open")
+{
+	asmlinkage()
+        @__syscall_gate(@const("__NR_mq_open"))
+%( CONFIG_64BIT == "y" %?
+        mode = uint_arg(3)
+%:
+        mode = (uint_arg(3) & 0xffff)
+%)
+}
+probe __nd_syscall.compat_mq_open = kprobe.function("compat_sys_mq_open")
+{
+	asmlinkage()
+	mode = (uint_arg(3) & 0xffff)
+}
+probe nd_syscall.mq_open.return =
+        __nd_syscall.mq_open.return ?,
+        kprobe.function("compat_sys_mq_open").return ?
+{
+	@_SYSCALL_MQ_OPEN_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.mq_open.return = kprobe.function("sys_mq_open").return
+{
+        @__syscall_gate(@const("__NR_mq_open"))
+}

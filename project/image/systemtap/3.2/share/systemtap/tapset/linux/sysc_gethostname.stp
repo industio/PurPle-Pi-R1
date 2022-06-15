@@ -1,0 +1,46 @@
+# gethostname ________________________________________________
+# long sys_gethostname(char __user *name, int len)
+
+@define _SYSCALL_GETHOSTNAME_NAME
+%(
+	name = "gethostname"
+%)
+
+@define _SYSCALL_GETHOSTNAME_ARGSTR
+%(
+	argstr = sprintf ("%p, %d", name_uaddr, len)
+%)
+
+probe syscall.gethostname = dw_syscall.gethostname !, nd_syscall.gethostname ? {}
+probe syscall.gethostname.return = dw_syscall.gethostname.return !, nd_syscall.gethostname.return ? {}
+
+# dw_gethostname _____________________________________________________
+
+probe dw_syscall.gethostname = kernel.function("sys_gethostname").call ?
+{
+	@_SYSCALL_GETHOSTNAME_NAME
+	name_uaddr = $name
+	len = __int32($len)
+	@_SYSCALL_GETHOSTNAME_ARGSTR
+}
+probe dw_syscall.gethostname.return = kernel.function("sys_gethostname").return ?
+{
+	@_SYSCALL_GETHOSTNAME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_gethostname _____________________________________________________
+
+probe nd_syscall.gethostname = kprobe.function("sys_gethostname") ?
+{
+	@_SYSCALL_GETHOSTNAME_NAME
+	asmlinkage()
+	name_uaddr = pointer_arg(1)
+	len = int_arg(2)
+	@_SYSCALL_GETHOSTNAME_ARGSTR
+}
+probe nd_syscall.gethostname.return = kprobe.function("sys_gethostname").return ?
+{
+	@_SYSCALL_GETHOSTNAME_NAME
+	retstr = returnstr(1)
+}

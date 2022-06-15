@@ -1,0 +1,48 @@
+# symlink ____________________________________________________
+# long sys_symlink(const char __user * oldname,
+#		 const char __user * newname)
+
+@define _SYSCALL_SYMLINK_NAME
+%(
+	name = "symlink"
+%)
+
+@define _SYSCALL_SYMLINK_ARGSTR
+%(
+	argstr = sprintf("%s, %s", oldpath, newpath)
+%)
+
+probe syscall.symlink = dw_syscall.symlink !, nd_syscall.symlink ? {}
+probe syscall.symlink.return = dw_syscall.symlink.return !,
+                               nd_syscall.symlink.return ? {}
+
+# dw_symlink _____________________________________________________
+
+probe dw_syscall.symlink = kernel.function("sys_symlink").call
+{
+	@_SYSCALL_SYMLINK_NAME
+	oldpath = user_string_quoted($oldname)
+	newpath = user_string_quoted($newname)
+	@_SYSCALL_SYMLINK_ARGSTR
+}
+probe dw_syscall.symlink.return = kernel.function("sys_symlink").return
+{
+	@_SYSCALL_SYMLINK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_symlink _____________________________________________________
+
+probe nd_syscall.symlink = kprobe.function("sys_symlink") ?
+{
+	@_SYSCALL_SYMLINK_NAME
+	asmlinkage()
+	oldpath = user_string_quoted(pointer_arg(1))
+	newpath = user_string_quoted(pointer_arg(2))
+	@_SYSCALL_SYMLINK_ARGSTR
+}
+probe nd_syscall.symlink.return = kprobe.function("sys_symlink").return ?
+{
+	@_SYSCALL_SYMLINK_NAME
+	retstr = returnstr(1)
+}

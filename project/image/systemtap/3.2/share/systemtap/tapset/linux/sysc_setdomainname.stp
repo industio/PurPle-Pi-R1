@@ -1,0 +1,60 @@
+# setdomainname ______________________________________________
+#
+# asmlinkage long
+# sys_setdomainname(char __user *name,
+#			 int len)
+#
+
+@define _SYSCALL_SETDOMAINNAME_NAME
+%(
+	name = "setdomainname"
+%)
+
+@define _SYSCALL_SETDOMAINNAME_ARGSTR
+%(
+	argstr = sprintf("%s, %d", domainname_str, len)
+%)
+
+probe syscall.setdomainname = dw_syscall.setdomainname !,
+                              nd_syscall.setdomainname ? {}
+probe syscall.setdomainname.return = dw_syscall.setdomainname.return !,
+                                     nd_syscall.setdomainname.return ? {}
+
+# dw_setdomainname _____________________________________________________
+
+probe dw_syscall.setdomainname = kernel.function("sys_setdomainname").call
+{
+	@_SYSCALL_SETDOMAINNAME_NAME
+	domainname_uaddr = $name
+%( systemtap_v <= "2.8" %?
+	hostname_uaddr = domainname_uaddr
+%)
+        domainname_str = user_string_quoted(domainname_uaddr)
+	len = __int32($len)
+	@_SYSCALL_SETDOMAINNAME_ARGSTR
+}
+probe dw_syscall.setdomainname.return = kernel.function("sys_setdomainname").return
+{
+	@_SYSCALL_SETDOMAINNAME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_setdomainname _____________________________________________________
+
+probe nd_syscall.setdomainname = kprobe.function("sys_setdomainname") ?
+{
+	@_SYSCALL_SETDOMAINNAME_NAME
+	asmlinkage()
+	domainname_uaddr = pointer_arg(1)
+%( systemtap_v <= "2.8" %?
+        hostname_uaddr = domainname_uaddr
+%)
+	domainname_str = user_string_quoted(domainname_uaddr)
+	len = int_arg(2)
+	@_SYSCALL_SETDOMAINNAME_ARGSTR
+}
+probe nd_syscall.setdomainname.return = kprobe.function("sys_setdomainname").return ?
+{
+	@_SYSCALL_SETDOMAINNAME_NAME
+	retstr = returnstr(1)
+}

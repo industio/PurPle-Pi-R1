@@ -1,0 +1,66 @@
+# sched_getaffinity __________________________________________
+#
+# asmlinkage long
+# sys_sched_getaffinity(pid_t pid,
+#			     unsigned int len,
+#			     unsigned long __user *user_mask_ptr)
+# COMPAT_SYSCALL_DEFINE3(sched_getaffinity, compat_pid_t,  pid,
+#			 unsigned int, len,
+#			 compat_ulong_t __user *, user_mask_ptr)
+#
+
+@define _SYSCALL_SCHED_GETAFFINITY_NAME
+%(
+	name = "sched_getaffinity"
+%)
+
+@define _SYSCALL_SCHED_GETAFFINITY_ARGSTR
+%(
+	argstr = sprintf("%d, %u, %p", pid, len, mask_uaddr)
+%)
+
+probe syscall.sched_getaffinity = dw_syscall.sched_getaffinity !,
+                                  nd_syscall.sched_getaffinity ? {}
+probe syscall.sched_getaffinity.return = dw_syscall.sched_getaffinity.return !,
+                                         nd_syscall.sched_getaffinity.return ? {}
+
+# dw_sched_getaffinity _____________________________________________________
+
+probe dw_syscall.sched_getaffinity =
+	kernel.function("sys_sched_getaffinity").call ?,
+	kernel.function("compat_sys_sched_getaffinity").call ?
+{
+	@_SYSCALL_SCHED_GETAFFINITY_NAME
+	pid = __int32($pid)
+	len = __uint32($len)
+	mask_uaddr = @__pointer($user_mask_ptr)
+	@_SYSCALL_SCHED_GETAFFINITY_ARGSTR
+}
+probe dw_syscall.sched_getaffinity.return =
+	kernel.function("sys_sched_getaffinity").return ?,
+	kernel.function("compat_sys_sched_getaffinity").return ?
+{
+	@_SYSCALL_SCHED_GETAFFINITY_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sched_getaffinity _____________________________________________________
+
+probe nd_syscall.sched_getaffinity =
+	kprobe.function("sys_sched_getaffinity") ?,
+	kprobe.function("compat_sys_sched_getaffinity") ?
+{
+	@_SYSCALL_SCHED_GETAFFINITY_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	len = uint_arg(2)
+	mask_uaddr = pointer_arg(3)
+	@_SYSCALL_SCHED_GETAFFINITY_ARGSTR
+}
+probe nd_syscall.sched_getaffinity.return =
+	kprobe.function("sys_sched_getaffinity").return ?,
+	kprobe.function("compat_sys_sched_getaffinity").return ?
+{
+	@_SYSCALL_SCHED_GETAFFINITY_NAME
+	retstr = returnstr(1)
+}

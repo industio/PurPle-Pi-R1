@@ -1,0 +1,51 @@
+# sys32_sched_setparam ________________________________________
+#
+# asmlinkage long sys32_sched_setparam(u32 pid,
+#		struct sched_param __user *param)
+#
+
+@define _SYSCALL_SYS32_SCHED_SETPARAM_NAME
+%(
+	name = "sys32_sched_setparam"
+%)
+
+@define _SYSCALL_SYS32_SCHED_SETPARAM_ARGSTR
+%(
+	argstr = sprintf("%d, %p", pid, param_uaddr)
+%)
+
+probe syscall.sys32_sched_setparam = dw_syscall.sys32_sched_setparam !,
+                                     nd_syscall.sys32_sched_setparam ? {}
+probe syscall.sys32_sched_setparam.return = dw_syscall.sys32_sched_setparam.return !,
+                                            nd_syscall.sys32_sched_setparam.return ? {}
+
+# dw_sys32_sched_setparam _____________________________________________________
+
+probe dw_syscall.sys32_sched_setparam = kernel.function("sys32_sched_setparam") ?
+{
+	@_SYSCALL_SYS32_SCHED_SETPARAM_NAME
+	pid = $pid
+	param_uaddr = $param
+	@_SYSCALL_SYS32_SCHED_SETPARAM_ARGSTR
+}
+probe dw_syscall.sys32_sched_setparam.return = kernel.function("sys32_sched_setparam").return ?
+{
+	@_SYSCALL_SYS32_SCHED_SETPARAM_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_sched_setparam _____________________________________________________
+
+probe nd_syscall.sys32_sched_setparam = kprobe.function("sys32_sched_setparam") ?
+{
+	@_SYSCALL_SYS32_SCHED_SETPARAM_NAME
+	asmlinkage()
+	pid = uint_arg(1)
+	param_uaddr = pointer_arg(2)
+	@_SYSCALL_SYS32_SCHED_SETPARAM_ARGSTR
+}
+probe nd_syscall.sys32_sched_setparam.return = kprobe.function("sys32_sched_setparam").return ?
+{
+	@_SYSCALL_SYS32_SCHED_SETPARAM_NAME
+	retstr = returnstr(1)
+}

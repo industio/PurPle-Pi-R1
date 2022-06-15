@@ -1,0 +1,13 @@
+# <- this is for comment / total file size must be less than 4KB
+ustar $(usb_folder)/spinand_script/[[set_partition.us
+ustar $(usb_folder)/spinand_script/[[ipl.us
+ustar $(usb_folder)/spinand_script/[[uboot.us
+ustar $(usb_folder)/spinand_script/[[kernel.us
+ustar $(usb_folder)/spinand_script/[[rootfs.us
+ustar $(usb_folder)/spinand_script/[[nvrservice.us
+ustar $(usb_folder)/spinand_script/[[customer.us
+ustar $(usb_folder)/scripts/set_config
+saveenv
+printenv
+reset
+% <- this is end of file symbol

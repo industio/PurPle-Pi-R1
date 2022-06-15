@@ -1,0 +1,48 @@
+# fremovexattr _______________________________________________
+# long sys_fremovexattr(int fd, char __user *name)
+
+@define _SYSCALL_FREMOVEXATTR_NAME
+%(
+	name = "fremovexattr"
+%)
+
+@define _SYSCALL_FREMOVEXATTR_ARGSTR
+%(
+	argstr = sprintf("%d, %s", filedes, name_str)
+%)
+
+probe syscall.fremovexattr = dw_syscall.fremovexattr !, nd_syscall.fremovexattr ? {}
+probe syscall.fremovexattr.return = dw_syscall.fremovexattr.return !, nd_syscall.fremovexattr.return ? {}
+
+# dw_fremovexattr _____________________________________________________
+
+probe dw_syscall.fremovexattr = kernel.function("sys_fremovexattr").call
+{
+	@_SYSCALL_FREMOVEXATTR_NAME
+	filedes = __int32($fd)
+	name_uaddr = $name
+	name_str = user_string_quoted($name)
+	@_SYSCALL_FREMOVEXATTR_ARGSTR
+}
+probe dw_syscall.fremovexattr.return = kernel.function("sys_fremovexattr").return
+{
+	@_SYSCALL_FREMOVEXATTR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fremovexattr _____________________________________________________
+
+probe nd_syscall.fremovexattr = kprobe.function("sys_fremovexattr") ?
+{
+	@_SYSCALL_FREMOVEXATTR_NAME
+	asmlinkage()
+	filedes = int_arg(1)
+	name_uaddr = pointer_arg(2)
+	name_str = user_string_quoted(pointer_arg(2))
+	@_SYSCALL_FREMOVEXATTR_ARGSTR
+}
+probe nd_syscall.fremovexattr.return = kprobe.function("sys_fremovexattr").return ?
+{
+	@_SYSCALL_FREMOVEXATTR_NAME
+	retstr = returnstr(1)
+}

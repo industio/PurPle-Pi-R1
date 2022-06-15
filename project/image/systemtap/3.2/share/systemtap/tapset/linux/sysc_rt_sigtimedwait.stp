@@ -1,0 +1,95 @@
+# rt_sigtimedwait ____________________________________________
+#
+# long sys_rt_sigtimedwait(const sigset_t __user *uthese,
+#		   siginfo_t __user *uinfo,
+#		   const struct timespec __user *uts,
+#		   size_t sigsetsize)
+# long compat_sys_rt_sigtimedwait (compat_sigset_t __user *uthese,
+#		struct compat_siginfo __user *uinfo,
+#		struct compat_timespec __user *uts, compat_size_t sigsetsize)
+#
+
+@define _SYSCALL_RT_SIGTIMEDWAIT_NAME
+%(
+	name = "rt_sigtimedwait"
+%)
+
+@define _SYSCALL_RT_SIGTIMEDWAIT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %d", uthese_str, uinfo_str, uts_str, sigsetsize)
+%)
+
+probe syscall.rt_sigtimedwait = dw_syscall.rt_sigtimedwait !,
+                                nd_syscall.rt_sigtimedwait ? {}
+probe syscall.rt_sigtimedwait.return = dw_syscall.rt_sigtimedwait.return !,
+                                       nd_syscall.rt_sigtimedwait.return ? {}
+
+# dw_rt_sigtimedwait _____________________________________________________
+
+probe dw_syscall.rt_sigtimedwait =
+	kernel.function("compat_sys_rt_sigtimedwait").call ?,
+	kernel.function("sys_rt_sigtimedwait").call
+{
+	@_SYSCALL_RT_SIGTIMEDWAIT_NAME
+	uthese_uaddr = @__pointer($uthese)
+	uinfo_uaddr = @__pointer($uinfo)
+	uts_uaddr = @__pointer($uts)
+	sigsetsize = $sigsetsize
+	if (@__compat_task) {
+		uthese_str = _stp_compat_sigset_u(uthese_uaddr)
+		uinfo_str = _stp_compat_siginfo_u(uinfo_uaddr)
+		uts_str = _struct_compat_timespec_u(uts_uaddr, 1)
+	} else {
+		uthese_str = _stp_sigset_u(uthese_uaddr)
+		uinfo_str = _stp_siginfo_u(uinfo_uaddr)
+		uts_str = _struct_timespec_u(uts_uaddr, 1)
+	}
+	@_SYSCALL_RT_SIGTIMEDWAIT_ARGSTR
+}
+probe dw_syscall.rt_sigtimedwait.return =
+	kernel.function("compat_sys_rt_sigtimedwait").return ?,
+	kernel.function("sys_rt_sigtimedwait").return
+{
+	@_SYSCALL_RT_SIGTIMEDWAIT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_rt_sigtimedwait _____________________________________________________
+
+probe nd_syscall.rt_sigtimedwait = __nd_syscall.rt_sigtimedwait ?,
+				   __nd_syscall.compat_rt_sigtimedwait ?
+{
+	@_SYSCALL_RT_SIGTIMEDWAIT_NAME
+	asmlinkage()
+	uthese_uaddr = pointer_arg(1)
+	uinfo_uaddr = pointer_arg(2)
+	uts_uaddr = pointer_arg(3)
+	if (@__compat_task) {
+		uthese_str = _stp_compat_sigset_u(uthese_uaddr)
+		uinfo_str = _stp_compat_siginfo_u(uinfo_uaddr)
+		uts_str = _struct_compat_timespec_u(uts_uaddr, 1)
+	} else {
+		uthese_str = _stp_sigset_u(uthese_uaddr)
+		uinfo_str = _stp_siginfo_u(uinfo_uaddr)
+		uts_str = _struct_timespec_u(uts_uaddr, 1)
+	}
+	@_SYSCALL_RT_SIGTIMEDWAIT_ARGSTR
+}
+probe __nd_syscall.rt_sigtimedwait = kprobe.function("sys_rt_sigtimedwait")
+{
+	asmlinkage()
+	sigsetsize = ulong_arg(4)
+}
+probe __nd_syscall.compat_rt_sigtimedwait =
+	kprobe.function("compat_sys_rt_sigtimedwait")
+{
+	asmlinkage()
+	sigsetsize = u32_arg(4)
+}
+probe nd_syscall.rt_sigtimedwait.return =
+	kprobe.function("compat_sys_rt_sigtimedwait").return ?,
+	kprobe.function("sys_rt_sigtimedwait").return ?
+{
+	@_SYSCALL_RT_SIGTIMEDWAIT_NAME
+	retstr = returnstr(1)
+}

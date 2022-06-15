@@ -1,0 +1,13 @@
+title: Summarize the time each process spends clearing huge pages
+name: hugepage_clear_delays.stp
+version: 1.0
+author: William Cohen
+keywords: memory
+subsystem: memory
+status: production
+exit: user-controlled
+output: sorted-list
+scope: system-wide
+description: When a huge page is initially used by a process it must be cleared of its original contents to avoid leaking information between processes.  On x86_64 machines the huge pages are 2MB in size, 512 times larger than a normal 4KB page.  Thus, clearing a huge page can delay program execution by a hundred or more microseconds and maybe noticeable to latency sensitive programs.  This script will tally the number of times that each process triggers a huge page clear, the total time in microseconds spent clearing the pages, and the average time in microseconds of the huge page clear.
+test_check: stap -p4 hugepage_clear_delays.stp
+test_installcheck: stap hugepage_clear_delays.stp -T 1

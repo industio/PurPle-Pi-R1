@@ -1,0 +1,59 @@
+# truncate64 __________________________________________________
+#
+# COMPAT_SYSCALL_DEFINE3(s390_truncate64, const char __user *, path,
+#			 u32, high, u32, low)
+#
+
+@define _SYSCALL_COMPAT_TRUNCATE64_NAME
+%(
+	name = "truncate"
+%)
+
+@define _SYSCALL_COMPAT_TRUNCATE64_ARGSTR
+%(
+	argstr = sprintf("%s, %d", path, length)
+%)
+
+probe syscall.compat_truncate64 = dw_syscall.compat_truncate64 !,
+                                  nd_syscall.compat_truncate64 ? {}
+probe syscall.compat_truncate64.return = dw_syscall.compat_truncate64.return !,
+                                         nd_syscall.compat_truncate64.return ? {}
+
+# dw_compat_truncate64 _____________________________________________________
+
+probe dw_syscall.compat_truncate64 = kernel.function("sys32_truncate64").call ?,
+	kernel.function("compat_sys_s390_truncate64").call ?
+{
+        @_SYSCALL_COMPAT_TRUNCATE64_NAME
+	path_uaddr = @__pointer($path)
+	path = user_string_quoted(path_uaddr)
+        length = (($high << 32) | __uint32($low))
+	@_SYSCALL_COMPAT_TRUNCATE64_ARGSTR
+}
+probe dw_syscall.compat_truncate64.return =
+	kernel.function("sys32_truncate64").return ?,
+	kernel.function("compat_sys_s390_truncate64").return ?
+{
+	@_SYSCALL_COMPAT_TRUNCATE64_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_truncate64 _____________________________________________________
+
+probe nd_syscall.compat_truncate64 = kprobe.function("sys32_truncate64") ?,
+	kprobe.function("compat_sys_s390_truncate64") ?
+{
+	asmlinkage()
+        @_SYSCALL_COMPAT_TRUNCATE64_NAME
+	path_uaddr = pointer_arg(1)
+	path = user_string_quoted(path_uaddr)
+        length = ((uint_arg(2) << 32) | uint_arg(3))
+	@_SYSCALL_COMPAT_TRUNCATE64_ARGSTR
+}
+probe nd_syscall.compat_truncate64.return =
+	kprobe.function("sys32_truncate64").return ?,
+	kprobe.function("compat_sys_s390_truncate64").return ?
+{
+	@_SYSCALL_COMPAT_TRUNCATE64_NAME
+	retstr = returnstr(1)
+}

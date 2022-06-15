@@ -1,0 +1,63 @@
+# fork _______________________________________________________
+#
+# SYSCALL_DEFINE0(fork)
+#
+
+@define _SYSCALL_FORK_NAME
+%(
+	name = "fork"
+%)
+
+@define _SYSCALL_FORK_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.fork = dw_syscall.fork !, nd_syscall.fork ? {}
+probe syscall.fork.return = dw_syscall.fork.return !, nd_syscall.fork.return ? {}
+
+# dw_fork _____________________________________________________
+
+probe dw_syscall.fork = kernel.function("sys_fork").call ?
+{
+%(systemtap_v < "2.3" %?
+	regs = 0
+%)
+%(systemtap_v < "2.5" %?
+	clone_flags = 0
+	stack_start = 0
+	stack_size = 0
+	parent_tid_uaddr = 0
+	child_tid_uaddr = 0
+%)
+	@_SYSCALL_FORK_NAME
+	@_SYSCALL_FORK_ARGSTR
+}
+probe dw_syscall.fork.return = kernel.function("sys_fork").return ?
+{
+	@_SYSCALL_FORK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fork _____________________________________________________
+
+probe nd_syscall.fork = kprobe.function("sys_fork").call ?
+{
+%(systemtap_v < "2.3" %?
+	regs = 0
+%)
+%(systemtap_v < "2.5" %?
+	clone_flags = 0
+	stack_start = 0
+	stack_size = 0
+	parent_tid_uaddr = 0
+	child_tid_uaddr = 0
+%)
+	@_SYSCALL_FORK_NAME
+	@_SYSCALL_FORK_ARGSTR
+}
+probe nd_syscall.fork.return = kprobe.function("sys_fork").return ?
+{
+	@_SYSCALL_FORK_NAME
+	retstr = returnstr(1)
+}

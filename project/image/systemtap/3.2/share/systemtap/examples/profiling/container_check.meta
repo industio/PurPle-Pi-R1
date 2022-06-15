@@ -1,0 +1,13 @@
+title: Monitor capabilities and syscalls used by a process and it children
+name: container_check.stp
+version: 1.0
+author: William Cohen
+keywords: profiling container syscall
+subsystem: any
+status: production
+exit: user-controlled
+output: sorted-list
+scope: process
+description: The container_check.stp script monitors the use of linux capablities and optionally forbidden syscalls by a process and its children.  On exit the script prints out lists showing the capabilies used by each executable, which syscall used specific capabilites for each executable, a list of forbidden syscalls used, and details on any syscalls that failed during monitoring.  This script is designed to help diagnose issues caused by restricted capabilies and syscalls when running an application in a container.  If the script warns about skipped probes, the number of active kretprobes may need to be increased with "-DKRETACTIVE=100" option on the command line
+test_check: stap -p4 container_check.stp
+test_installcheck: stap container_check.stp -c "ping -c 1 sourceware.org || true"

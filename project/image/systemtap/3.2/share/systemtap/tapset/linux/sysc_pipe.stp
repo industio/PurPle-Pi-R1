@@ -1,0 +1,225 @@
+# pipe _______________________________________________________
+#
+# asmlinkage int sys_pipe(unsigned long __user * fildes)
+# asmlinkage long sys_ia64_pipe (void)
+# SYSCALL_DEFINE2(pipe2, int __user *, fildes, int, flags)
+# pipe2() was added to Linux in version 2.6.27.
+
+probe syscall.pipe = dw_syscall.pipe !, nd_syscall.pipe ? {}
+probe syscall.pipe.return = dw_syscall.pipe.return !, nd_syscall.pipe.return ? {}
+
+# dw_pipe _____________________________________________________
+
+probe dw_syscall.pipe = __syscall.pipe2 ?, __syscall.ia64_pipe ?, __syscall.pipe
+{
+}
+probe __syscall.pipe2 = kernel.function("sys_pipe2").call ?
+{
+	@__syscall_compat_gate(@const("__NR_pipe2"), @const("__NR_compat_pipe2"))
+	name = "pipe2"
+	flags = __int32($flags)
+	flag_str = _sys_pipe2_flag_str(flags);
+	fildes_uaddr = $fildes
+	if (fildes_uaddr == 0) {
+		pipe0 = 0;
+		pipe1 = 0;
+		argstr = "NULL"
+	} else {
+		/*
+		 * Why use @cast here?  Why not just:
+		 *
+		 *   pipe0 = user_int(&$fildes[0]);
+		 *   pipe1 = user_int(&$fildes[1]);
+		 *
+		 * The answer is syscall wrappers
+		 * (CONFIG_SYSCALL_WRAPPERS).  On ppc (for example),
+		 * SyS_foo has all "long" arguments, and then the
+		 * inline SYSC_foo has the real argument types.  The
+		 * @cast makes sure we're dealing with the "final"
+		 * type.
+		 */
+		pipe0 = user_int(&@cast($fildes, "int")[0])
+		pipe1 = user_int(&@cast($fildes, "int")[1])
+		argstr = sprintf("[%d, %d], %s", pipe0, pipe1, flag_str);
+	}
+}
+probe __syscall.ia64_pipe = kernel.function("sys_ia64_pipe").call ?
+{
+	name = "pipe"
+	flags = 0
+	flag_str = ""
+	fildes_uaddr = 0
+	pipe0 = 0;
+	pipe1 = 0;
+	argstr = "[0, 0]";
+}
+probe __syscall.pipe = kernel.function("sys_pipe").call
+{
+	name = "pipe"
+	flags = 0
+	flag_str = ""
+	fildes_uaddr = $fildes
+	if (fildes_uaddr == 0) {
+		pipe0 = 0;
+		pipe1 = 0;
+		argstr = "NULL"
+	} else {
+		/*
+		 * Why use @cast here?  Why not just:
+		 *
+		 *   pipe0 = user_int(&$fildes[0]);
+		 *   pipe1 = user_int(&$fildes[1]);
+		 *
+		 * The answer is syscall wrappers
+		 * (CONFIG_SYSCALL_WRAPPERS).  On ppc (for example),
+		 * SyS_foo has all "long" arguments, and then the
+		 * inline SYSC_foo has the real argument types.  The
+		 * @cast makes sure we're dealing with the "final"
+		 * type.
+		 */
+		pipe0 = user_int(&@cast($fildes, "int")[0])
+		pipe1 = user_int(&@cast($fildes, "int")[1])
+		argstr = sprintf("[%d, %d]", pipe0, pipe1);
+	}
+}
+probe dw_syscall.pipe.return = __syscall.pipe2.return ?,
+			    __syscall.ia64_pipe.return ?,
+			    __syscall.pipe.return
+{
+}
+probe __syscall.pipe2.return = kernel.function("sys_pipe2").return ?
+{
+	@__syscall_compat_gate(@const("__NR_pipe2"), @const("__NR_compat_pipe2"))
+	name = "pipe2"
+	fildes_uaddr = @entry($fildes)
+	if (fildes_uaddr == 0) {
+		pipe0 = 0;
+		pipe1 = 0;
+	} else {
+		/*
+		 * See comment in dw_syscall.pipe about why @cast is used
+		 * here.
+		 */
+		pipe0 = user_int(&@cast(@entry($fildes), "int")[0])
+		pipe1 = user_int(&@cast(@entry($fildes), "int")[1])
+	}
+	retstr = return_str(1, $return)
+}
+probe __syscall.ia64_pipe.return = kernel.function("sys_ia64_pipe").return ?
+{
+	name = "pipe"
+	fildes_uaddr = 0;
+	pipe0 = _ia64_pipe0();
+	pipe1 = _ia64_pipe1();
+	retstr = (pipe0 < 0) ? return_str(1, $return) : "0";
+}
+probe __syscall.pipe.return = kernel.function("sys_pipe").return
+{
+	name = "pipe"
+	fildes_uaddr = @entry($fildes)
+	if (fildes_uaddr == 0) {
+		pipe0 = 0;
+		pipe1 = 0;
+	} else {
+		/*
+		 * See comment in dw_syscall.pipe about why @cast is used
+		 * here.
+		 */
+		pipe0 = user_int(&@cast(@entry($fildes), "int")[0])
+		pipe1 = user_int(&@cast(@entry($fildes), "int")[1])
+	}
+	retstr = return_str(1, $return)
+}
+
+# nd_pipe _____________________________________________________
+
+probe nd_syscall.pipe = __nd_syscall.pipe2 ?, __nd_syscall.ia64_pipe ?,
+	__nd_syscall.pipe
+{
+}
+probe __nd_syscall.pipe2 = kprobe.function("sys_pipe2") ?
+{
+	@__syscall_compat_gate(@const("__NR_pipe2"), @const("__NR_compat_pipe2"))
+	%( arch != "powerpc" %? asmlinkage() %)
+	name = "pipe2";
+	flags = int_arg(2)
+	flag_str = _sys_pipe2_flag_str(flags);
+	fildes_uaddr = pointer_arg(1)
+	if (fildes_uaddr == 0) {
+		pipe0 = 0;
+		pipe1 = 0;
+		argstr = "NULL"
+	} else {
+		pipe0 = _fildes_index_u(fildes_uaddr, 0)
+		pipe1 = _fildes_index_u(fildes_uaddr, 1)
+		argstr = sprintf("[%d, %d], %s", pipe0, pipe1, flag_str);
+	}
+}
+probe __nd_syscall.ia64_pipe = kprobe.function("sys_ia64_pipe").call ?
+{
+	name = "pipe"
+	flags = 0
+	flag_str = ""
+	fildes_uaddr = 0
+	pipe0 = 0;
+	pipe1 = 0;
+	argstr = "[0, 0]";
+}
+probe __nd_syscall.pipe = kprobe.function("sys_pipe")
+{
+	name = "pipe"
+	flags = 0
+	flag_str = ""
+	%( arch != "powerpc" %? asmlinkage() %)
+	fildes_uaddr = pointer_arg(1)
+	if (fildes_uaddr == 0) {
+		pipe0 = 0;
+		pipe1 = 0;
+		argstr = "NULL"
+	} else {
+		pipe0 = _fildes_index_u(fildes_uaddr, 0)
+		pipe1 = _fildes_index_u(fildes_uaddr, 1)
+		argstr = sprintf("[%d, %d]", pipe0, pipe1);
+	}
+}
+probe nd_syscall.pipe.return = __nd_syscall.pipe2.return ?,
+			       __nd_syscall.ia64_pipe.return ?,
+                               __nd_syscall.pipe.return
+{
+}
+probe __nd_syscall.pipe2.return = kprobe.function("sys_pipe2").return ?
+{
+	@__syscall_compat_gate(@const("__NR_pipe2"), @const("__NR_compat_pipe2"))
+	name = "pipe2";
+	fildes_uaddr = @entry(pointer_arg(1))
+	if (fildes_uaddr == 0) {
+		pipe0 = 0;
+		pipe1 = 0;
+	} else {
+		pipe0 = _fildes_index_u(fildes_uaddr, 0)
+		pipe1 = _fildes_index_u(fildes_uaddr, 1)
+	}
+	retstr = returnstr(1)
+}
+probe __nd_syscall.ia64_pipe.return = kprobe.function("sys_ia64_pipe").return ?
+{
+	name = "pipe"
+	fildes_uaddr = 0;
+	pipe0 = _ia64_pipe0();
+	pipe1 = _ia64_pipe1();
+	retstr = (pipe0 < 0) ? returnstr(1) : "0";
+}
+probe __nd_syscall.pipe.return = kprobe.function("sys_pipe").return
+{
+	name = "pipe"
+	fildes_uaddr = @entry(%( arch != "powerpc" %? __asmlinkage_int_arg(1)
+					    %: int_arg(1) %))
+	if (fildes_uaddr == 0) {
+		pipe0 = 0;
+		pipe1 = 0;
+	} else {
+		pipe0 = _fildes_index_u(fildes_uaddr, 0)
+		pipe1 = _fildes_index_u(fildes_uaddr, 1)
+	}
+	retstr = returnstr(1)
+}

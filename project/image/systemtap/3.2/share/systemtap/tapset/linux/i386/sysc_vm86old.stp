@@ -1,0 +1,51 @@
+# vm86old ____________________________________________________
+#
+# int sys_vm86old(struct pt_regs regs)
+#
+
+@define _SYSCALL_VM86OLD_NAME
+%(
+	name = "vm86old"
+%)
+
+@define _SYSCALL_VM86OLD_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.vm86old = dw_syscall.vm86old !, nd_syscall.vm86old ? {}
+probe syscall.vm86old.return = dw_syscall.vm86old.return !, nd_syscall.vm86old.return ? {}
+
+# dw_vm86old _____________________________________________________
+
+probe dw_syscall.vm86old = kernel.function("sys_vm86old") ?
+{
+	@_SYSCALL_VM86OLD_NAME
+      /*
+       * unsupported type identifier '$regs'
+       * regs = $regs
+       */
+	@_SYSCALL_VM86OLD_ARGSTR
+}
+probe dw_syscall.vm86old.return = kernel.function("sys_vm86old").return ?
+{
+	@_SYSCALL_VM86OLD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_vm86old _____________________________________________________
+
+probe nd_syscall.vm86old = kprobe.function("sys_vm86old") ?
+{
+	@_SYSCALL_VM86OLD_NAME
+	/*
+	 * unsupported type identifier '$regs'
+	 * regs = $regs
+	 */
+	@_SYSCALL_VM86OLD_ARGSTR
+}
+probe nd_syscall.vm86old.return = kprobe.function("sys_vm86old").return ?
+{
+	@_SYSCALL_VM86OLD_NAME
+	retstr = returnstr(1)
+}

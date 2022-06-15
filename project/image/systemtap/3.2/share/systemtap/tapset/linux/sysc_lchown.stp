@@ -1,0 +1,75 @@
+# lchown _____________________________________________________
+# long sys_lchown(const char __user * filename, uid_t user, gid_t group)
+#
+
+@define _SYSCALL_LCHOWN_NAME
+%(
+	name = "lchown"
+%)
+
+@define _SYSCALL_LCHOWN_ARGSTR
+%(
+	argstr = sprintf("%s, %d, %d", path, owner, group)
+%)
+
+probe syscall.lchown = dw_syscall.lchown !, nd_syscall.lchown ? {}
+probe syscall.lchown.return = dw_syscall.lchown.return !, nd_syscall.lchown.return ? {}
+
+# dw_lchown _____________________________________________________
+
+probe dw_syscall.lchown = kernel.function("sys_lchown").call
+{
+	// Avoid lchown16() calling lchown().
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_lchown"), @const("__NR_ia32_lchown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_lchown32"))
+%)
+	@_SYSCALL_LCHOWN_NAME
+	path = user_string_quoted($filename)
+	owner = __int32($user)
+	group = __int32($group)
+	@_SYSCALL_LCHOWN_ARGSTR
+}
+probe dw_syscall.lchown.return = kernel.function("sys_lchown").return
+{
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_lchown"), @const("__NR_ia32_lchown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_lchown32"))
+%)
+	@_SYSCALL_LCHOWN_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_lchown _____________________________________________________
+
+probe nd_syscall.lchown = kprobe.function("sys_lchown") ?
+{
+	// Avoid lchown16() calling lchown().
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_lchown"), @const("__NR_ia32_lchown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_lchown32"))
+%)
+	@_SYSCALL_LCHOWN_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+	owner = __int32(uint_arg(2))
+	group = __int32(uint_arg(3))
+	@_SYSCALL_LCHOWN_ARGSTR
+}
+probe nd_syscall.lchown.return = kprobe.function("sys_lchown").return ?
+{
+%( arch == "x86_64" %?
+	@__syscall_compat_gate(@const("__NR_lchown"), @const("__NR_ia32_lchown32"))
+%)
+%( arch == "i386" %?
+	@__syscall_gate(@const("__NR_lchown32"))
+%)
+	@_SYSCALL_LCHOWN_NAME
+	retstr = returnstr(1)
+}

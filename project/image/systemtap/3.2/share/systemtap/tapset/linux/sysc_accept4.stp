@@ -1,0 +1,131 @@
+# accept4 ____________________________________________________
+#
+# SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
+#		  int __user *, upeer_addrlen, int, flags)
+#
+
+@define _SYSCALL_ACCEPT4_NAME
+%(
+	name = "accept4"
+%)
+
+@define _SYSCALL_ACCEPT4_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %p, %s", sockfd, addr_uaddr, addrlen_uaddr,
+			 flags_str)
+%)
+
+probe syscall.accept4 = dw_syscall.accept4 !, nd_syscall.accept4 ? {}
+probe syscall.accept4.return = dw_syscall.accept4.return !, nd_syscall.accept4.return ? {}
+
+# dw_accept4 _____________________________________________________
+
+probe dw_syscall.accept4 = __syscall.accept4 ?, __syscall.socketcall.accept4 ?,
+	__syscall.compat_socketcall.accept4 ?
+{
+	@_SYSCALL_ACCEPT4_NAME
+	flags_str = _sock_flags_str(flags)
+	@_SYSCALL_ACCEPT4_ARGSTR
+}
+probe __syscall.accept4 = kernel.function("sys_accept4").call
+{
+	// On all tested platforms, there wasn't a different syscall
+	// number for the compat version of accept4().
+	@__syscall_nr_gate(@const("__NR_accept4"))
+	sockfd = __int32($fd)
+	addr_uaddr = $upeer_sockaddr
+	addrlen_uaddr = $upeer_addrlen
+	flags = __int32($flags)
+}
+probe __syscall.socketcall.accept4 = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_ACCEPT4")) next;
+	sockfd = __int32(user_ulong(&@ulong_cast($args)[0]))
+	addr_uaddr = user_ulong(&@ulong_cast($args)[1])
+	addrlen_uaddr = user_ulong(&@ulong_cast($args)[2])
+	flags = __int32(user_ulong(&@ulong_cast($args)[3]))
+}
+probe __syscall.compat_socketcall.accept4 =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_ACCEPT4")) next;
+	sockfd = user_int(&@uint_cast($args)[0])
+	addr_uaddr = user_uint32(&@uint_cast($args)[1])
+	addrlen_uaddr = user_uint32(&@uint_cast($args)[2])
+	flags = user_int(&@uint_cast($args)[3])
+}
+probe dw_syscall.accept4.return = __syscall.accept4.return ?,
+	__syscall.socketcall.accept4.return ?
+{
+	@_SYSCALL_ACCEPT4_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.accept4.return = kernel.function("sys_accept4").return ?
+{
+	@__syscall_nr_gate(@const("__NR_accept4"))
+}
+probe __syscall.socketcall.accept4.return =
+	kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_ACCEPT4")) next;
+}
+
+# nd_accept4 _____________________________________________________
+
+probe nd_syscall.accept4 = __nd_syscall.accept4 ?,
+	__nd_syscall.socketcall.accept4 ?,
+	__nd_syscall.compat_socketcall.accept4 ?
+{
+	@_SYSCALL_ACCEPT4_NAME
+	flags_str = _sock_flags_str(flags)
+	@_SYSCALL_ACCEPT4_ARGSTR
+}
+probe __nd_syscall.accept4 = kprobe.function("sys_accept4").call
+{
+	asmlinkage()
+	// On all tested platforms, there wasn't a different syscall
+	// number for the compat version of accept4().
+	@__syscall_nr_gate(@const("__NR_accept4"))
+	sockfd = int_arg(1)
+	addr_uaddr = pointer_arg(2)
+	addrlen_uaddr = pointer_arg(3)
+	flags = int_arg(4)
+}
+probe __nd_syscall.socketcall.accept4 = kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_ACCEPT4")) next;
+	__args = &@ulong_cast(pointer_arg(2))
+	sockfd = __int32(user_ulong(&@ulong_cast(__args)[0]))
+	addr_uaddr = user_ulong(&@ulong_cast(__args)[1])
+	addrlen_uaddr = user_ulong(&@ulong_cast(__args)[2])
+	flags = __int32(user_ulong(&@ulong_cast(__args)[3]))
+}
+probe __nd_syscall.compat_socketcall.accept4 =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_ACCEPT4")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	sockfd = user_int(&@uint_cast(__args)[0])
+	addr_uaddr = user_uint32(&@uint_cast(__args)[1])
+	addrlen_uaddr = user_uint32(&@uint_cast(__args)[2])
+	flags = user_int(&@uint_cast(__args)[3])
+}
+probe nd_syscall.accept4.return = __nd_syscall.accept4.return ?,
+	__nd_syscall.socketcall.accept4.return ?
+{
+	@_SYSCALL_ACCEPT4_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.accept4.return = kprobe.function("sys_accept4").return ?
+{
+	@__syscall_nr_gate(@const("__NR_accept4"))
+}
+probe __nd_syscall.socketcall.accept4.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_ACCEPT4")) next;
+}

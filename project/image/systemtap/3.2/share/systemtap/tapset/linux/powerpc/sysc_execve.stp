@@ -1,0 +1,110 @@
+%( kernel_v < "3.7" %?
+# execve _____________________________________________________
+#
+# In kernels < 3.7, sys_execve() was in arch-specific code (and had
+# varying arguments). It was just a wrapper around generic
+# do_execve(), but the wrapper could error out before calling
+# do_execve(). So, we'll have to handle it in arch-specific tapset
+# code to catch all calls.
+#
+#  int sys_execve(unsigned long a0, unsigned long a1, unsigned long a2,
+#	       unsigned long a3, unsigned long a4, unsigned long a5,
+#	       struct pt_regs *regs)
+
+@define _SYSCALL_EXECVE_NAME
+%(
+	name = "execve"
+%)
+
+@define _SYSCALL_EXECVE_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s", filename, args, env_str)
+%)
+
+probe syscall.execve = dw_syscall.execve !, nd_syscall.execve {}
+probe syscall.execve.return = dw_syscall.execve.return !,
+                              nd_syscall.execve.return {}
+
+# dw_execve _____________________________________________________
+
+probe dw_syscall.execve = kernel.function("sys_execve").call
+{
+	@_SYSCALL_EXECVE_NAME
+	filename = user_string_quoted($a0)
+	args = __get_argv($a1, 0)
+	env_str = __get_argv($a2, 0)
+	@_SYSCALL_EXECVE_ARGSTR
+}
+probe dw_syscall.execve.return = kernel.function("sys_execve").return
+{
+	@_SYSCALL_EXECVE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_execve _____________________________________________________
+
+probe nd_syscall.execve = kprobe.function("sys_execve")
+{
+	@_SYSCALL_EXECVE_NAME
+	filename = user_string_quoted(pointer_arg(1))
+	args = __get_argv(pointer_arg(2), 0)
+	env_str = __get_argv(pointer_arg(3), 0)
+	@_SYSCALL_EXECVE_ARGSTR
+}
+probe nd_syscall.execve.return = kprobe.function("sys_execve").return
+{
+	@_SYSCALL_EXECVE_NAME
+	retstr = returnstr(1)
+}
+
+#
+# In kernels < 3.7, sys_execve() was in arch-specific code (and had
+# varying arguments). It was just a wrapper around generic
+# do_execve(), but the wrapper could error out before calling
+# do_execve(). So, we'll have to handle it in arch-specific tapset
+# code to catch all calls.
+# execve _____________________________________________________
+#
+#  long compat_sys_execve(unsigned long a0, unsigned long a1, unsigned long a2,
+#		  unsigned long a3, unsigned long a4, unsigned long a5,
+#		  struct pt_regs *regs)
+
+probe syscall.compat_execve = dw_syscall.compat_execve !,
+                              nd_syscall.compat_execve ? {}
+probe syscall.compat_execve.return = dw_syscall.compat_execve.return !,
+                                     nd_syscall.compat_execve.return ? {}
+
+# dw_compat_execve _____________________________________________________
+
+probe dw_syscall.compat_execve = kernel.function("compat_sys_execve").call ?
+{
+	@_SYSCALL_EXECVE_NAME
+	filename = user_string_quoted($a0)
+	args = __get_compat_argv($a1, 0)
+	env_str = __get_compat_argv($a2, 0)
+	@_SYSCALL_EXECVE_ARGSTR
+}
+probe dw_syscall.compat_execve.return =
+	kernel.function("compat_sys_execve").return ?
+{
+	@_SYSCALL_EXECVE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_execve _____________________________________________________
+
+probe nd_syscall.compat_execve = kprobe.function("compat_sys_execve") ?
+{
+	@_SYSCALL_EXECVE_NAME
+	filename = user_string_quoted(pointer_arg(1))
+	args = __get_compat_argv(pointer_arg(2), 0)
+	env_str = __get_compat_argv(pointer_arg(3), 0)
+	@_SYSCALL_EXECVE_ARGSTR
+}
+probe nd_syscall.compat_execve.return =
+	kprobe.function("compat_sys_execve").return ?
+{
+	@_SYSCALL_EXECVE_NAME
+	retstr = returnstr(1)
+}
+%)

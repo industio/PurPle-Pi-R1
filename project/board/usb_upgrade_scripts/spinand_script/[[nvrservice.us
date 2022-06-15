@@ -1,0 +1,5 @@
+# <- this is for comment / total file size must be less than 4KB
+ubi part UBI
+fatload usb 0 0x20100000 $(usb_folder)/nvrservice.ubifs
+ubi write 0x20100000 nvrservice ${filesize}
+% <- this is end of file symbol

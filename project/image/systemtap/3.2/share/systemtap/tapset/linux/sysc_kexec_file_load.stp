@@ -1,0 +1,59 @@
+# kexec_file_load ____________________________________________
+# The kexec_file_load() system call first appeared in Linux 3.17
+# SYSCALL_DEFINE5(kexec_file_load, int, kernel_fd, int, initrd_fd,
+#		  unsigned long, cmdline_len, const char __user *, cmdline_ptr,
+#		  unsigned long, flags)
+
+@define _SYSCALL_KEXEC_FILE_LOAD_NAME
+%(
+	name = "kexec_file_load"
+%)
+
+@define _SYSCALL_KEXEC_FILE_LOAD_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %u, %s, %s", kernel_fd, initrd_fd, cmdline_len,
+	                 cmdline, flags_str)
+%)
+
+probe syscall.kexec_file_load = dw_syscall.kexec_file_load !, nd_syscall.kexec_file_load ? {}
+probe syscall.kexec_file_load.return = dw_syscall.kexec_file_load.return !, nd_syscall.kexec_file_load.return ? {}
+
+# dw_kexec_file_load _____________________________________________________
+
+probe dw_syscall.kexec_file_load = kernel.function("sys_kexec_file_load").call ?
+{
+	@_SYSCALL_KEXEC_FILE_LOAD_NAME
+	kernel_fd = __int32($kernel_fd)
+	initrd_fd = __int32($initrd_fd)
+	cmdline_len = @__compat_ulong($cmdline_len)
+	cmdline = user_string_quoted($cmdline_ptr)
+	flags = @__compat_ulong($flags)
+	flags_str = _kexec_file_load_flags_str(flags)
+	@_SYSCALL_KEXEC_FILE_LOAD_ARGSTR
+}
+probe dw_syscall.kexec_file_load.return =
+	kernel.function("sys_kexec_file_load").return ?
+{
+	@_SYSCALL_KEXEC_FILE_LOAD_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_kexec_file_load _____________________________________________________
+
+probe nd_syscall.kexec_file_load = kprobe.function("sys_kexec_file_load") ?
+{
+	@_SYSCALL_KEXEC_FILE_LOAD_NAME
+	kernel_fd = int_arg(1)
+	initrd_fd = int_arg(2)
+	cmdline_len = ulong_arg(3)
+	cmdline = user_string_quoted(pointer_arg(4))
+	flags = ulong_arg(5)
+	flags_str = _kexec_file_load_flags_str(flags)
+	@_SYSCALL_KEXEC_FILE_LOAD_ARGSTR
+}
+probe nd_syscall.kexec_file_load.return =
+	kprobe.function("sys_kexec_file_load").return ?
+{
+	@_SYSCALL_KEXEC_FILE_LOAD_NAME
+	retstr = returnstr(1)
+}

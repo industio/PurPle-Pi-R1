@@ -1,0 +1,49 @@
+# pivot_root _________________________________________________
+#
+# long sys_pivot_root(const char __user *new_root, const char __user *put_old)
+#
+
+@define _SYSCALL_PIVOT_ROOT_NAME
+%(
+	name = "pivot_root"
+%)
+
+@define _SYSCALL_PIVOT_ROOT_ARGSTR
+%(
+	argstr = sprintf("%s, %s", new_root_str, old_root_str)
+%)
+
+probe syscall.pivot_root = dw_syscall.pivot_root !, nd_syscall.pivot_root ? {}
+probe syscall.pivot_root.return = dw_syscall.pivot_root.return !,
+                                  nd_syscall.pivot_root.return ? {}
+
+# dw_pivot_root _____________________________________________________
+
+probe dw_syscall.pivot_root = kernel.function("sys_pivot_root").call
+{
+	@_SYSCALL_PIVOT_ROOT_NAME
+	new_root_str = user_string_quoted($new_root)
+	old_root_str = user_string_quoted($put_old)
+	@_SYSCALL_PIVOT_ROOT_ARGSTR
+}
+probe dw_syscall.pivot_root.return = kernel.function("sys_pivot_root").return
+{
+	@_SYSCALL_PIVOT_ROOT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_pivot_root _____________________________________________________
+
+probe nd_syscall.pivot_root = kprobe.function("sys_pivot_root") ?
+{
+	@_SYSCALL_PIVOT_ROOT_NAME
+	asmlinkage()
+	new_root_str = user_string_quoted(pointer_arg(1))
+	old_root_str = user_string_quoted(pointer_arg(2))
+	@_SYSCALL_PIVOT_ROOT_ARGSTR
+}
+probe nd_syscall.pivot_root.return = kprobe.function("sys_pivot_root").return ?
+{
+	@_SYSCALL_PIVOT_ROOT_NAME
+	retstr = returnstr(1)
+}

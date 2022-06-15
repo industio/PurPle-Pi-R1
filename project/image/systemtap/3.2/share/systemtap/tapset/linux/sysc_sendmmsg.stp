@@ -1,0 +1,159 @@
+# sendmmsg ____________________________________________________
+#
+# int sys_sendmmsg(int fd, struct mmsghdr __user *mmsg, unsigned int vlen,
+#                  unsigned int flags)
+#
+
+@define _SYSCALL_SENDMMSG_NAME
+%(
+	name = "sendmmsg"
+%)
+
+@define _SYSCALL_SENDMMSG_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d, %s", s, mmsg_uaddr, vlen, flags_str)
+%)
+
+probe syscall.sendmmsg = dw_syscall.sendmmsg !, nd_syscall.sendmmsg ? {}
+probe syscall.sendmmsg.return = dw_syscall.sendmmsg.return !,
+                                nd_syscall.sendmmsg.return ? {}
+
+# dw_sendmmsg _____________________________________________________
+
+probe dw_syscall.sendmmsg = __syscall.sendmmsg ?,
+	__syscall.compat_socketcall.sendmmsg ?, __syscall.compat_sendmmsg ?
+{
+	@_SYSCALL_SENDMMSG_NAME
+	flags_str = _msg_flags_str(flags)
+	@_SYSCALL_SENDMMSG_ARGSTR
+}
+probe __syscall.sendmmsg = kernel.function("sys_sendmmsg").call ?
+{
+	# Avoid probe hits from compat_sys_socketcall() calling
+	# compat_sys_sendmmsg(), which sometimes calls
+	# sys_sendmmsg(). We could call __syscall_gate2() here with
+	# NR_sendmmsg and NR_socketcall, but all we really need to
+	# check is that we're not in a compat task.
+	@__syscall_gate_compat_simple
+	s = __int32($fd)
+	mmsg_uaddr = $mmsg
+	vlen = __uint32($vlen)
+	flags = __uint32($flags)
+}
+probe __syscall.compat_socketcall.sendmmsg =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_SENDMMSG")) next
+	s = user_int(&@uint_cast($args)[0])
+	mmsg_uaddr = user_uint32(&@uint_cast($args)[1])
+	vlen = user_uint32(&@uint_cast($args)[2])
+	flags = user_uint32(&@uint_cast($args)[3])
+}
+probe __syscall.compat_sendmmsg =
+	kernel.function("compat_sys_sendmmsg").call ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_sendmmsg"))
+	s = __int32($fd)
+	mmsg_uaddr = $mmsg
+	vlen = __uint32($vlen)
+	flags = __uint32($flags)
+}
+probe dw_syscall.sendmmsg.return = __syscall.sendmmsg.return ?,
+	__syscall.compat_socketcall.sendmmsg.return ?,
+	__syscall.compat_sendmmsg.return ?
+{
+	@_SYSCALL_SENDMMSG_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.sendmmsg.return = kernel.function("sys_sendmmsg").return ?
+{
+	# Avoid probe hits from compat_sys_socketcall() calling
+	# compat_sys_sendmmsg(), which sometimes calls
+	# sys_sendmmsg(). We could call __syscall_gate2() here with
+	# NR_sendmmsg and NR_socketcall, but all we really need to
+	# check is that we're not in a compat task.
+	@__syscall_gate_compat_simple
+}
+probe __syscall.compat_socketcall.sendmmsg.return =
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_SENDMMSG")) next
+}
+probe __syscall.compat_sendmmsg.return =
+	kernel.function("compat_sys_sendmmsg").return ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_sendmmsg"))
+}
+
+# nd_sendmmsg _____________________________________________________
+
+probe nd_syscall.sendmmsg = __nd_syscall.sendmmsg ?,
+	__nd_syscall.compat_socketcall.sendmmsg ?,
+	__nd_syscall.compat_sendmmsg ?
+{
+	@_SYSCALL_SENDMMSG_NAME
+	flags_str = _msg_flags_str(flags)
+	@_SYSCALL_SENDMMSG_ARGSTR
+}
+probe __nd_syscall.sendmmsg = kprobe.function("sys_sendmmsg").call ?
+{
+	# Avoid probe hits from compat_sys_socketcall() calling
+	# compat_sys_sendmmsg(), which sometimes calls
+	# sys_sendmmsg(). We could call __syscall_gate2() here with
+	# NR_sendmmsg and NR_socketcall, but all we really need to
+	# check is that we're not in a compat task.
+	@__syscall_gate_compat_simple
+
+	asmlinkage()
+	s = int_arg(1)
+	mmsg_uaddr = pointer_arg(2)
+	vlen = uint_arg(3)
+	flags = uint_arg(4)
+}
+probe __nd_syscall.compat_socketcall.sendmmsg =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_SENDMMSG")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	s = user_int(&@uint_cast(__args)[0])
+	mmsg_uaddr = user_uint32(&@uint_cast(__args)[1])
+	vlen = user_uint32(&@uint_cast(__args)[2])
+	flags = user_uint32(&@uint_cast(__args)[3])
+}
+probe __nd_syscall.compat_sendmmsg =
+	kprobe.function("compat_sys_sendmmsg").call ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_sendmmsg"))
+	asmlinkage()
+	s = int_arg(1)
+	mmsg_uaddr = pointer_arg(2)
+	vlen = uint_arg(3)
+	flags = uint_arg(4)
+}
+probe nd_syscall.sendmmsg.return = __nd_syscall.sendmmsg.return ?,
+	__nd_syscall.compat_socketcall.sendmmsg.return ?,
+	__nd_syscall.compat_sendmmsg.return ?
+{
+	@_SYSCALL_SENDMMSG_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.sendmmsg.return = kprobe.function("sys_sendmmsg").return ?
+{
+	# Avoid probe hits from compat_sys_socketcall() calling
+	# compat_sys_sendmmsg(), which sometimes calls
+	# sys_sendmmsg(). We could call __syscall_gate2() here with
+	# NR_sendmmsg and NR_socketcall, but all we really need to
+	# check is that we're not in a compat task.
+	@__syscall_gate_compat_simple
+}
+probe __nd_syscall.compat_socketcall.sendmmsg.return =
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_SENDMMSG")) next;
+}
+probe __nd_syscall.compat_sendmmsg.return =
+	kprobe.function("compat_sys_sendmmsg").return ?
+{
+	@__compat_syscall_gate(@const("__NR_compat_sendmmsg"))
+}

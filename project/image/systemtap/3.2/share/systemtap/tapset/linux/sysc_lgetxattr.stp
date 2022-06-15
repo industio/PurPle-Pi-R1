@@ -1,0 +1,62 @@
+# lgetxattr __________________________________________________
+# ssize_t sys_lgetxattr(char __user *path,
+#               char __user *name,
+#               void __user *value,
+#               size_t size)
+#
+
+@define _SYSCALL_LGETXATTR_NAME
+%(
+	name = "lgetxattr"
+%)
+
+@define _SYSCALL_LGETXATTR_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %p, %u", path, name_str, value_uaddr, size)
+%)
+
+probe syscall.lgetxattr = dw_syscall.lgetxattr !, nd_syscall.lgetxattr ? {}
+probe syscall.lgetxattr.return = dw_syscall.lgetxattr.return !, nd_syscall.lgetxattr.return ? {}
+
+# dw_lgetxattr _____________________________________________________
+
+probe dw_syscall.lgetxattr = kernel.function("sys_lgetxattr").call
+{
+	@_SYSCALL_LGETXATTR_NAME
+	path = user_string_quoted(@choose_defined($pathname, $path))
+# 'name2' should have been 'name_str'.  Deprecate the old name.
+%(systemtap_v <= "1.4" %?
+	name2 = user_string_quoted($name)
+%)
+	name_str = user_string_quoted($name)
+	value_uaddr = $value
+	size = __ulong($size)
+	@_SYSCALL_LGETXATTR_ARGSTR
+}
+probe dw_syscall.lgetxattr.return = kernel.function("sys_lgetxattr").return
+{
+	@_SYSCALL_LGETXATTR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_lgetxattr _____________________________________________________
+
+probe nd_syscall.lgetxattr = kprobe.function("sys_lgetxattr") ?
+{
+	@_SYSCALL_LGETXATTR_NAME
+	asmlinkage()
+	path = user_string_quoted(pointer_arg(1))
+# 'name2' should have been 'name_str'.  Deprecate the old name.
+%(systemtap_v <= "1.4" %?
+	name2 = user_string_quoted(pointer_arg(2))
+%)
+	name_str = user_string_quoted(pointer_arg(2))
+	value_uaddr = pointer_arg(3)
+	size = ulong_arg(4)
+	@_SYSCALL_LGETXATTR_ARGSTR
+}
+probe nd_syscall.lgetxattr.return = kprobe.function("sys_lgetxattr").return ?
+{
+	@_SYSCALL_LGETXATTR_NAME
+	retstr = returnstr(1)
+}

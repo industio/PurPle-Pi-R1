@@ -1,0 +1,50 @@
+# modify_ldt _________________________________________________
+# int sys_modify_ldt(int func, void __user *ptr, unsigned long bytecount)
+#
+
+@define _SYSCALL_MODIFY_LDT_NAME
+%(
+	name = "modify_ldt"
+%)
+
+@define _SYSCALL_MODIFY_LDT_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %u", func, ptr_uaddr, bytecount)
+%)
+
+probe syscall.modify_ldt = dw_syscall.modify_ldt !, nd_syscall.modify_ldt ? {}
+probe syscall.modify_ldt.return = dw_syscall.modify_ldt.return !,
+                                  nd_syscall.modify_ldt.return ? {}
+
+# dw_modify_ldt _____________________________________________________
+
+probe dw_syscall.modify_ldt = kernel.function("sys_modify_ldt").call ?
+{
+	@_SYSCALL_MODIFY_LDT_NAME
+	func = __int32($func)
+	ptr_uaddr = $ptr
+	bytecount = __ulong($bytecount)
+	@_SYSCALL_MODIFY_LDT_ARGSTR
+}
+probe dw_syscall.modify_ldt.return = kernel.function("sys_modify_ldt").return ?
+{
+	@_SYSCALL_MODIFY_LDT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_modify_ldt _____________________________________________________
+
+probe nd_syscall.modify_ldt = kprobe.function("sys_modify_ldt") ?
+{
+	@_SYSCALL_MODIFY_LDT_NAME
+	asmlinkage()
+	func = int_arg(1)
+	ptr_uaddr = pointer_arg(2)
+	bytecount = ulong_arg(3)
+	@_SYSCALL_MODIFY_LDT_ARGSTR
+}
+probe nd_syscall.modify_ldt.return = kprobe.function("sys_modify_ldt").return ?
+{
+	@_SYSCALL_MODIFY_LDT_NAME
+	retstr = returnstr(1)
+}

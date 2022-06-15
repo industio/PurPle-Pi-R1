@@ -1,0 +1,44 @@
+# vfork _______________________________________________________
+#
+# SYSCALL_DEFINE0(vfork)
+#
+
+@define _SYSCALL_VFORK_NAME
+%(
+	name = "vfork"
+%)
+
+@define _SYSCALL_VFORK_ARGSTR
+%(
+	argstr = ""
+%)
+
+probe syscall.vfork = dw_syscall.vfork !, nd_syscall.vfork ? {}
+probe syscall.vfork.return = dw_syscall.vfork.return !,
+                             nd_syscall.vfork.return ? {}
+
+# dw_vfork _____________________________________________________
+
+probe dw_syscall.vfork = kernel.function("sys_vfork").call ?
+{
+	@_SYSCALL_VFORK_NAME
+	@_SYSCALL_VFORK_ARGSTR
+}
+probe dw_syscall.vfork.return = kernel.function("sys_vfork").return ?
+{
+	@_SYSCALL_VFORK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_vfork _____________________________________________________
+
+probe nd_syscall.vfork = kprobe.function("sys_vfork").call ?
+{
+	@_SYSCALL_VFORK_NAME
+	@_SYSCALL_VFORK_ARGSTR
+}
+probe nd_syscall.vfork.return = kprobe.function("sys_vfork").return ?
+{
+	@_SYSCALL_VFORK_NAME
+	retstr = returnstr(1)
+}

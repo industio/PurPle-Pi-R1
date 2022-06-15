@@ -1,0 +1,78 @@
+# setrlimit __________________________________________________
+#
+# asmlinkage long
+# sys_setrlimit(unsigned int resource,
+#               struct rlimit __user *rlim)
+# asmlinkage long
+# compat_sys_setrlimit(unsigned int resource,
+#                      struct compat_rlimit __user *rlim)
+#
+
+@define _SYSCALL_SETRLIMIT_NAME
+%(
+	name = "setrlimit"
+%)
+
+@define _SYSCALL_SETRLIMIT_ARGSTR
+%(
+	argstr = sprintf("%s, %s", resource_str, rlim_str)
+%)
+
+probe syscall.setrlimit = dw_syscall.setrlimit !, nd_syscall.setrlimit ? {}
+probe syscall.setrlimit.return = dw_syscall.setrlimit.return !,
+                                 nd_syscall.setrlimit.return ? {}
+
+# dw_setrlimit _____________________________________________________
+
+probe dw_syscall.setrlimit = __syscall.setrlimit ?,
+	kernel.function("compat_sys_setrlimit").call ?
+{
+	@_SYSCALL_SETRLIMIT_NAME
+	resource = $resource
+	resource_str = _rlimit_resource_str(resource)
+	rlim_uaddr = $rlim
+	rlim_str = _struct_rlimit_u(rlim_uaddr)
+	@_SYSCALL_SETRLIMIT_ARGSTR
+}
+probe __syscall.setrlimit = kernel.function("sys_setrlimit").call
+{
+	@__syscall_gate(@const("__NR_setrlimit"))
+}
+probe dw_syscall.setrlimit.return = __syscall.setrlimit.return ?,
+	kernel.function("compat_sys_setrlimit").return ?
+{
+	@_SYSCALL_SETRLIMIT_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.setrlimit.return = kernel.function("sys_setrlimit").return
+{
+	@__syscall_gate(@const("__NR_setrlimit"))
+}
+
+# nd_setrlimit _____________________________________________________
+
+probe nd_syscall.setrlimit = __nd_syscall.setrlimit ?,
+	kprobe.function("compat_sys_setrlimit") ?
+{
+	@_SYSCALL_SETRLIMIT_NAME
+	asmlinkage()
+	resource = uint_arg(1)
+	resource_str = _rlimit_resource_str(resource)
+	rlim_uaddr = pointer_arg(2)
+	rlim_str = _struct_rlimit_u(rlim_uaddr)
+	@_SYSCALL_SETRLIMIT_ARGSTR
+}
+probe __nd_syscall.setrlimit = kprobe.function("sys_setrlimit")
+{
+	@__syscall_gate(@const("__NR_setrlimit"))
+}
+probe nd_syscall.setrlimit.return = __nd_syscall.setrlimit.return ?,
+	kprobe.function("compat_sys_setrlimit").return ?
+{
+	@_SYSCALL_SETRLIMIT_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.setrlimit.return = kprobe.function("sys_setrlimit").return
+{
+	@__syscall_gate(@const("__NR_setrlimit"))
+}

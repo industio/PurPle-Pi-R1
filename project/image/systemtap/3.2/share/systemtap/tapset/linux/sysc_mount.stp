@@ -1,0 +1,68 @@
+# mount ______________________________________________________
+# long sys_mount(char __user * dev_name,
+# 		char __user * dir_name,
+# 		char __user * type,
+# 		unsigned long flags,
+# 		void __user * data)
+# long compat_sys_mount(char __user * dev_name,
+#		char __user * dir_name,
+#		char __user * type,
+#		unsigned long flags,
+#		void __user * data)
+
+@define _SYSCALL_MOUNT_NAME
+%(
+	name = "mount"
+%)
+
+@define _SYSCALL_MOUNT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %s, %s",
+	                 source, target, filesystemtype, mountflags_str, data)
+%)
+
+probe syscall.mount = dw_syscall.mount !, nd_syscall.mount ? {}
+probe syscall.mount.return = dw_syscall.mount.return !, nd_syscall.mount.return ? {}
+
+# dw_mount _____________________________________________________
+
+probe dw_syscall.mount = kernel.function("compat_sys_mount").call ?,
+                      kernel.function("sys_mount").call
+{
+	@_SYSCALL_MOUNT_NAME
+	source = user_string_quoted(@__pointer($dev_name))
+	target = user_string_quoted(@__pointer($dir_name))
+	filesystemtype = user_string_quoted(@__pointer($type))
+	mountflags = @__compat_ulong($flags)
+	mountflags_str = _mountflags_str(mountflags)
+	data = user_string_n_quoted(@__pointer($data), syscall_string_trunc)
+	@_SYSCALL_MOUNT_ARGSTR
+}
+probe dw_syscall.mount.return = kernel.function("compat_sys_mount").return ?,
+                             kernel.function("sys_mount").return
+{
+	@_SYSCALL_MOUNT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mount _____________________________________________________
+
+probe nd_syscall.mount = kprobe.function("compat_sys_mount") ?,
+                         kprobe.function("sys_mount") ?
+{
+	@_SYSCALL_MOUNT_NAME
+	asmlinkage()
+	source = user_string_quoted(pointer_arg(1))
+	target = user_string_quoted(pointer_arg(2))
+	filesystemtype = user_string_quoted(pointer_arg(3))
+	mountflags = ulong_arg(4)
+	mountflags_str = _mountflags_str(mountflags)
+	data = user_string_n_quoted(pointer_arg(5), syscall_string_trunc)
+	@_SYSCALL_MOUNT_ARGSTR
+}
+probe nd_syscall.mount.return = kprobe.function("compat_sys_mount").return ?,
+                                kprobe.function("sys_mount").return ?
+{
+	@_SYSCALL_MOUNT_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,35 @@
+#! /usr/bin/env stap
+
+#################################################################
+# tcp_retransmit.stp
+# Author: Yang Bingwu (detailyang) <detailyang@gmail.com>
+# This systemtap script will prints the tcp retransmission packet
+#################################################################
+
+global record%
+
+probe begin {
+    log("Printing tcp retransmission")
+}
+
+probe kernel.function("tcp_retransmit_skb") {
+    rto = tcp_get_info_rto($sk)
+    saddr   = format_ipaddr(__ip_sock_saddr($sk), __ip_sock_family($sk))
+    daddr   = format_ipaddr(__ip_sock_daddr($sk), __ip_sock_family($sk))
+    sport   = __tcp_sock_sport($sk)
+    dport   = __tcp_sock_dport($sk)
+    lastrto = record[saddr, sport, daddr, dport]
+    state = tcp_ts_get_info_state($sk)
+
+    if (lastrto != rto) {
+        if (lastrto) {
+            printf("%s:%d => %s:%d STATE:%s RTO:%d -> %d (ms)\n", saddr, sport,
+                daddr, dport, tcp_sockstate_str(state), lastrto/1000, rto/1000)
+        } else {
+            printf("%s:%d => %s:%d STATE:%s RTO:%d (ms)\n", saddr, sport,
+                daddr, dport, tcp_sockstate_str(state), rto/1000)
+        }
+    }
+
+    record[saddr, sport, daddr, dport] = rto
+}

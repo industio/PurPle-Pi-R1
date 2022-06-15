@@ -1,0 +1,47 @@
+# timer_delete _______________________________________________
+#
+# long sys_timer_delete(timer_t timer_id)
+#
+
+@define _SYSCALL_TIMER_DELETE_NAME
+%(
+	name = "timer_delete"
+%)
+
+@define _SYSCALL_TIMER_DELETE_ARGSTR
+%(
+	argstr = sprint(timerid)
+%)
+
+probe syscall.timer_delete = dw_syscall.timer_delete !, nd_syscall.timer_delete ? {}
+probe syscall.timer_delete.return = dw_syscall.timer_delete.return !,
+                                    nd_syscall.timer_delete.return ? {}
+
+# dw_timer_delete _____________________________________________________
+
+probe dw_syscall.timer_delete = kernel.function("sys_timer_delete").call
+{
+	@_SYSCALL_TIMER_DELETE_NAME
+	timerid = __int32($timer_id)
+	@_SYSCALL_TIMER_DELETE_ARGSTR
+}
+probe dw_syscall.timer_delete.return = kernel.function("sys_timer_delete").return
+{
+	@_SYSCALL_TIMER_DELETE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_timer_delete _____________________________________________________
+
+probe nd_syscall.timer_delete = kprobe.function("sys_timer_delete") ?
+{
+	@_SYSCALL_TIMER_DELETE_NAME
+	asmlinkage()
+	timerid = int_arg(1)
+	@_SYSCALL_TIMER_DELETE_ARGSTR
+}
+probe nd_syscall.timer_delete.return = kprobe.function("sys_timer_delete").return ?
+{
+	@_SYSCALL_TIMER_DELETE_NAME
+	retstr = returnstr(1)
+}

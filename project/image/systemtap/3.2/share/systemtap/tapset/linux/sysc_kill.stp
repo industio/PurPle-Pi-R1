@@ -1,0 +1,48 @@
+# kill _______________________________________________________
+# long sys_kill(int pid, int sig)
+
+@define _SYSCALL_KILL_NAME
+%(
+	name = "kill"
+%)
+
+@define _SYSCALL_KILL_ARGSTR
+%(
+	argstr = sprintf("%d, %s", pid, sig_name)
+%)
+
+probe syscall.kill = dw_syscall.kill !, nd_syscall.kill ? {}
+probe syscall.kill.return = dw_syscall.kill.return !, nd_syscall.kill.return ? {}
+
+# dw_kill _____________________________________________________
+
+probe dw_syscall.kill = kernel.function("sys_kill").call
+{
+	@_SYSCALL_KILL_NAME
+	pid = __int32($pid)
+	sig = __int32($sig)
+	sig_name = _signal_name(sig)
+	@_SYSCALL_KILL_ARGSTR
+}
+probe dw_syscall.kill.return = kernel.function("sys_kill").return
+{
+	@_SYSCALL_KILL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_kill _____________________________________________________
+
+probe nd_syscall.kill = kprobe.function("sys_kill") ?
+{
+	@_SYSCALL_KILL_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	sig = int_arg(2)
+	sig_name = _signal_name(sig)
+	@_SYSCALL_KILL_ARGSTR
+}
+probe nd_syscall.kill.return = kprobe.function("sys_kill").return ?
+{
+	@_SYSCALL_KILL_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,60 @@
+# sys32_sigreturn ________________________________________
+#
+# long sys32_sigreturn(int r3, int r4, int r5, int r6, int r7, int r8,
+#			struct pt_regs *regs)
+#
+
+@define _SYSCALL_SYS32_SIGRETURN_NAME
+%(
+	name = "sys32_sigreturn"
+%)
+
+@define _SYSCALL_SYS32_SIGRETURN_ARGSTR
+%(
+	argstr = sprintf("%p, %p, %p, %p, %p, %p",
+                         r3, r4, r5, r6, r7, r8)
+%)
+
+probe syscall.sys32_sigreturn = dw_syscall.sys32_sigreturn !,
+                                nd_syscall.sys32_sigreturn ? {}
+probe syscall.sys32_sigreturn.return = dw_syscall.sys32_sigreturn.return !,
+                                       nd_syscall.sys32_sigreturn.return ? {}
+
+# dw_sys32_sigreturn _____________________________________________________
+
+probe dw_syscall.sys32_sigreturn = kernel.function("sys32_sigreturn") ?
+{
+	@_SYSCALL_SYS32_SIGRETURN_NAME
+	r3 = $r3
+	r4 = $r4
+	r5 = $r5
+	r6 = $r6
+	r7 = $r7
+	r8 = $r8
+	@_SYSCALL_SYS32_SIGRETURN_ARGSTR
+}
+probe dw_syscall.sys32_sigreturn.return = kernel.function("sys32_sigreturn").return ?
+{
+	@_SYSCALL_SYS32_SIGRETURN_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_sigreturn _____________________________________________________
+
+probe nd_syscall.sys32_sigreturn = kprobe.function("sys32_sigreturn") ?
+{
+	@_SYSCALL_SYS32_SIGRETURN_NAME
+	asmlinkage()
+	r3 = int_arg(1)
+	r4 = int_arg(2)
+	r5 = int_arg(3)
+	r6 = int_arg(4)
+	r7 = int_arg(5)
+	r8 = int_arg(6)
+	@_SYSCALL_SYS32_SIGRETURN_ARGSTR
+}
+probe nd_syscall.sys32_sigreturn.return = kprobe.function("sys32_sigreturn").return ?
+{
+	@_SYSCALL_SYS32_SIGRETURN_NAME
+	retstr = returnstr(1)
+}

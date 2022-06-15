@@ -1,0 +1,48 @@
+# mq_unlink __________________________________________________
+# long sys_mq_unlink(const char __user *u_name)
+#
+
+@define _SYSCALL_MQ_UNLINK_NAME
+%(
+	name = "mq_unlink"
+%)
+
+@define _SYSCALL_MQ_UNLINK_ARGSTR
+%(
+	argstr = u_name
+%)
+
+probe syscall.mq_unlink = dw_syscall.mq_unlink !, nd_syscall.mq_unlink ? {}
+probe syscall.mq_unlink.return = dw_syscall.mq_unlink.return !,
+                                 nd_syscall.mq_unlink.return ? {}
+
+# dw_mq_unlink _____________________________________________________
+
+probe dw_syscall.mq_unlink = kernel.function("sys_mq_unlink").call ?
+{
+	@_SYSCALL_MQ_UNLINK_NAME
+	u_name_uaddr = $u_name
+	u_name = user_string_quoted($u_name)
+	@_SYSCALL_MQ_UNLINK_ARGSTR
+}
+probe dw_syscall.mq_unlink.return = kernel.function("sys_mq_unlink").return ?
+{
+	@_SYSCALL_MQ_UNLINK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_mq_unlink _____________________________________________________
+
+probe nd_syscall.mq_unlink = kprobe.function("sys_mq_unlink") ?
+{
+	@_SYSCALL_MQ_UNLINK_NAME
+	asmlinkage()
+	u_name_uaddr = pointer_arg(1)
+	u_name = user_string_quoted(u_name_uaddr)
+	@_SYSCALL_MQ_UNLINK_ARGSTR
+}
+probe nd_syscall.mq_unlink.return = kprobe.function("sys_mq_unlink").return ?
+{
+	@_SYSCALL_MQ_UNLINK_NAME
+	retstr = returnstr(1)
+}

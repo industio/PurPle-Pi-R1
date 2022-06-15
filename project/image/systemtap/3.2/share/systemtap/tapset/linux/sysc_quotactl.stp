@@ -1,0 +1,87 @@
+# quotactl ___________________________________________________
+#
+# long sys_quotactl(unsigned int cmd,
+#		  const char __user *special,
+#		  qid_t id,
+#		  void __user *addr)
+# asmlinkage long sys32_quotactl(unsigned int cmd, const char __user *special,
+#						qid_t id, void __user *addr)
+#
+
+@define _SYSCALL_QUOTACTL_NAME
+%(
+	name = "quotactl"
+%)
+
+probe syscall.quotactl = dw_syscall.quotactl !, nd_syscall.quotactl ? {}
+probe syscall.quotactl.return = dw_syscall.quotactl.return !,
+                                nd_syscall.quotactl.return ? {}
+
+# dw_quotactl _____________________________________________________
+
+probe dw_syscall.quotactl = __syscall.quotactl ?,
+	kernel.function("sys32_quotactl").call ?
+{
+	@_SYSCALL_QUOTACTL_NAME
+	cmd = __uint32($cmd)
+	cmd_str = _quotactl_cmd_str(__uint32($cmd))
+	special = $special
+	special_str = user_string_quoted($special)
+	id = __int32($id)
+	addr_uaddr = $addr
+	@__quotactl_argstr(_quotactl_subcmd(cmd), cmd, special, id, addr_uaddr)
+}
+probe __syscall.quotactl = kernel.function("sys_quotactl").call ?
+{
+# sys32_quotactl() was introduced in 2.6.23.
+%( arch != "powerpc" && arch != "s390" && kernel_v >= "2.6.23" %?
+	@__syscall_gate_compat_simple
+%)
+}
+probe dw_syscall.quotactl.return = __syscall.quotactl.return ?,
+	kernel.function("sys32_quotactl").return ?
+{
+	@_SYSCALL_QUOTACTL_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.quotactl.return = kernel.function("sys_quotactl").return ?
+{
+%( arch != "powerpc" && arch != "s390" && kernel_v >= "2.6.23" %?
+	@__syscall_gate_compat_simple
+%)
+}
+
+# nd_quotactl _____________________________________________________
+
+probe nd_syscall.quotactl = __nd_syscall.quotactl ?,
+	kprobe.function("sys32_quotactl") ?
+{
+	@_SYSCALL_QUOTACTL_NAME
+	asmlinkage()
+	cmd = uint_arg(1)
+	cmd_str = _quotactl_cmd_str(cmd)
+	special = pointer_arg(2)
+	special_str = user_string_quoted(special)
+	id = int_arg(3)
+	addr_uaddr = pointer_arg(4)
+	@__quotactl_argstr(_quotactl_subcmd(cmd), cmd, special, id, addr_uaddr)
+}
+probe __nd_syscall.quotactl = kprobe.function("sys_quotactl") ?
+{
+# sys32_quotactl() was introduced in 2.6.23.
+%( arch != "powerpc" && arch != "s390" && kernel_v >= "2.6.23" %?
+	@__syscall_gate_compat_simple
+%)
+}
+probe nd_syscall.quotactl.return = __nd_syscall.quotactl.return ?,
+	kprobe.function("sys32_quotactl").return ?
+{
+	@_SYSCALL_QUOTACTL_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.quotactl.return = kprobe.function("sys_quotactl").return ?
+{
+%( arch != "powerpc" && arch != "s390" && kernel_v >= "2.6.23" %?
+	@__syscall_gate_compat_simple
+%)
+}

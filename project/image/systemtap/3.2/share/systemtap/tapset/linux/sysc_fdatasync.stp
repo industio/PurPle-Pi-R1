@@ -1,0 +1,44 @@
+# fdatasync __________________________________________________
+# long sys_fdatasync(unsigned int fd)
+
+@define _SYSCALL_FDATASYNC_NAME
+%(
+	name = "fdatasync"
+%)
+
+@define _SYSCALL_FDATASYNC_ARGSTR
+%(
+	argstr = sprint(fd)
+%)
+
+probe syscall.fdatasync = dw_syscall.fdatasync !, nd_syscall.fdatasync ? {}
+probe syscall.fdatasync.return = dw_syscall.fdatasync.return !, nd_syscall.fdatasync.return ? {}
+
+# dw_fdatasync _____________________________________________________
+
+probe dw_syscall.fdatasync = kernel.function("sys_fdatasync").call
+{
+	@_SYSCALL_FDATASYNC_NAME
+	fd = __int32($fd)
+	@_SYSCALL_FDATASYNC_ARGSTR
+}
+probe dw_syscall.fdatasync.return = kernel.function("sys_fdatasync").return
+{
+	@_SYSCALL_FDATASYNC_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_fdatasync _____________________________________________________
+
+probe nd_syscall.fdatasync = kprobe.function("sys_fdatasync") ?
+{
+	@_SYSCALL_FDATASYNC_NAME
+	asmlinkage()
+	fd = int_arg(1)
+	@_SYSCALL_FDATASYNC_ARGSTR
+}
+probe nd_syscall.fdatasync.return = kprobe.function("sys_fdatasync").return ?
+{
+	@_SYSCALL_FDATASYNC_NAME
+	retstr = returnstr(1)
+}

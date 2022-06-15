@@ -1,0 +1,3 @@
+if [ -e "/dev/$MDEV" ]  ; then
+	mount -t vfat /dev/$MDEV /udisk -o iocharset=utf8
+fi

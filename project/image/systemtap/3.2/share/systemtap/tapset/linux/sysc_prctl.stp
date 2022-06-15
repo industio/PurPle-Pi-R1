@@ -1,0 +1,59 @@
+# prctl ______________________________________________________
+#
+# asmlinkage long
+# sys_prctl(int option,
+#	     unsigned long arg2,
+#	     unsigned long arg3,
+#	     unsigned long arg4,
+#	     unsigned long arg5)
+#
+
+@define _SYSCALL_PRCTL_NAME
+%(
+	name = "prctl"
+%)
+
+@define _SYSCALL_PRCTL_ARGSTR
+%(
+	argstr = _prctl_argstr(option, arg2, arg3, arg4, arg5)
+%)
+
+probe syscall.prctl = dw_syscall.prctl !, nd_syscall.prctl ? {}
+probe syscall.prctl.return = dw_syscall.prctl.return !, nd_syscall.prctl.return ? {}
+
+# dw_prctl _____________________________________________________
+
+probe dw_syscall.prctl = kernel.function("sys_prctl").call
+{
+	@_SYSCALL_PRCTL_NAME
+	option = __int32($option)
+	arg2 = $arg2
+	arg3 = $arg3
+	arg4 = $arg4
+	arg5 = $arg5
+	@_SYSCALL_PRCTL_ARGSTR
+}
+probe dw_syscall.prctl.return = kernel.function("sys_prctl").return
+{
+	@_SYSCALL_PRCTL_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_prctl _____________________________________________________
+
+probe nd_syscall.prctl = kprobe.function("sys_prctl") ?
+{
+	@_SYSCALL_PRCTL_NAME
+	asmlinkage()
+	option = int_arg(1)
+	arg2 = ulong_arg(2)
+	arg3 = ulong_arg(3)
+	arg4 = ulong_arg(4)
+	arg5 = ulong_arg(5)
+	@_SYSCALL_PRCTL_ARGSTR
+}
+probe nd_syscall.prctl.return = kprobe.function("sys_prctl").return ?
+{
+	@_SYSCALL_PRCTL_NAME
+	retstr = returnstr(1)
+}

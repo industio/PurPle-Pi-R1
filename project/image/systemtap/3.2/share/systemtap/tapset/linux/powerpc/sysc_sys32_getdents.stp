@@ -1,0 +1,54 @@
+# sys32_getdents ________________________________________
+#
+# asmlinkage long sys32_getdents(unsigned int fd,
+#			struct linux_dirent32 __user *dirent,
+#			unsigned int count)
+#
+
+@define _SYSCALL_SYS32_GETDENTS_NAME
+%(
+	name = "sys32_getdents"
+%)
+
+@define _SYSCALL_SYS32_GETDENTS_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d", fd, dirp_uaddr, count)
+%)
+
+probe syscall.sys32_getdents = dw_syscall.sys32_getdents !,
+                               nd_syscall.sys32_getdents ? {}
+probe syscall.sys32_getdents.return = dw_syscall.sys32_getdents.return !,
+                                      nd_syscall.sys32_getdents.return ? {}
+
+# dw_sys32_getdents _____________________________________________________
+
+probe dw_syscall.sys32_getdents = kernel.function("sys32_getdents") ?
+{
+	@_SYSCALL_SYS32_GETDENTS_NAME
+	fd = $fd
+	dirp_uaddr = $dirent
+	count = $count
+	@_SYSCALL_SYS32_GETDENTS_ARGSTR
+}
+probe dw_syscall.sys32_getdents.return = kernel.function("sys32_getdents").return ?
+{
+	@_SYSCALL_SYS32_GETDENTS_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_getdents _____________________________________________________
+
+probe nd_syscall.sys32_getdents = kprobe.function("sys32_getdents") ?
+{
+	@_SYSCALL_SYS32_GETDENTS_NAME
+	asmlinkage()
+	fd = uint_arg(1)
+	dirp_uaddr = pointer_arg(2)
+	count = uint_arg(3)
+	@_SYSCALL_SYS32_GETDENTS_ARGSTR
+}
+probe nd_syscall.sys32_getdents.return = kprobe.function("sys32_getdents").return ?
+{
+	@_SYSCALL_SYS32_GETDENTS_NAME
+	retstr = returnstr(1)
+}

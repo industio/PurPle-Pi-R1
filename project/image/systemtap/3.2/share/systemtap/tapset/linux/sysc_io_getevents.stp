@@ -1,0 +1,91 @@
+# io_getevents _______________________________________________
+# long sys_io_getevents(aio_context_t ctx_id,
+#		long min_nr,
+#		long nr,
+#		struct io_event __user *events,
+#		struct timespec __user *timeout)
+# long compat_sys_io_getevents(aio_context_t ctx_id,
+#		 long min_nr,
+#		 long nr,
+#		 struct io_event __user *events,
+#		 struct compat_timespec __user *timeout)
+#
+
+@define _SYSCALL_IO_GETEVENTS_NAME
+%(
+	name = "io_getevents"
+%)
+
+@define _SYSCALL_IO_GETEVENTS_ARGSTR
+%(
+	argstr = sprintf("%u, %d, %d, %p, %s", ctx_id, min_nr,
+	                 nr, events_uaddr, timestr)
+%)
+
+probe syscall.io_getevents = dw_syscall.io_getevents !, nd_syscall.io_getevents ? {}
+probe syscall.io_getevents.return = dw_syscall.io_getevents.return !,
+                                    nd_syscall.io_getevents.return ? {}
+
+# dw_io_getevents _____________________________________________________
+
+probe dw_syscall.io_getevents = __syscall.io_getevents ?,
+	kernel.function("compat_sys_io_getevents").call ?
+{
+	@_SYSCALL_IO_GETEVENTS_NAME
+        ctx_id = @__compat_ulong($ctx_id)
+	events_uaddr = $events
+	timeout_uaddr = $timeout
+	nr = @__compat_long($nr)
+	min_nr = @__compat_long($min_nr)
+	timestr = (@__compat_task ?
+	           _struct_compat_timespec_u($timeout, 1) :
+	           _struct_timespec_u($timeout, 1))
+	@_SYSCALL_IO_GETEVENTS_ARGSTR
+}
+probe __syscall.io_getevents = kernel.function("sys_io_getevents").call
+{
+	@__syscall_gate(@const("__NR_io_getevents"))
+}
+probe dw_syscall.io_getevents.return = __syscall.io_getevents.return,
+	kernel.function("compat_sys_io_getevents").return ?
+{
+	@_SYSCALL_IO_GETEVENTS_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.io_getevents.return = kernel.function("sys_io_getevents").return ?
+{
+	@__syscall_gate(@const("__NR_io_getevents"))
+}
+
+# nd_io_getevents _____________________________________________________
+
+probe nd_syscall.io_getevents = __nd_syscall.io_getevents ?,
+	kprobe.function("compat_sys_io_getevents") ?
+{
+	@_SYSCALL_IO_GETEVENTS_NAME
+	asmlinkage()
+	ctx_id = ulong_arg(1)
+	min_nr = long_arg(2)
+	nr = long_arg(3)
+	events_uaddr = pointer_arg(4)
+	timeout_uaddr = pointer_arg(5)
+        timestr = (@__compat_task
+	           ? _struct_compat_timespec_u(timeout_uaddr, 1)
+	           : _struct_timespec_u(timeout_uaddr, 1))
+	@_SYSCALL_IO_GETEVENTS_ARGSTR
+}
+probe __nd_syscall.io_getevents = kprobe.function("sys_io_getevents")
+{
+	@__syscall_gate_compat_simple
+}
+probe nd_syscall.io_getevents.return = __nd_syscall.io_getevents.return,
+	kprobe.function("compat_sys_io_getevents").return ?
+{
+	@_SYSCALL_IO_GETEVENTS_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.io_getevents.return =
+	kprobe.function("sys_io_getevents").return ?
+{
+	@__syscall_gate_compat_simple
+}

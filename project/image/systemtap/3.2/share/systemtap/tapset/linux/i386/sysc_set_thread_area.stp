@@ -1,0 +1,50 @@
+# set_thread_area ____________________________________________
+/*
+ * asmlinkage int
+ * sys_set_thread_area(struct user_desc __user *u_info)
+ */
+
+@define _SYSCALL_SET_THREAD_AREA_NAME
+%(
+	name = "set_thread_area"
+%)
+
+@define _SYSCALL_SET_THREAD_AREA_ARGSTR
+%(
+	argstr = u_info_str
+%)
+
+probe syscall.set_thread_area = dw_syscall.set_thread_area !, nd_syscall.set_thread_area {}
+probe syscall.set_thread_area.return = dw_syscall.set_thread_area.return !, nd_syscall.set_thread_area.return {}
+
+# dw_set_thread_area _____________________________________________________
+
+probe dw_syscall.set_thread_area = kernel.function("sys_set_thread_area")
+{
+	@_SYSCALL_SET_THREAD_AREA_NAME
+	u_info_uaddr = $u_info
+	u_info_str = _struct_user_desc_u(u_info_uaddr)
+	@_SYSCALL_SET_THREAD_AREA_ARGSTR
+}
+probe dw_syscall.set_thread_area.return = kernel.function("sys_set_thread_area").return
+{
+	@_SYSCALL_SET_THREAD_AREA_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_set_thread_area _____________________________________________________
+
+probe nd_syscall.set_thread_area = kprobe.function("sys_set_thread_area")
+{
+	@_SYSCALL_SET_THREAD_AREA_NAME
+	// u_info_uaddr = $u_info
+	asmlinkage()
+	u_info_uaddr = pointer_arg(1)
+	u_info_str = _struct_user_desc_u(u_info_uaddr)
+	@_SYSCALL_SET_THREAD_AREA_ARGSTR
+}
+probe nd_syscall.set_thread_area.return = kprobe.function("sys_set_thread_area").return
+{
+	@_SYSCALL_SET_THREAD_AREA_NAME
+	retstr = returnstr(1)
+}

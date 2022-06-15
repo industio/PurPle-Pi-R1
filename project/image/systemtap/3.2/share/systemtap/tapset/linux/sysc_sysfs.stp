@@ -1,0 +1,59 @@
+# sysfs ______________________________________________________
+#
+# asmlinkage long
+# sys_sysfs(int option,
+#	     unsigned long arg1,
+#	     unsigned long arg2)
+#
+
+probe syscall.sysfs = dw_syscall.sysfs !, nd_syscall.sysfs ? {}
+probe syscall.sysfs.return = dw_syscall.sysfs.return !, nd_syscall.sysfs.return ? {}
+
+# dw_sysfs _____________________________________________________
+
+probe dw_syscall.sysfs = kernel.function("sys_sysfs").call
+{
+	name = "sysfs"
+	option = __int32($option)
+	arg1 = $arg1
+	arg2 = $arg2
+	if (option == 1)
+		argstr = sprintf("%d, %s", __int32($option),
+				 user_string_quoted($arg1))
+	else if (option == 2)
+		argstr = sprintf("%d, %d, %p", __int32($option), $arg1, $arg2)
+	else if (option == 3)
+		argstr = sprintf("%d", __int32($option))
+	else
+		argstr = sprintf("%d, 0x%x, 0x%x", __int32($option), $arg1,
+				 $arg2)
+}
+probe dw_syscall.sysfs.return = kernel.function("sys_sysfs").return
+{
+	name = "sysfs"
+	retstr = return_str(1, $return)
+}
+
+# nd_sysfs _____________________________________________________
+
+probe nd_syscall.sysfs = kprobe.function("sys_sysfs") ?
+{
+	name = "sysfs"
+	asmlinkage()
+	option = int_arg(1)
+	arg1 = ulong_arg(2)
+	arg2 = ulong_arg(3)
+	if (option == 1)
+		argstr = sprintf("%d, %s", option, user_string_quoted(arg1))
+	else if (option == 2)
+		argstr = sprintf("%d, %d, %p", option, arg1, arg2)
+	else if (option == 3)
+		argstr = sprintf("%d", option)
+	else
+		argstr = sprintf("%d, 0x%x, 0x%x", option, arg1, arg2)
+}
+probe nd_syscall.sysfs.return = kprobe.function("sys_sysfs").return ?
+{
+	name = "sysfs"
+	retstr = returnstr(1)
+}

@@ -1,0 +1,46 @@
+# syncfs _____________________________________________________
+#
+# SYSCALL_DEFINE1(syncfs, int, fd)
+
+@define _SYSCALL_SYNCFS_NAME
+%(
+	name = "syncfs"
+%)
+
+@define _SYSCALL_SYNCFS_ARGSTR
+%(
+	argstr = sprintf("%d", fd)
+%)
+
+probe syscall.syncfs = dw_syscall.syncfs !, nd_syscall.syncfs ? {}
+probe syscall.syncfs.return = dw_syscall.syncfs.return !,
+                              nd_syscall.syncfs.return ? {}
+
+# dw_syncfs _____________________________________________________
+
+probe dw_syscall.syncfs = kernel.function("sys_syncfs").call ?
+{
+	@_SYSCALL_SYNCFS_NAME
+	fd = __int32($fd)
+	@_SYSCALL_SYNCFS_ARGSTR
+}
+probe dw_syscall.syncfs.return = kernel.function("sys_syncfs").return ?
+{
+	@_SYSCALL_SYNCFS_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_syncfs _____________________________________________________
+
+probe nd_syscall.syncfs = kprobe.function("sys_syncfs") ?
+{
+	asmlinkage()
+	@_SYSCALL_SYNCFS_NAME
+	fd = int_arg(1)
+	@_SYSCALL_SYNCFS_ARGSTR
+}
+probe nd_syscall.syncfs.return = kprobe.function("sys_syncfs").return ?
+{
+	@_SYSCALL_SYNCFS_NAME
+	retstr = returnstr(1)
+}

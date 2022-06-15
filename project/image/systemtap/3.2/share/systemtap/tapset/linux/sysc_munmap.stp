@@ -1,0 +1,47 @@
+# munmap _____________________________________________________
+# long sys_munmap(unsigned long addr, size_t len)
+
+@define _SYSCALL_MUNMAP_NAME
+%(
+	name = "munmap"
+%)
+
+@define _SYSCALL_MUNMAP_ARGSTR
+%(
+	argstr = sprintf("%p, %u", start, length)
+%)
+
+probe syscall.munmap = dw_syscall.munmap !, nd_syscall.munmap ? {}
+probe syscall.munmap.return = dw_syscall.munmap.return !,
+                              nd_syscall.munmap.return ? {}
+
+# dw_munmap _____________________________________________________
+
+probe dw_syscall.munmap = kernel.function("sys_munmap").call
+{
+	@_SYSCALL_MUNMAP_NAME
+	start = $addr
+	length = __ulong($len)
+	@_SYSCALL_MUNMAP_ARGSTR
+}
+probe dw_syscall.munmap.return = kernel.function("sys_munmap").return
+{
+	@_SYSCALL_MUNMAP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_munmap _____________________________________________________
+
+probe nd_syscall.munmap = kprobe.function("sys_munmap") ?
+{
+	@_SYSCALL_MUNMAP_NAME
+	asmlinkage()
+	start = ulong_arg(1)
+	length = ulong_arg(2)
+	@_SYSCALL_MUNMAP_ARGSTR
+}
+probe nd_syscall.munmap.return = kprobe.function("sys_munmap").return ?
+{
+	@_SYSCALL_MUNMAP_NAME
+	retstr = returnstr(1)
+}

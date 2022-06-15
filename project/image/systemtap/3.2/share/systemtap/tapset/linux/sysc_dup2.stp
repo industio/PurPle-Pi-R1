@@ -1,0 +1,56 @@
+# dup2 _______________________________________________________
+# long sys_dup2(unsigned int oldfd, unsigned int newfd)
+
+@define _SYSCALL_DUP2_NAME
+%(
+	name = "dup2"
+%)
+
+@define _SYSCALL_DUP2_ARGSTR
+%(
+	argstr = sprintf("%d, %d", oldfd, newfd)
+%)
+
+probe syscall.dup2 = dw_syscall.dup2 !, nd_syscall.dup2 {}
+probe syscall.dup2.return = dw_syscall.dup2.return !, nd_syscall.dup2.return {}
+
+# dw_dup2 _____________________________________________________
+
+probe dw_syscall.dup2 = kernel.function("sys_dup2").call
+{
+	@_SYSCALL_DUP2_NAME
+	oldfd = __int32($oldfd)
+	newfd = __int32($newfd)
+	# The dup2 syscall doesn't have a 'flags' argument. But, the
+	# dw_syscall.dup2 and syscall.dup3 probes used to be combined, so
+	# both probes need a 'flags' and 'flags_str' variable.
+	flags = 0
+	flags_str = "0x0"
+	@_SYSCALL_DUP2_ARGSTR
+}
+probe dw_syscall.dup2.return = kernel.function("sys_dup2").return
+{
+	@_SYSCALL_DUP2_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_dup2 _____________________________________________________
+
+probe nd_syscall.dup2 = kprobe.function("sys_dup2")
+{
+	@_SYSCALL_DUP2_NAME
+	asmlinkage()
+	oldfd = int_arg(1)
+	newfd = int_arg(2)
+	# The dup2 syscall doesn't have a 'flags' argument. But, the
+	# syscall.dup2 and syscall.dup3 probes used to be combined, so
+	# both probes need a 'flags' and 'flags_str' variable.
+	flags = 0
+	flags_str = "0x0"
+	@_SYSCALL_DUP2_ARGSTR
+}
+probe nd_syscall.dup2.return = kprobe.function("sys_dup2").return
+{
+	@_SYSCALL_DUP2_NAME
+	retstr = returnstr(1)
+}

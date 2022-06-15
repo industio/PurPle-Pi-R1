@@ -1,0 +1,55 @@
+# sys32_ptrace ________________________________________
+# (obsolete)
+# int sys32_ptrace(long request, long pid, unsigned long addr,
+#		unsigned long data)
+#
+
+@define _SYSCALL_SYS32_PTRACE_NAME
+%(
+	name = "sys32_ptrace"
+%)
+
+@define _SYSCALL_SYS32_PTRACE_ARGSTR
+%(
+	argstr = sprintf("%p, %p, %p, %p", request, pid, addr, data)
+%)
+
+probe syscall.sys32_ptrace = dw_syscall.sys32_ptrace !,
+                             nd_syscall.sys32_ptrace ? {}
+probe syscall.sys32_ptrace.return = dw_syscall.sys32_ptrace.return !,
+                                    nd_syscall.sys32_ptrace.return ? {}
+
+# dw_sys32_ptrace _____________________________________________________
+
+probe dw_syscall.sys32_ptrace = kernel.function("sys32_ptrace") ?
+{
+	@_SYSCALL_SYS32_PTRACE_NAME
+	request = $request
+	pid = $pid
+	addr = $addr
+	data = $data
+	@_SYSCALL_SYS32_PTRACE_ARGSTR
+}
+probe dw_syscall.sys32_ptrace.return = kernel.function("sys32_ptrace").return ?
+{
+	@_SYSCALL_SYS32_PTRACE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys32_ptrace _____________________________________________________
+
+probe nd_syscall.sys32_ptrace = kprobe.function("sys32_ptrace") ?
+{
+	@_SYSCALL_SYS32_PTRACE_NAME
+	asmlinkage()
+	request = long_arg(1)
+	pid = long_arg(2)
+	addr = ulong_arg(3)
+	data = ulong_arg(4)
+	@_SYSCALL_SYS32_PTRACE_ARGSTR
+}
+probe nd_syscall.sys32_ptrace.return = kprobe.function("sys32_ptrace").return ?
+{
+	@_SYSCALL_SYS32_PTRACE_NAME
+	retstr = returnstr(1)
+}

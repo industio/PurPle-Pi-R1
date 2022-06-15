@@ -1,0 +1,99 @@
+# ustat ______________________________________________________
+# long sys_ustat(unsigned dev, struct ustat __user * ubuf)
+#
+
+@define _SYSCALL_USTAT_NAME
+%(
+	name = "ustat"
+%)
+
+@define _SYSCALL_USTAT_ARGSTR
+%(
+	argstr = sprintf("%u, %p", dev, ubuf_uaddr)
+%)
+
+probe syscall.ustat = dw_syscall.ustat !, nd_syscall.ustat ? {}
+probe syscall.ustat.return = dw_syscall.ustat.return !, nd_syscall.ustat.return ? {}
+
+# dw_ustat _____________________________________________________
+
+probe dw_syscall.ustat = kernel.function("sys_ustat").call
+{
+	@_SYSCALL_USTAT_NAME
+	dev = __uint32($dev)
+	ubuf_uaddr = $ubuf
+	@_SYSCALL_USTAT_ARGSTR
+}
+probe dw_syscall.ustat.return = kernel.function("sys_ustat").return ?
+{
+	@_SYSCALL_USTAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ustat _____________________________________________________
+
+probe nd_syscall.ustat = kprobe.function("sys_ustat") ?
+{
+	@_SYSCALL_USTAT_NAME
+	asmlinkage()
+	dev = uint_arg(1)
+	ubuf_uaddr = pointer_arg(2)
+	@_SYSCALL_USTAT_ARGSTR
+}
+probe nd_syscall.ustat.return = kprobe.function("sys_ustat").return ?
+{
+	@_SYSCALL_USTAT_NAME
+	retstr = returnstr(1)
+}
+
+# long sys32_ustat(unsigned dev, struct ustat32 __user *u32p)
+# long compat_sys_ustat(unsigned dev, struct compat_ustat __user *u)
+#
+
+probe syscall.ustat32 = dw_syscall.ustat32 !, nd_syscall.ustat32 ? {}
+probe syscall.ustat32.return = dw_syscall.ustat32.return !,
+                               nd_syscall.ustat32.return ? {}
+
+# dw_ustat32 _____________________________________________________
+
+probe dw_syscall.ustat32 = kernel.function("compat_sys_ustat").call ?,
+      		        kernel.function("sys32_ustat").call ?
+{
+	@_SYSCALL_USTAT_NAME
+	dev = __uint32($dev)
+	ubuf_uaddr = @choose_defined($u, $u32p)
+	@_SYSCALL_USTAT_ARGSTR
+}
+
+
+probe dw_syscall.ustat32.return = kernel.function("sys32_ustat").return ?,
+                               kernel.function("compat_sys_ustat").return ?
+{
+	@_SYSCALL_USTAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ustat32 _____________________________________________________
+
+probe nd_syscall.ustat32 = __nd_syscall.ustat32 ?, __nd_syscall.compat_ustat ?
+{
+	@_SYSCALL_USTAT_NAME
+	@_SYSCALL_USTAT_ARGSTR
+}
+probe __nd_syscall.ustat32 = kprobe.function("sys32_ustat") ?
+{
+	dev = uint_arg(1)
+	ubuf_uaddr = pointer_arg(2)
+}
+probe __nd_syscall.compat_ustat = kprobe.function("compat_sys_ustat") ?
+{
+	asmlinkage()
+	dev = uint_arg(1)
+	ubuf_uaddr = pointer_arg(2)
+}
+probe nd_syscall.ustat32.return = kprobe.function("sys32_ustat").return ?,
+                                  kprobe.function("compat_sys_ustat").return ?
+{
+	@_SYSCALL_USTAT_NAME
+	retstr = returnstr(1)
+}

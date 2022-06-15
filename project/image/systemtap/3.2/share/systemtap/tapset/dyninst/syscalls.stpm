@@ -1,0 +1,8 @@
+// NB: The python tapset uses the following macro from the syscalls macros.
+
+@define __pointer(val)
+%(
+    # Since we can't really know if this is a compat task, just return
+    # the value we've got.
+    @val
+%)

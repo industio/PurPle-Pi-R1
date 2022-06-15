@@ -1,0 +1,71 @@
+# clock_gettime ______________________________________________
+# long sys_clock_gettime(clockid_t which_clock, struct timespec __user *tp)
+#
+
+@define _SYSCALL_CLOCK_GETTIME_NAME
+%(
+	name = "clock_gettime"
+%)
+
+@define _SYSCALL_CLOCK_GETTIME_ARGSTR
+%(
+	argstr = sprintf("%s, %p", clk_id_str, tp_uaddr)
+%)
+
+probe syscall.clock_gettime = dw_syscall.clock_gettime !, nd_syscall.clock_gettime ? {}
+probe syscall.clock_gettime.return = dw_syscall.clock_gettime.return !, nd_syscall.clock_gettime.return ? {}
+
+# dw_clock_gettime _____________________________________________________
+
+probe dw_syscall.clock_gettime = __syscall.clock_gettime,
+	kernel.function("compat_sys_clock_gettime").call ?
+{
+	@_SYSCALL_CLOCK_GETTIME_NAME
+	clk_id = __int32($which_clock)
+	clk_id_str = _get_wc_str(__int32($which_clock))
+	tp_uaddr = $tp
+	@_SYSCALL_CLOCK_GETTIME_ARGSTR
+}
+probe __syscall.clock_gettime = kernel.function("sys_clock_gettime").call
+{
+	@__syscall_gate(@const("__NR_clock_gettime"))
+}
+probe dw_syscall.clock_gettime.return = __syscall.clock_gettime.return,
+	kernel.function("compat_sys_clock_gettime").return ?
+{
+	@_SYSCALL_CLOCK_GETTIME_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.clock_gettime.return =
+	kernel.function("sys_clock_gettime").return
+{
+	@__syscall_gate(@const("__NR_clock_gettime"))
+}
+
+# nd_clock_gettime _____________________________________________________
+
+probe nd_syscall.clock_gettime = __nd_syscall.clock_gettime,
+	kprobe.function("compat_sys_clock_gettime") ?
+{
+	@_SYSCALL_CLOCK_GETTIME_NAME
+	asmlinkage()
+	clk_id = int_arg(1)
+	clk_id_str = _get_wc_str(clk_id)
+	tp_uaddr = pointer_arg(2)
+	@_SYSCALL_CLOCK_GETTIME_ARGSTR
+}
+probe __nd_syscall.clock_gettime = kprobe.function("sys_clock_gettime").call
+{
+	@__syscall_gate(@const("__NR_clock_gettime"))
+}
+probe nd_syscall.clock_gettime.return = __nd_syscall.clock_gettime.return,
+	kprobe.function("compat_sys_clock_gettime").return ?
+{
+	@_SYSCALL_CLOCK_GETTIME_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.clock_gettime.return =
+	kprobe.function("sys_clock_gettime").return
+{
+	@__syscall_gate(@const("__NR_clock_gettime"))
+}

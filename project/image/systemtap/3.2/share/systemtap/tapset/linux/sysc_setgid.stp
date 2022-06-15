@@ -1,0 +1,94 @@
+# setgid _____________________________________________________
+#
+# long sys_setgid(gid_t gid)
+# long sys_setgid16(old_gid_t gid)
+#
+
+@define _SYSCALL_SETGID_NAME
+%(
+	name = "setgid"
+%)
+
+@define _SYSCALL_SETGID_ARGSTR
+%(
+	argstr = sprint(gid)
+%)
+
+@define _SYSCALL_GATE
+%(
+    %( arch == "x86_64" %?
+	// There are actually 3 x86_64 setgid syscalls numbers (which
+	// get mapped to 2 syscall functions:
+	//   - __NR_setgid which gets mapped to sys_setgid()
+	//   - __NR_ia32_setgid32 which also gets mapped to
+	//     sys_setgid() 
+	//   - __NR_ia32_setgid which gets mapped to sys_setgid16()
+	//     (which is a wrapper around sys_setgid())
+	// So, we need to avoid sys_setgid() calls that come from
+	// sys_setgid16().
+	@__syscall_compat_gate(@const("__NR_setgid"),
+			       @const("__NR_ia32_setgid32"))
+    %:
+	%( arch == "i386" %?
+	    // On i386, there are 2 setgid syscall numbers:
+	    //   - __NR_setgid which gets mapped to sys_setgid16
+	    //   - __NR_setgid32 which gets mapped to sys_setgid
+	    // Since this gets called from a probe on sys_setgid, we'll
+	    // make sure this is really __NR_setgid32.
+	    @__syscall_nr_gate(@const("__NR_setgid32"))
+	%)
+    %)
+%)
+
+probe syscall.setgid = dw_syscall.setgid !, nd_syscall.setgid ? {}
+probe syscall.setgid.return = dw_syscall.setgid.return !,
+                              nd_syscall.setgid.return ? {}
+
+# dw_setgid _____________________________________________________
+
+probe dw_syscall.setgid = kernel.function("sys_setgid16").call ?,
+			  __syscall.setgid ?
+{
+	@_SYSCALL_SETGID_NAME
+	gid = __int32($gid)
+	@_SYSCALL_SETGID_ARGSTR
+}
+probe __syscall.setgid = kernel.function("sys_setgid").call ?
+{
+	@_SYSCALL_GATE
+}
+probe dw_syscall.setgid.return = kernel.function("sys_setgid16").return ?,
+				 __syscall.setgid.return ?
+{
+	@_SYSCALL_SETGID_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.setgid.return = kernel.function("sys_setgid").return ?
+{
+	@_SYSCALL_GATE
+}
+
+# nd_setgid _____________________________________________________
+
+probe nd_syscall.setgid = kprobe.function("sys_setgid16") ?,
+			  __nd_syscall.setgid ?
+{
+	@_SYSCALL_SETGID_NAME
+	asmlinkage()
+	gid = int_arg(1)
+	@_SYSCALL_SETGID_ARGSTR
+}
+probe __nd_syscall.setgid = kprobe.function("sys_setgid") ?
+{
+	@_SYSCALL_GATE
+}
+probe nd_syscall.setgid.return = kprobe.function("sys_setgid16").return ?,
+				 __nd_syscall.setgid.return ?
+{
+	@_SYSCALL_SETGID_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.setgid.return = kprobe.function("sys_setgid").return ?
+{
+	@_SYSCALL_GATE
+}

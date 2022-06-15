@@ -1,0 +1,47 @@
+# rmdir ______________________________________________________
+#
+# asmlinkage long
+# sys_rmdir(const char __user * pathname)
+#
+
+@define _SYSCALL_RMDIR_NAME
+%(
+	name = "rmdir"
+%)
+
+@define _SYSCALL_RMDIR_ARGSTR
+%(
+	argstr = pathname
+%)
+
+probe syscall.rmdir = dw_syscall.rmdir !, nd_syscall.rmdir ? {}
+probe syscall.rmdir.return = dw_syscall.rmdir.return !, nd_syscall.rmdir.return ? {}
+
+# dw_rmdir _____________________________________________________
+
+probe dw_syscall.rmdir = kernel.function("sys_rmdir").call
+{
+	@_SYSCALL_RMDIR_NAME
+	pathname = user_string_quoted($pathname)
+	@_SYSCALL_RMDIR_ARGSTR
+}
+probe dw_syscall.rmdir.return = kernel.function("sys_rmdir").return
+{
+	@_SYSCALL_RMDIR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_rmdir _____________________________________________________
+
+probe nd_syscall.rmdir = kprobe.function("sys_rmdir") ?
+{
+	@_SYSCALL_RMDIR_NAME
+	asmlinkage()
+	pathname = user_string_quoted(pointer_arg(1))
+	@_SYSCALL_RMDIR_ARGSTR
+}
+probe nd_syscall.rmdir.return = kprobe.function("sys_rmdir").return ?
+{
+	@_SYSCALL_RMDIR_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,58 @@
+# getresgid __________________________________________________
+# long sys_getresgid(gid_t __user *rgid,
+#                    gid_t __user *egid,
+#                    gid_t __user *sgid)
+# long sys_getresgid16(old_uid_t __user *rgid,
+#                 old_uid_t __user *egid,
+#                 old_uid_t __user *sgid)
+
+@define _SYSCALL_GETRESGID_NAME
+%(
+	name = "getresgid"
+%)
+
+@define _SYSCALL_GETRESGID_ARGSTR
+%(
+	argstr = sprintf("%p, %p, %p", rgid_uaddr, egid_uaddr, sgid_uaddr)
+%)
+
+probe syscall.getresgid = dw_syscall.getresgid !, nd_syscall.getresgid ? {}
+probe syscall.getresgid.return = dw_syscall.getresgid.return !,
+                                 nd_syscall.getresgid.return ? {}
+
+# dw_getresgid _____________________________________________________
+
+probe dw_syscall.getresgid = kernel.function("sys_getresgid16").call ?,
+                          kernel.function("sys_getresgid").call
+{
+	@_SYSCALL_GETRESGID_NAME
+	rgid_uaddr = @choose_defined($rgidp, $rgid)
+	egid_uaddr = @choose_defined($egidp, $egid)
+	sgid_uaddr = @choose_defined($sgidp, $sgid)
+	@_SYSCALL_GETRESGID_ARGSTR
+}
+probe dw_syscall.getresgid.return = kernel.function("sys_getresgid16").return ?,
+                                 kernel.function("sys_getresgid").return
+{
+	@_SYSCALL_GETRESGID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getresgid _____________________________________________________
+
+probe nd_syscall.getresgid = kprobe.function("sys_getresgid16") ?,
+                             kprobe.function("sys_getresgid") ?
+{
+	@_SYSCALL_GETRESGID_NAME
+	asmlinkage()
+	rgid_uaddr = pointer_arg(1)
+	egid_uaddr = pointer_arg(2)
+	sgid_uaddr = pointer_arg(3)
+	@_SYSCALL_GETRESGID_ARGSTR
+}
+probe nd_syscall.getresgid.return = kprobe.function("sys_getresgid16").return ?,
+                                    kprobe.function("sys_getresgid").return ?
+{
+	@_SYSCALL_GETRESGID_NAME
+	retstr = returnstr(1)
+}

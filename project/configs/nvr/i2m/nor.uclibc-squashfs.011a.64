@@ -1,0 +1,17 @@
+CHIP = i2m
+BOARD = 011A
+BOARD_NAME = SSC011A-S01A
+PRODUCT = nvr
+TOOLCHAIN = uclibc
+TOOLCHAIN_VERSION = 4.9.4
+KERNEL_VERSION = 4.9.84
+LIBC       = libuclibc-4.9.4
+BUSYBOX    = busybox-1.20.2-arm-buildroot-linux-uclibcgnueabihf-uclibc-4.9.4-static
+KERNEL_CONFIG = uclibc
+IMAGE_CONFIG = nor.squashfs.partition.config
+CUSTOMER_OPTIONS = null_options.mk
+CUSTOMER_TAILOR = nvr_i2m_uclibc_tailor.mk
+MMAP = MMAP_I2M_64M.h
+EXBOOTARGS =
+KERNEL_BOOT_ENV = LX_MEM=$(KERNEL_MEMLEN) mma_heap=mma_heap_name0,miu=0,sz=0x1500000 mma_memblock_remove=1
+TOOLCHAIN_REL = arm-buildroot-linux-uclibcgnueabihf-

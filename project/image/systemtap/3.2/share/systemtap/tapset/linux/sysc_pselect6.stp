@@ -1,0 +1,111 @@
+# pselect6 _____________________________________________________
+#
+# long sys_pselect6(int n, fd_set __user *inp, fd_set __user *outp,
+#	fd_set __user *exp, struct timespec __user *tsp, void __user *sig)
+#
+
+@define _SYSCALL_PSELECT6_NAME
+%(
+	name = "pselect6"
+%)
+
+@define _SYSCALL_PSELECT6_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %p, %p, %s, %p", nfds, readfds, writefds,
+	                 exceptfds, timeout_str, sigmask)
+%)
+
+probe syscall.pselect6 = dw_syscall.pselect6 !, nd_syscall.pselect6 ? {}
+probe syscall.pselect6.return = dw_syscall.pselect6.return !,
+                                nd_syscall.pselect6.return ? {}
+
+# dw_pselect6 _____________________________________________________
+
+probe dw_syscall.pselect6 = kernel.function("sys_pselect6").call ?
+{
+	@_SYSCALL_PSELECT6_NAME
+	nfds = __int32($n)
+	readfds = $inp
+	writefds = $outp
+	exceptfds = $exp
+	timeout = $tsp
+	timeout_str = _struct_timespec_u(timeout, 1)
+	sigmask = $sig
+	@_SYSCALL_PSELECT6_ARGSTR
+}
+probe dw_syscall.pselect6.return = kernel.function("sys_pselect6").return ?
+{
+	@_SYSCALL_PSELECT6_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_pselect6 _____________________________________________________
+
+probe nd_syscall.pselect6 = kprobe.function("sys_pselect6") ?
+{
+	@_SYSCALL_PSELECT6_NAME
+	asmlinkage()
+	nfds = int_arg(1)
+	readfds = pointer_arg(2)
+	writefds = pointer_arg(3)
+	exceptfds = pointer_arg(4)
+	timeout = pointer_arg(5)
+	timeout_str = _struct_timespec_u(timeout, 1)
+	sigmask = pointer_arg(6)
+	@_SYSCALL_PSELECT6_ARGSTR
+}
+probe nd_syscall.pselect6.return = kprobe.function("sys_pselect6").return ?
+{
+	@_SYSCALL_PSELECT6_NAME
+	retstr = returnstr(1)
+}
+# pselect6 _____________________________________________________
+#
+# long sys_pselect6(int n, fd_set __user *inp, fd_set __user *outp,
+#	fd_set __user *exp, struct timespec __user *tsp, void __user *sig)
+#
+
+probe syscall.compat_pselect6 = dw_syscall.compat_pselect6 !, nd_syscall.compat_pselect6 ? {}
+probe syscall.compat_pselect6.return = dw_syscall.compat_pselect6.return !,
+                                       nd_syscall.compat_pselect6.return ? {}
+
+# dw_compat_pselect6 _____________________________________________________
+
+probe dw_syscall.compat_pselect6 = kernel.function("compat_sys_pselect6").call ?
+{
+	@_SYSCALL_PSELECT6_NAME
+	nfds = __int32($n)
+	readfds = @__pointer($inp)
+	writefds = @__pointer($outp)
+	exceptfds = @__pointer($exp)
+	timeout = @__pointer($tsp)
+	timeout_str = _struct_compat_timespec_u(timeout, 1)
+	sigmask = @__pointer($sig)
+	@_SYSCALL_PSELECT6_ARGSTR
+}
+probe dw_syscall.compat_pselect6.return = kernel.function("compat_sys_pselect6").return ?
+{
+	@_SYSCALL_PSELECT6_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_compat_pselect6 _____________________________________________________
+
+probe nd_syscall.compat_pselect6 = kprobe.function("compat_sys_pselect6") ?
+{
+	@_SYSCALL_PSELECT6_NAME
+	asmlinkage()
+	nfds = int_arg(1)
+	readfds = pointer_arg(2)
+	writefds = pointer_arg(3)
+	exceptfds = pointer_arg(4)
+	timeout = pointer_arg(5)
+	timeout_str = _struct_compat_timespec_u(timeout, 1)
+	sigmask = pointer_arg(6)
+	@_SYSCALL_PSELECT6_ARGSTR
+}
+probe nd_syscall.compat_pselect6.return = kprobe.function("compat_sys_pselect6").return ?
+{
+	@_SYSCALL_PSELECT6_NAME
+	retstr = returnstr(1)
+}

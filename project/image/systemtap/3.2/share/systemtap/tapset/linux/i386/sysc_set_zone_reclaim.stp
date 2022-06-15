@@ -1,0 +1,55 @@
+# set_zone_reclaim ___________________________________________
+/*
+ * asmlinkage long
+ * sys_set_zone_reclaim(unsigned int node,
+ *                      unsigned int zone,
+ *                      unsigned int state)
+ */
+
+@define _SYSCALL_SET_ZONE_RECLAIM_NAME
+%(
+	name = "set_zone_reclaim"
+%)
+
+@define _SYSCALL_SET_ZONE_RECLAIM_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %d", node, zone, state)
+%)
+
+probe syscall.set_zone_reclaim = dw_syscall.set_zone_reclaim !,
+                                 nd_syscall.set_zone_reclaim ? {}
+probe syscall.set_zone_reclaim.return = dw_syscall.set_zone_reclaim.return !,
+                                        nd_syscall.set_zone_reclaim.return ? {}
+
+# dw_set_zone_reclaim _____________________________________________________
+
+probe dw_syscall.set_zone_reclaim = kernel.function("sys_set_zone_reclaim") ?
+{
+	@_SYSCALL_SET_ZONE_RECLAIM_NAME
+	node = $node
+	zone = $zone
+	state = $state
+	@_SYSCALL_SET_ZONE_RECLAIM_ARGSTR
+}
+probe dw_syscall.set_zone_reclaim.return = kernel.function("sys_set_zone_reclaim").return ?
+{
+	@_SYSCALL_SET_ZONE_RECLAIM_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_set_zone_reclaim _____________________________________________________
+
+probe nd_syscall.set_zone_reclaim = kprobe.function("sys_set_zone_reclaim") ?
+{
+	@_SYSCALL_SET_ZONE_RECLAIM_NAME
+	asmlinkage()
+	node = uint_arg(1)
+	zone = uint_arg(2)
+	state = uint_arg(3)
+	@_SYSCALL_SET_ZONE_RECLAIM_ARGSTR
+}
+probe nd_syscall.set_zone_reclaim.return = kprobe.function("sys_set_zone_reclaim").return ?
+{
+	@_SYSCALL_SET_ZONE_RECLAIM_NAME
+	retstr = returnstr(1)
+}

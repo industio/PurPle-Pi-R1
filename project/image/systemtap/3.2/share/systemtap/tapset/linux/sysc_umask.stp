@@ -1,0 +1,46 @@
+# umask ______________________________________________________
+# long sys_umask(int mask)
+#
+
+@define _SYSCALL_UMASK_NAME
+%(
+	name = "umask"
+%)
+
+@define _SYSCALL_UMASK_ARGSTR
+%(
+	argstr = sprintf("%#o", mask)
+%)
+
+probe syscall.umask = dw_syscall.umask !, nd_syscall.umask ? {}
+probe syscall.umask.return = dw_syscall.umask.return !,
+                             nd_syscall.umask.return ? {}
+
+# dw_umask _____________________________________________________
+
+probe dw_syscall.umask = kernel.function("sys_umask").call
+{
+	@_SYSCALL_UMASK_NAME
+	mask = __uint32($mask)
+	@_SYSCALL_UMASK_ARGSTR
+}
+probe dw_syscall.umask.return = kernel.function("sys_umask").return
+{
+	@_SYSCALL_UMASK_NAME
+	retstr = return_str(3, $return)
+}
+
+# nd_umask _____________________________________________________
+
+probe nd_syscall.umask = kprobe.function("sys_umask") ?
+{
+	@_SYSCALL_UMASK_NAME
+	asmlinkage()
+	mask = uint_arg(1)
+	@_SYSCALL_UMASK_ARGSTR
+}
+probe nd_syscall.umask.return = kprobe.function("sys_umask").return ?
+{
+	@_SYSCALL_UMASK_NAME
+	retstr = returnstr(3)
+}

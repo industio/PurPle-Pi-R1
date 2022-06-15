@@ -1,0 +1,100 @@
+# mbind ______________________________________________________
+# long sys_mbind(unsigned long start,
+#	unsigned long len,
+#	unsigned long mode,
+#	unsigned long __user *nmask,
+#	unsigned long maxnode,
+#	unsigned flags)
+#
+# long compat_sys_mbind(compat_ulong_t start,
+#	compat_ulong_t len,
+#	compat_ulong_t mode,
+#	compat_ulong_t __user *nmask,
+#	compat_ulong_t maxnode,
+#	compat_ulong_t flags)
+#
+
+@define _SYSCALL_MBIND_NAME
+%(
+	name = "mbind"
+%)
+
+@define _SYSCALL_MBIND_ARGSTR
+%(
+	argstr = sprintf("%p, %u, %s, %p, %u, %s", start, len,
+	                 mode_str, nmask_uaddr, maxnode, flags_str)
+%)
+
+probe syscall.mbind = dw_syscall.mbind !, nd_syscall.mbind ? {}
+probe syscall.mbind.return = dw_syscall.mbind.return !, nd_syscall.mbind.return ? {}
+
+# dw_mbind _____________________________________________________
+
+probe dw_syscall.mbind = __syscall.mbind ?,
+                      kernel.function("compat_sys_mbind").call ?
+{
+	@_SYSCALL_MBIND_NAME
+	start = $start
+	mode = __int32($mode)
+	mode_str = _mempolicy_mode_str(mode)
+	nmask_uaddr = $nmask
+	flags = __uint32($flags)
+	flags_str = _mempolicy_flags_str(flags)
+	len = @__compat_ulong($len)
+	maxnode = @__compat_ulong($maxnode)
+	@_SYSCALL_MBIND_ARGSTR
+}
+probe __syscall.mbind = kernel.function("sys_mbind").call
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}
+probe dw_syscall.mbind.return = __syscall.mbind.return ?,
+                             kernel.function("compat_sys_mbind").return ?
+{
+	@_SYSCALL_MBIND_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.mbind.return = kernel.function("sys_mbind").return
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}
+
+# nd_mbind _____________________________________________________
+
+probe nd_syscall.mbind = __nd_syscall.mbind ?,
+                         kprobe.function("compat_sys_mbind") ?
+{
+	@_SYSCALL_MBIND_NAME
+	asmlinkage()
+	start = pointer_arg(1)
+	len = ulong_arg(2)
+	mode = int_arg(3)
+	mode_str = _mempolicy_mode_str(mode)
+	nmask_uaddr = pointer_arg(4)
+	maxnode = ulong_arg(5)
+	flags = uint_arg(6)
+	flags_str = _mempolicy_flags_str(flags)
+	@_SYSCALL_MBIND_ARGSTR
+}
+probe __nd_syscall.mbind = kprobe.function("sys_mbind")
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}
+probe nd_syscall.mbind.return = __nd_syscall.mbind.return ?,
+                                kprobe.function("compat_sys_mbind").return ?
+{
+	@_SYSCALL_MBIND_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.mbind.return = kprobe.function("sys_mbind").return
+{
+%( arch == "powerpc" %?
+	@__syscall_gate_compat_simple
+%)
+}

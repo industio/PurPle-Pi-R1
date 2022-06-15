@@ -1,0 +1,54 @@
+# kcmp _______________________________________________________
+# SYSCALL_DEFINE5(kcmp, pid_t, pid1, pid_t, pid2, int, type,
+#                 unsigned long, idx1, unsigned long, idx2)
+
+@define _SYSCALL_KCMP_NAME
+%(
+	name = "kcmp"
+%)
+
+@define _SYSCALL_KCMP_ARGSTR
+%(
+	argstr = sprintf("%d, %d, %s, %u, %u", pid1, pid2, type_str, idx1, idx2)
+%)
+
+probe syscall.kcmp = dw_syscall.kcmp !, nd_syscall.kcmp ? {}
+probe syscall.kcmp.return = dw_syscall.kcmp.return !, nd_syscall.kcmp.return ? {}
+
+# dw_kcmp _____________________________________________________
+
+probe dw_syscall.kcmp = kernel.function("sys_kcmp") ?
+{
+	@_SYSCALL_KCMP_NAME
+	pid1 = __int32($pid1)
+	pid2 = __int32($pid2)
+	type = __int32($type)
+	type_str = _kcmp_type_str(type)
+	idx1 = @__compat_ulong($idx1)
+	idx2 = @__compat_ulong($idx2)
+	@_SYSCALL_KCMP_ARGSTR
+}
+probe dw_syscall.kcmp.return = kernel.function("sys_kcmp").return ?
+{
+	@_SYSCALL_KCMP_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_kcmp _____________________________________________________
+
+probe nd_syscall.kcmp = kprobe.function("sys_kcmp") ?
+{
+	@_SYSCALL_KCMP_NAME
+	pid1 = int_arg(1)
+	pid2 = int_arg(2)
+	type = int_arg(3)
+	type_str = _kcmp_type_str(type)
+	idx1 = ulong_arg(4)
+	idx2 = ulong_arg(5)
+	@_SYSCALL_KCMP_ARGSTR
+}
+probe nd_syscall.kcmp.return = kprobe.function("sys_kcmp").return ?
+{
+	@_SYSCALL_KCMP_NAME
+	retstr = returnstr(1)
+}

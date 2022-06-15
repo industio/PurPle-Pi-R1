@@ -1,0 +1,134 @@
+# accept _____________________________________________________
+#
+# asmlinkage long sys_accept(int fd, struct sockaddr __user *upeer_sockaddr,
+#			     int __user *upeer_addrlen)
+#
+
+@define _SYSCALL_ACCEPT_NAME
+%(
+	name = "accept"
+%)
+
+@define _SYSCALL_ACCEPT_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %p", sockfd, addr_uaddr, addrlen_uaddr)
+%)
+
+probe syscall.accept = dw_syscall.accept !, nd_syscall.accept ? {}
+probe syscall.accept.return = dw_syscall.accept.return !, nd_syscall.accept.return ? {}
+
+# dw_accept _____________________________________________________
+
+probe dw_syscall.accept = __syscall.accept ?, __syscall.socketcall.accept ?,
+	__syscall.compat_socketcall.accept ?
+{
+	@_SYSCALL_ACCEPT_NAME
+%(systemtap_v <= "2.5" %?
+	# systemtap <= 2.5 combined accept and accept4
+	flags = 0
+	flags_str = "0x0"
+	argstr = sprintf("%d, %p, %p, %s", sockfd, addr_uaddr, addrlen_uaddr,
+			 flags_str)
+%:
+	@_SYSCALL_ACCEPT_ARGSTR
+%)
+}
+probe __syscall.accept = kernel.function("sys_accept").call
+{
+	@__syscall_gate(@const("__NR_accept"))
+	sockfd = __int32($fd)
+	addr_uaddr = $upeer_sockaddr
+	addrlen_uaddr = $upeer_addrlen
+}
+probe __syscall.socketcall.accept = kernel.function("sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_ACCEPT")) next;
+	sockfd = __int32(user_ulong(&@ulong_cast($args)[0]))
+	addr_uaddr = user_ulong(&@ulong_cast($args)[1])
+	addrlen_uaddr = user_ulong(&@ulong_cast($args)[2])
+}
+probe __syscall.compat_socketcall.accept =
+	kernel.function("compat_sys_socketcall").call ?
+{
+	if (__int32($call) != @const("SYS_ACCEPT")) next;
+	sockfd = user_int(&@uint_cast($args)[0])
+	addr_uaddr = user_uint32(&@uint_cast($args)[1])
+	addrlen_uaddr = user_uint32(&@uint_cast($args)[2])
+}
+probe dw_syscall.accept.return = __syscall.accept.return ?,
+	__syscall.socketcall.accept.return ?
+{
+	@_SYSCALL_ACCEPT_NAME
+	retstr = return_str(1, $return)
+}
+probe __syscall.accept.return = kernel.function("sys_accept").return ?
+{
+	@__syscall_gate(@const("__NR_accept"))
+}
+probe __syscall.socketcall.accept.return =
+	kernel.function("sys_socketcall").return ?,
+	kernel.function("compat_sys_socketcall").return ?
+{
+	if (__int32(@entry($call)) != @const("SYS_ACCEPT")) next;
+}
+
+# nd_accept _____________________________________________________
+
+probe nd_syscall.accept = __nd_syscall.accept ?,
+	__nd_syscall.socketcall.accept ?,
+	__nd_syscall.compat_socketcall.accept ?
+{
+	@_SYSCALL_ACCEPT_NAME
+%(systemtap_v <= "2.5" %?
+	# systemtap <= 2.5 combined accept and accept4
+	flags = 0
+	flags_str = "0x0"
+	argstr = sprintf("%d, %p, %p, %s", sockfd, addr_uaddr, addrlen_uaddr,
+			 flags_str)
+%:
+	@_SYSCALL_ACCEPT_ARGSTR
+%)
+}
+probe __nd_syscall.accept = kprobe.function("sys_accept").call
+{
+	asmlinkage()
+	@__syscall_gate(@const("__NR_accept"))
+	sockfd = int_arg(1)
+	addr_uaddr = pointer_arg(2)
+	addrlen_uaddr = pointer_arg(3)
+}
+probe __nd_syscall.socketcall.accept = kprobe.function("sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_ACCEPT")) next;
+	__args = &@ulong_cast(pointer_arg(2))
+	sockfd = __int32(user_ulong(&@ulong_cast(__args)[0]))
+	addr_uaddr = user_ulong(&@ulong_cast(__args)[1])
+	addrlen_uaddr = user_ulong(&@ulong_cast(__args)[2])
+}
+probe __nd_syscall.compat_socketcall.accept =
+	kprobe.function("compat_sys_socketcall").call ?
+{
+	asmlinkage()
+	if (int_arg(1) != @const("SYS_ACCEPT")) next;
+	__args = &@uint_cast(pointer_arg(2))
+	sockfd = user_int(&@uint_cast(__args)[0])
+	addr_uaddr = user_uint32(&@uint_cast(__args)[1])
+	addrlen_uaddr = user_uint32(&@uint_cast(__args)[2])
+}
+probe nd_syscall.accept.return = __nd_syscall.accept.return ?,
+	__nd_syscall.socketcall.accept.return ?
+{
+	@_SYSCALL_ACCEPT_NAME
+	retstr = returnstr(1)
+}
+probe __nd_syscall.accept.return = kprobe.function("sys_accept").return ?
+{
+	@__syscall_gate(@const("__NR_accept"))
+}
+probe __nd_syscall.socketcall.accept.return =
+	kprobe.function("sys_socketcall").return ?,
+	kprobe.function("compat_sys_socketcall").return ?
+{
+	if (@entry(__asmlinkage_int_arg(1)) != @const("SYS_ACCEPT")) next;
+}

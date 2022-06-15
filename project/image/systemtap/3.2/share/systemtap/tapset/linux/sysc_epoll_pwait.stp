@@ -1,0 +1,69 @@
+# epoll_pwait _________________________________________________
+#
+# long sys_epoll_pwait(int epfd, struct epoll_event __user *events,
+#		int maxevents, int timeout, const sigset_t __user *sigmask,
+#		size_t sigsetsize)
+# long compat_sys_epoll_pwait(int epfd,
+#			struct compat_epoll_event __user *events,
+#			int maxevents, int timeout,
+#			const compat_sigset_t __user *sigmask,
+#			compat_size_t sigsetsize)
+#
+
+@define _SYSCALL_EPOLL_PWAIT_NAME
+%(
+	name = "epoll_pwait"
+%)
+
+@define _SYSCALL_EPOLL_PWAIT_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d, %d, %p, %d", epfd, events_uaddr, maxevents,
+	                 timeout, sigmask_uaddr, sigsetsize)
+%)
+
+probe syscall.epoll_pwait = dw_syscall.epoll_pwait !, nd_syscall.epoll_pwait ? {}
+probe syscall.epoll_pwait.return = dw_syscall.epoll_pwait.return !, nd_syscall.epoll_pwait.return ? {}
+
+# dw_epoll_pwait _____________________________________________________
+
+probe dw_syscall.epoll_pwait = kernel.function("compat_sys_epoll_pwait").call ?,
+                            kernel.function("sys_epoll_pwait").call ?
+{
+	@_SYSCALL_EPOLL_PWAIT_NAME
+	epfd = __int32($epfd)
+	events_uaddr = @__pointer($events)
+	maxevents = __int32($maxevents)
+	timeout = __int32($timeout)
+	sigmask_uaddr = @__pointer($sigmask)
+	sigsetsize = $sigsetsize
+	@_SYSCALL_EPOLL_PWAIT_ARGSTR
+}
+probe dw_syscall.epoll_pwait.return = kernel.function("compat_sys_epoll_pwait").return ?,
+                                   kernel.function("sys_epoll_pwait").return ?
+{
+	@_SYSCALL_EPOLL_PWAIT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_epoll_pwait _____________________________________________________
+
+probe nd_syscall.epoll_pwait = kprobe.function("compat_sys_epoll_pwait") ?,
+                               kprobe.function("sys_epoll_pwait") ?
+{
+	@_SYSCALL_EPOLL_PWAIT_NAME
+	asmlinkage()
+	epfd = int_arg(1)
+	events_uaddr = pointer_arg(2)
+	maxevents = int_arg(3)
+	timeout = int_arg(4)
+	sigmask_uaddr = pointer_arg(5)
+	sigsetsize = ulong_arg(6)
+	@_SYSCALL_EPOLL_PWAIT_ARGSTR
+}
+probe nd_syscall.epoll_pwait.return =
+	kprobe.function("compat_sys_epoll_pwait").return ?,
+	kprobe.function("sys_epoll_pwait").return ?
+{
+	@_SYSCALL_EPOLL_PWAIT_NAME
+	retstr = returnstr(1)
+}

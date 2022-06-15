@@ -1,0 +1,46 @@
+# creat
+# long sys_creat(const char __user * pathname, int mode)
+
+@define _SYSCALL_CREAT_NAME
+%(
+	name = "creat"
+%)
+
+@define _SYSCALL_CREAT_ARGSTR
+%(
+	argstr = sprintf("%s, %#o", pathname, mode)
+%)
+
+probe syscall.creat = dw_syscall.creat !, nd_syscall.creat ? {}
+probe syscall.creat.return = dw_syscall.creat.return !, nd_syscall.creat.return ? {}
+
+# dw_creat _____________________________________________________
+
+probe dw_syscall.creat = kernel.function("sys_creat").call ?
+{
+	@_SYSCALL_CREAT_NAME
+	mode = __uint32($mode)
+	pathname = user_string_quoted($pathname)
+	@_SYSCALL_CREAT_ARGSTR
+}
+probe dw_syscall.creat.return = kernel.function("sys_creat").return ?
+{
+	@_SYSCALL_CREAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_creat _____________________________________________________
+
+probe nd_syscall.creat = kprobe.function("sys_creat") ?
+{
+	@_SYSCALL_CREAT_NAME
+	asmlinkage()
+	mode = uint_arg(2)
+	pathname = user_string_quoted(pointer_arg(1))
+	@_SYSCALL_CREAT_ARGSTR
+}
+probe nd_syscall.creat.return = kprobe.function("sys_creat").return ?
+{
+	@_SYSCALL_CREAT_NAME
+	retstr = returnstr(1)
+}

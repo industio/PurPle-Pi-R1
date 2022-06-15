@@ -1,0 +1,45 @@
+# getsid _____________________________________________________
+# long sys_getsid(pid_t pid)
+
+@define _SYSCALL_GETSID_NAME
+%(
+	name = "getsid"
+%)
+
+@define _SYSCALL_GETSID_ARGSTR
+%(
+	argstr = sprint(pid)
+%)
+
+probe syscall.getsid = dw_syscall.getsid !, nd_syscall.getsid ? {}
+probe syscall.getsid.return = dw_syscall.getsid.return !,
+                              nd_syscall.getsid.return ? {}
+
+# dw_getsid _____________________________________________________
+
+probe dw_syscall.getsid = kernel.function("sys_getsid").call
+{
+	@_SYSCALL_GETSID_NAME
+	pid = __int32($pid)
+	@_SYSCALL_GETSID_ARGSTR
+}
+probe dw_syscall.getsid.return = kernel.function("sys_getsid").return
+{
+	@_SYSCALL_GETSID_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_getsid _____________________________________________________
+
+probe nd_syscall.getsid = kprobe.function("sys_getsid") ?
+{
+	@_SYSCALL_GETSID_NAME
+	asmlinkage()
+	pid = int_arg(1)
+	@_SYSCALL_GETSID_ARGSTR
+}
+probe nd_syscall.getsid.return = kprobe.function("sys_getsid").return ?
+{
+	@_SYSCALL_GETSID_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,46 @@
+# sys64_time ________________________________________
+#
+# time_t sys64_time(time_t __user * tloc)
+#
+
+@define _SYSCALL_SYS64_TIME_NAME
+%(
+	name = "sys64_time"
+%)
+
+@define _SYSCALL_SYS64_TIME_ARGSTR
+%(
+	argstr = sprintf("%p", tloc)
+%)
+
+probe syscall.sys64_time = dw_syscall.sys64_time !, nd_syscall.sys64_time ? {}
+probe syscall.sys64_time.return = dw_syscall.sys64_time.return !, nd_syscall.sys64_time.return ? {}
+
+# dw_sys64_time _____________________________________________________
+
+probe dw_syscall.sys64_time = kernel.function("sys64_time") ?
+{
+	@_SYSCALL_SYS64_TIME_NAME
+	tloc = $tloc
+	@_SYSCALL_SYS64_TIME_ARGSTR
+}
+probe dw_syscall.sys64_time.return = kernel.function("sys64_time").return ?
+{
+	@_SYSCALL_SYS64_TIME_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_sys64_time _____________________________________________________
+
+probe nd_syscall.sys64_time = kprobe.function("sys64_time") ?
+{
+	@_SYSCALL_SYS64_TIME_NAME
+	asmlinkage()
+	tloc = pointer_arg(1)
+	@_SYSCALL_SYS64_TIME_ARGSTR
+}
+probe nd_syscall.sys64_time.return = kprobe.function("sys64_time").return ?
+{
+	@_SYSCALL_SYS64_TIME_NAME
+	retstr = returnstr(1)
+}

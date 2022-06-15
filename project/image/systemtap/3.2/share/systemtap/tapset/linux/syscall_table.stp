@@ -1,0 +1,47 @@
+# This is syscall_table tapset providing namely syscall_name() and syscall_num()
+# functions.  It uses architecture specific data contained in other arch
+# specific tapsets.  Helper scripts/dump-syscalls.sh is used to generate those.
+
+function syscall_name(num) {
+%( CONFIG_COMPAT == "y" %?
+    if (@__compat_task)
+        return __syscall_32_num2name[num]
+%)
+%( CONFIG_64BIT == "y" %?
+    return __syscall_64_num2name[num]
+%:
+    return __syscall_32_num2name[num]
+%)
+}
+
+# Systemtap is benevolent when an associative array is being queried for an
+# unexisting key.  If we call e.g. __syscall_64_name2num["unexisting_syscall"],
+# the result is zero.  But at the same time zero is a valid syscall number, so
+# we really need to return some other value in this case to indicate that
+# syscall with given name doesn't exist.  Let's use following
+# @return_sanitized macro.
+#
+# The other way round, when evaluating e.g. __syscall_64_num2name[-123], stap
+# is benevolent too - we'll get an empty string.  But that is sufficiently
+# unique, so we are good at this front.
+
+@define return_sanitized(indexable, key)
+%(
+    if (@key in @indexable)
+        return @indexable[@key]
+    else
+        return -1
+%)
+
+function syscall_num(name) {
+%( CONFIG_COMPAT == "y" %?
+    if (@__compat_task)
+        @return_sanitized(__syscall_32_name2num, name)
+%)
+%( CONFIG_64BIT == "y" %?
+    @return_sanitized(__syscall_64_name2num, name)
+%:
+    @return_sanitized(__syscall_32_name2num, name)
+%)
+}
+

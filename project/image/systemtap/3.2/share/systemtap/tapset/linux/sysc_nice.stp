@@ -1,0 +1,45 @@
+# nice _______________________________________________________
+# long sys_nice(int increment)
+#
+
+@define _SYSCALL_NICE_NAME
+%(
+	name = "nice"
+%)
+
+@define _SYSCALL_NICE_ARGSTR
+%(
+	argstr = sprintf("%d", inc)
+%)
+
+probe syscall.nice = dw_syscall.nice !, nd_syscall.nice ? {}
+probe syscall.nice.return = dw_syscall.nice.return !, nd_syscall.nice.return ? {}
+
+# dw_nice _____________________________________________________
+
+probe dw_syscall.nice = kernel.function("sys_nice").call ?
+{
+	@_SYSCALL_NICE_NAME
+	inc = __int32($increment)
+	@_SYSCALL_NICE_ARGSTR
+}
+probe dw_syscall.nice.return = kernel.function("sys_nice").return ?
+{
+	@_SYSCALL_NICE_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_nice _____________________________________________________
+
+probe nd_syscall.nice = kprobe.function("sys_nice") ?
+{
+	@_SYSCALL_NICE_NAME
+	asmlinkage()
+	inc = int_arg(1)
+	@_SYSCALL_NICE_ARGSTR
+}
+probe nd_syscall.nice.return = kprobe.function("sys_nice").return ?
+{
+	@_SYSCALL_NICE_NAME
+	retstr = returnstr(1)
+}

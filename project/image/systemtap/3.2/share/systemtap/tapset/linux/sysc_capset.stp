@@ -1,0 +1,57 @@
+# capset _____________________________________________________
+/*
+ *  NOTE
+ *   this  is  probably not a good function
+ *   to probe. The  structures  are  always
+ *   changing.  It also  seems  like  it is
+ *   not really  used. Cscope  produced  no
+ *   reference  of  this  function  in  the
+ *   kernel  (returned no callers). Perhaps
+ *   cap_get_proc / cap_set_proc are better
+ *   functions to export.
+ */
+# long sys_capset(cap_user_header_t header, const cap_user_data_t data)
+
+@define _SYSCALL_CAPSET_NAME
+%(
+	name = "capset"
+%)
+
+@define _SYSCALL_CAPSET_ARGSTR
+%(
+	argstr = sprintf("%p, %p", header_uaddr, data_uaddr)
+%)
+
+probe syscall.capset = dw_syscall.capset !, nd_syscall.capset ? {}
+probe syscall.capset.return = dw_syscall.capset.return !, nd_syscall.capset.return ? {}
+
+# dw_capset _____________________________________________________
+
+probe dw_syscall.capset = kernel.function("sys_capset").call
+{
+	@_SYSCALL_CAPSET_NAME
+	header_uaddr = $header
+	data_uaddr = $data
+	@_SYSCALL_CAPSET_ARGSTR
+}
+probe dw_syscall.capset.return = kernel.function("sys_capset").return
+{
+	@_SYSCALL_CAPSET_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_capset _____________________________________________________
+
+probe nd_syscall.capset = kprobe.function("sys_capset") ?
+{
+	@_SYSCALL_CAPSET_NAME
+	asmlinkage()
+	header_uaddr = pointer_arg(1)
+	data_uaddr = pointer_arg(2)
+	@_SYSCALL_CAPSET_ARGSTR
+}
+probe nd_syscall.capset.return = kprobe.function("sys_capset").return ?
+{
+	@_SYSCALL_CAPSET_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,18 @@
+#! /usr/bin/env stap
+
+# inspired by Tom Zanussi's example from https://lkml.org/lkml/2017/2/8/996
+
+global ts0%, latency%
+
+function now() { return gettimeofday_us() }
+
+probe kernel.trace("sched_wakeup") { ts0[$p->pid] = now() }
+probe kernel.trace("sched_switch") {
+       	if (ts0[$next->pid]) latency[$next->pid,$next->prio] <<< now() - ts0[$next->pid];
+}
+probe timer.s(5) {
+	foreach ([pid+,x] in latency) {
+	       	println("pid:", pid, " prio:", x) print(@hist_log(latency[pid,x]))
+	}
+       	delete latency 
+}

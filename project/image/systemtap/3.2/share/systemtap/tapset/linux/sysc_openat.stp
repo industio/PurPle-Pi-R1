@@ -1,0 +1,72 @@
+# openat _______________________________________________________
+# long sys_openat(int dfd, const char __user *filename, int flags, int mode)
+# long compat_sys_openat(unsigned int dfd, const char __user *filename, int flags, int mode)
+#
+
+@define _SYSCALL_OPENAT_NAME
+%(
+	name = "openat"
+%)
+
+@define _SYSCALL_OPENAT_ARGSTR
+%(
+	argstr = sprintf("%s, %s, %s, %#o", dfd_str, filename, flags_str, mode)
+%)
+
+@define _SYSCALL_OPENAT_ARGSTR_2
+%(
+	argstr = sprintf("%s, %s, %s", dfd_str, filename, flags_str)
+%)
+
+probe syscall.openat = dw_syscall.openat !, nd_syscall.openat ? {}
+probe syscall.openat.return = dw_syscall.openat.return !,
+                              nd_syscall.openat.return ? {}
+
+# dw_openat _____________________________________________________
+
+probe dw_syscall.openat = kernel.function("compat_sys_openat").call ?,
+                       kernel.function("sys_openat").call ?
+{
+	@_SYSCALL_OPENAT_NAME
+	dfd = __int32($dfd)
+	dfd_str = _dfd_str(__int32($dfd))
+	filename = user_string_quoted(@__pointer($filename))
+	flags = $flags
+	flags_str = _sys_open_flag_str(flags)
+	mode = __uint32($mode)
+	if ($flags & @const("O_CREAT"))
+		@_SYSCALL_OPENAT_ARGSTR
+	else
+		@_SYSCALL_OPENAT_ARGSTR_2
+}
+probe dw_syscall.openat.return = kernel.function("compat_sys_openat").return ?,
+                              kernel.function("sys_openat").return ?
+{
+	@_SYSCALL_OPENAT_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_openat _____________________________________________________
+
+probe nd_syscall.openat = kprobe.function("compat_sys_openat") ?,
+                          kprobe.function("sys_openat") ?
+{
+	@_SYSCALL_OPENAT_NAME
+	asmlinkage()
+	dfd = int_arg(1)
+	dfd_str = _dfd_str(dfd)
+	filename = user_string_quoted(pointer_arg(2))
+	flags = int_arg(3)
+	flags_str = _sys_open_flag_str(flags)
+	mode = uint_arg(4)
+	if (flags & @const("O_CREAT"))
+		@_SYSCALL_OPENAT_ARGSTR
+	else
+		@_SYSCALL_OPENAT_ARGSTR_2
+}
+probe nd_syscall.openat.return = kprobe.function("compat_sys_openat").return ?,
+                                 kprobe.function("sys_openat").return ?
+{
+	@_SYSCALL_OPENAT_NAME
+	retstr = returnstr(1)
+}

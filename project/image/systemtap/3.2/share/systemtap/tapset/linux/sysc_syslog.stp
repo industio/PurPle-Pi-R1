@@ -1,0 +1,51 @@
+# syslog _____________________________________________________
+#
+# long sys_syslog(int type, char __user * buf, int len)
+#
+
+@define _SYSCALL_SYSLOG_NAME
+%(
+	name = "syslog"
+%)
+
+@define _SYSCALL_SYSLOG_ARGSTR
+%(
+	argstr = sprintf("%d, %p, %d", type, bufp_uaddr, len)
+%)
+
+probe syscall.syslog = dw_syscall.syslog !, nd_syscall.syslog ? {}
+probe syscall.syslog.return = dw_syscall.syslog.return !,
+                              nd_syscall.syslog.return ? {}
+
+# dw_syslog _____________________________________________________
+
+probe dw_syscall.syslog = kernel.function("sys_syslog").call
+{
+	@_SYSCALL_SYSLOG_NAME
+	type = __int32($type)
+	bufp_uaddr = $buf
+	len = __int32($len)
+	@_SYSCALL_SYSLOG_ARGSTR
+}
+probe dw_syscall.syslog.return = kernel.function("sys_syslog").return
+{
+	@_SYSCALL_SYSLOG_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_syslog _____________________________________________________
+
+probe nd_syscall.syslog = kprobe.function("sys_syslog") ?
+{
+	@_SYSCALL_SYSLOG_NAME
+	asmlinkage()
+	type = int_arg(1)
+	bufp_uaddr = pointer_arg(2)
+	len = int_arg(3)
+	@_SYSCALL_SYSLOG_ARGSTR
+}
+probe nd_syscall.syslog.return = kprobe.function("sys_syslog").return ?
+{
+	@_SYSCALL_SYSLOG_NAME
+	retstr = returnstr(1)
+}

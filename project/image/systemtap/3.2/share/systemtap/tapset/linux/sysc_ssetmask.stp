@@ -1,0 +1,49 @@
+# ssetmask ___________________________________________________
+#
+# long sys_ssetmask(int newmask)
+#
+
+@define _SYSCALL_SSETMASK_NAME
+%(
+	name = "ssetmask"
+%)
+
+@define _SYSCALL_SSETMASK_ARGSTR
+%(
+	argstr = _stp_sigmask_str(newmask)
+%)
+
+probe syscall.ssetmask = dw_syscall.ssetmask !, nd_syscall.ssetmask ? {}
+probe syscall.ssetmask.return = dw_syscall.ssetmask.return !,
+                                nd_syscall.ssetmask.return ? {}
+
+# dw_ssetmask _____________________________________________________
+
+probe dw_syscall.ssetmask = kernel.function("sys_ssetmask").call ?
+{
+	@_SYSCALL_SSETMASK_NAME
+	newmask = __int32($newmask)
+	newmask_str = _stp_sigmask_str(__int32($newmask))
+	@_SYSCALL_SSETMASK_ARGSTR
+}
+probe dw_syscall.ssetmask.return = kernel.function("sys_ssetmask").return ?
+{
+	@_SYSCALL_SSETMASK_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_ssetmask _____________________________________________________
+
+probe nd_syscall.ssetmask = kprobe.function("sys_ssetmask") ?
+{
+	@_SYSCALL_SSETMASK_NAME
+	asmlinkage()
+	newmask = int_arg(1)
+	newmask_str = _stp_sigmask_str(newmask)
+	@_SYSCALL_SSETMASK_ARGSTR
+}
+probe nd_syscall.ssetmask.return = kprobe.function("sys_ssetmask").return ?
+{
+	@_SYSCALL_SSETMASK_NAME
+	retstr = returnstr(1)
+}

@@ -1,0 +1,52 @@
+# llistxattr _________________________________________________
+# ssize_t sys_llistxattr(char __user *path, char __user *list, size_t size)
+#
+
+@define _SYSCALL_LLISTXATTR_NAME
+%(
+	name = "llistxattr"
+%)
+
+@define _SYSCALL_LLISTXATTR_ARGSTR
+%(
+	argstr = sprintf("%s, %p, %u", path, list_uaddr, size)
+%)
+
+probe syscall.llistxattr = dw_syscall.llistxattr !, nd_syscall.llistxattr ? {}
+probe syscall.llistxattr.return = dw_syscall.llistxattr.return !,
+                                  nd_syscall.llistxattr.return ? {}
+
+# dw_llistxattr _____________________________________________________
+
+probe dw_syscall.llistxattr = kernel.function("sys_llistxattr").call
+{
+	@_SYSCALL_LLISTXATTR_NAME
+	list_uaddr = $list
+	size = __ulong($size)
+	path_uaddr = @choose_defined($pathname, $path)
+	path = user_string_quoted(@choose_defined($pathname, $path))
+	@_SYSCALL_LLISTXATTR_ARGSTR
+}
+probe dw_syscall.llistxattr.return = kernel.function("sys_llistxattr").return
+{
+	@_SYSCALL_LLISTXATTR_NAME
+	retstr = return_str(1, $return)
+}
+
+# nd_llistxattr _____________________________________________________
+
+probe nd_syscall.llistxattr = kprobe.function("sys_llistxattr") ?
+{
+	@_SYSCALL_LLISTXATTR_NAME
+	asmlinkage()
+	path_uaddr = pointer_arg(1)
+	path = user_string_quoted(path_uaddr)
+	list_uaddr = pointer_arg(2)
+	size = ulong_arg(3)
+	@_SYSCALL_LLISTXATTR_ARGSTR
+}
+probe nd_syscall.llistxattr.return = kprobe.function("sys_llistxattr").return ?
+{
+	@_SYSCALL_LLISTXATTR_NAME
+	retstr = returnstr(1)
+}
