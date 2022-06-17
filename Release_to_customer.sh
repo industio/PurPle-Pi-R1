@@ -23,15 +23,11 @@ done
 DATE=$(date +%m%d)
 RELEASEDIR=`pwd`
 export ARCH=arm
-project=2D06
-export PROJECT=${project}
+export PROJECT=2D06
 
-	if [ ! -f project/image/rootfs/rootfs_route.tar.gz ]; then
-		cat project/image/rootfs/rootfs_route.tar.gz.* > project/image/rootfs/rootfs_route.tar.gz
-	fi
-	cp project/image/rootfs/rootfs_route.tar.gz project/image/rootfs/rootfs.tar.gz -f
-	cp boot/configs/infinity2m_spinand_raw_defconfig boot/configs/infinity2m_spinand_defconfig -f
-	cp project/image/configs/i2m/rootfs_2d06.mk project/image/configs/i2m/rootfs.mk -f
+if [ ! -f project/image/rootfs/rootfs.tar.gz ]; then
+	cat project/image/rootfs/rootfs_route.tar.gz.* > project/image/rootfs/rootfs.tar.gz
+fi
 
 if [ "${FLASH_SIZE}" = "128" ]; then
 	cp project/image/configs/i2m/spinand.ubifs.p2.partition.config_128M project/image/configs/i2m/spinand.ubifs.p2.partition.config -f
@@ -43,13 +39,6 @@ else
 	echo "---------------------- pls declare flash size(-m) --------------------"
 	exit 1
 fi
-
-	cp project/image/configs/i2m/script_nand_raw.mk project/image/configs/i2m/script_nand.mk -f
-	cp project/configs/nvr/i2m/8.2.1/spinand.glibc.011a.64.2D06 project/configs/nvr/i2m/8.2.1/spinand.glibc.011a.64
-	cp project/configs/nvr/i2m/8.2.1/spinand.glibc.011a.128.2D06 project/configs/nvr/i2m/8.2.1/spinand.glibc.011a.128
-	 cp project/board/i2m/SSC011A-S01A/config/fbdev_raw.ini project/board/i2m/SSC011A-S01A/config/fbdev.ini -f
-
-	KERNEL_DEFCONFIG=infinity2m_spinand_ssc011a_s01a_minigui_doublenet_defconfig
 # build uboot
 cd ${RELEASEDIR}/boot
 declare -x ARCH="arm"
@@ -94,8 +83,7 @@ else
 	if [ "${fastboot}" = "fastboot" ]; then
 		make infinity2m_spinand_ssc011a_s01a_minigui_fastboot_defconfig
 	else
-		#make infinity2m_spinand_ssc011a_s01a_minigui_defconfig
-		make ${KERNEL_DEFCONFIG}
+		KERNEL_DEFCONFIG=infinity2m_spinand_ssc011a_s01a_minigui_doublenet_defconfig
 	fi
 	
 fi
@@ -125,14 +113,6 @@ else
 		fi
 	else
 		if [ "${chip}" = "ssd201" ]; then
-			echo "*******************************************"
-			echo "*******************************************"
-			echo "*******************************************"
-			echo "****************build ssd201***************"
-			echo "*******************************************"
-			echo "*******************************************"
-			echo "*******************************************"
-			sleep 3
 			./setup_config.sh ./configs/nvr/i2m/8.2.1/spinand.glibc.011a.64
 		fi
 		if [ "${chip}" = "ssd202" ]; then
@@ -156,7 +136,6 @@ else
 	else
 		./release.sh -k ${RELEASEDIR}/kernel -b 011A -p nvr -f spinand -c i2m -l glibc -v 8.2.1
 	fi
-	
 fi
 
 cd ${RELEASEDIR}/project
