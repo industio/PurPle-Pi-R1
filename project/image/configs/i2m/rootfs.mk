@@ -144,6 +144,19 @@ root:
 		echo "insmod /config/modules/4.9.84/gpio_led_heartbeat.ko" >> $(OUTPUTDIR)/customer/demo.sh; \
 	fi;
 
+	# for alsa
+	# 1.copy ko
+	cp $(PROJ_ROOT)/../kernel/modules/soundcore.ko $(miservice$(RESOUCE))/modules/$(KERNEL_VERSION)
+	cp $(PROJ_ROOT)/../kernel/modules/snd.ko $(miservice$(RESOUCE))/modules/$(KERNEL_VERSION)
+	cp $(PROJ_ROOT)/../kernel/modules/snd-timer.ko $(miservice$(RESOUCE))/modules/$(KERNEL_VERSION)
+	cp $(PROJ_ROOT)/../kernel/modules/snd-pcm.ko $(miservice$(RESOUCE))/modules/$(KERNEL_VERSION)
+	# 2.insmod ko when boot finish
+	echo "insmod  /config/modules/4.9.84/soundcore.ko" >> $(OUTPUTDIR)/customer/demo.sh
+	echo "insmod  /config/modules/4.9.84/snd.ko" >> $(OUTPUTDIR)/customer/demo.sh
+	echo "insmod  /config/modules/4.9.84/snd-timer.ko" >> $(OUTPUTDIR)/customer/demo.sh
+	echo "insmod  /config/modules/4.9.84/snd-pcm.ko" >> $(OUTPUTDIR)/customer/demo.sh
+	echo "insmod  /config/modules/4.9.84/mi_alsa.ko" >> $(OUTPUTDIR)/customer/demo.sh
+
 	if [ -f "$(LIB_DIR_PATH)/modules/$(KERNEL_VERSION)/misc_mod_list_late" ]; then \
 		cat $(LIB_DIR_PATH)/modules/$(KERNEL_VERSION)/misc_mod_list_late | sed 's#\(.*\).ko#insmod /config/modules/$(KERNEL_VERSION)/\1.ko#' >> $(OUTPUTDIR)/customer/demo.sh; \
 		cat $(LIB_DIR_PATH)/modules/$(KERNEL_VERSION)/misc_mod_list_late | sed 's#\(.*\).ko\(.*\)#$(LIB_DIR_PATH)/modules/$(KERNEL_VERSION)/\1.ko#' | \
@@ -200,24 +213,6 @@ root:
 		echo "fi;" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS ; \
 	fi;
 
-	if [ "$(PROJECT)" =  "2D07" ]; then \
-		echo "echo 85 > /sys/class/gpio/export" >>  $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo out > /sys/class/gpio/gpio85/direction" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo 1 > /sys/class/gpio/gpio85/value" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo 86 > /sys/class/gpio/export" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo out > /sys/class/gpio/gpio86/direction" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo 1 > /sys/class/gpio/gpio86/value" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo 90 > /sys/class/gpio/export" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo out > /sys/class/gpio/gpio90/direction" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo 1 > /sys/class/gpio/gpio90/value" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo 47 > /sys/class/gpio/export" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo out > /sys/class/gpio/gpio47/direction" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo 0 > /sys/class/gpio/gpio47/value" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo 14 > /sys/class/gpio/export" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo out > /sys/class/gpio/gpio14/direction" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-		echo "echo 1 > /sys/class/gpio/gpio14/value" >> $(OUTPUTDIR)/rootfs/etc/init.d/rcS; \
-	fi;
-	
 	echo "if [ -e /etc/core.sh ]; then" >> ${OUTPUTDIR}/rootfs/etc/init.d/rcS
 	echo '    echo "|/etc/core.sh %p" > /proc/sys/kernel/core_pattern' >> ${OUTPUTDIR}/rootfs/etc/init.d/rcS
 	echo "chmod 777 /etc/core.sh" >> ${OUTPUTDIR}/rootfs/etc/init.d/rcS
@@ -239,6 +234,7 @@ root:
 		echo export TERM=vt102 >> $(OUTPUTDIR)/customer/demo.sh;	\
 		echo export TERMINFO=/config/terminfo >> $(OUTPUTDIR)/customer/demo.sh;	\
 	fi;
+	
 	
 	#if [ -f "$(PROJ_ROOT)/board/ini/pq.ini" ]; then \
 	#	cp $(PROJ_ROOT)/board/ini/pq.ini $(OUTPUTDIR)/customer/; \
