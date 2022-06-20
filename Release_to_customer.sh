@@ -83,7 +83,7 @@ else
 	if [ "${fastboot}" = "fastboot" ]; then
 		make infinity2m_spinand_ssc011a_s01a_minigui_fastboot_defconfig
 	else
-		KERNEL_DEFCONFIG=infinity2m_spinand_ssc011a_s01a_minigui_doublenet_defconfig
+		make infinity2m_spinand_ssc011a_s01a_minigui_doublenet_defconfig
 	fi
 	
 fi
