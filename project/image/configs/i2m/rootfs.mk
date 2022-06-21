@@ -155,7 +155,6 @@ root:
 	echo "insmod  /config/modules/4.9.84/snd.ko" >> $(OUTPUTDIR)/customer/demo.sh
 	echo "insmod  /config/modules/4.9.84/snd-timer.ko" >> $(OUTPUTDIR)/customer/demo.sh
 	echo "insmod  /config/modules/4.9.84/snd-pcm.ko" >> $(OUTPUTDIR)/customer/demo.sh
-	echo "insmod  /config/modules/4.9.84/mi_alsa.ko" >> $(OUTPUTDIR)/customer/demo.sh
 
 	if [ -f "$(LIB_DIR_PATH)/modules/$(KERNEL_VERSION)/misc_mod_list_late" ]; then \
 		cat $(LIB_DIR_PATH)/modules/$(KERNEL_VERSION)/misc_mod_list_late | sed 's#\(.*\).ko#insmod /config/modules/$(KERNEL_VERSION)/\1.ko#' >> $(OUTPUTDIR)/customer/demo.sh; \
