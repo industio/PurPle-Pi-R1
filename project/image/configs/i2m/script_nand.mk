@@ -156,8 +156,8 @@ endif
 	@echo setenv MacReadDev mmc >> $(SCRIPTDIR)/set_config
 	@echo setenv MacIndexFile MAC_INDEX >> $(SCRIPTDIR)/set_config
 	@echo saveenv >> $(SCRIPTDIR)/set_config
-	@echo macburn >> $(SCRIPTDIR)/set_config
-	@echo saveenv >> $(SCRIPTDIR)/set_config
+	#@echo macburn >> $(SCRIPTDIR)/set_config
+	#@echo saveenv >> $(SCRIPTDIR)/set_config
 	#@echo reset >> $(SCRIPTDIR)/set_config
 	@echo "% <- this is end of file symbol" >> $(SCRIPTDIR)/set_config
 
