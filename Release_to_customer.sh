@@ -31,10 +31,13 @@ fi
 
 if [ "${FLASH_SIZE}" = "128" ]; then
 	cp project/image/configs/i2m/spinand.ubifs.p2.partition.config_128M project/image/configs/i2m/spinand.ubifs.p2.partition.config -f
+	cp project/image/configs/i2m/spinand.ramfs-squashfs.p2.partition.config_128M project/image/configs/i2m/spinand.ramfs-squashfs.p2.partition.config
 elif [ "${FLASH_SIZE}" = "256" ]; then
 	cp project/image/configs/i2m/spinand.ubifs.p2.partition.config_256M project/image/configs/i2m/spinand.ubifs.p2.partition.config -f
+	cp project/image/configs/i2m/spinand.ramfs-squashfs.p2.partition.config_256M project/image/configs/i2m/spinand.ramfs-squashfs.p2.partition.config
 elif [ "${FLASH_SIZE}" = "512" ]; then
 	cp project/image/configs/i2m/spinand.ubifs.p2.partition.config_512M project/image/configs/i2m/spinand.ubifs.p2.partition.config -f
+	cp project/image/configs/i2m/spinand.ramfs-squashfs.p2.partition.config_512M project/image/configs/i2m/spinand.ramfs-squashfs.p2.partition.config
 else
 	echo "---------------------- pls declare flash size(-m) --------------------"
 	exit 1
@@ -81,7 +84,7 @@ if [ "${flashtype}" = "nor" ]; then
 	fi
 else
 	if [ "${fastboot}" = "fastboot" ]; then
-		make infinity2m_spinand_ssc011a_s01a_minigui_fastboot_defconfig
+		make infinity2m_spinand_ssc011a_s01a_minigui_fastboot_doublenet_defconfig
 	else
 		make infinity2m_spinand_ssc011a_s01a_minigui_doublenet_defconfig
 	fi

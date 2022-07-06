@@ -9,7 +9,7 @@ LIB_DIR_PATH:=$(PROJ_ROOT)/release/$(PRODUCT)/$(CHIP)/common/$(TOOLCHAIN)/$(TOOL
 .PHONY: rootfs root app
 rootfs:root app
 root:
-	cd rootfs; tar xf rootfs.tar.gz -C $(OUTPUTDIR)
+	cd rootfs; tar xf rootfs_fastboot.tar.gz -C $(OUTPUTDIR)
 	tar xf busybox/$(BUSYBOX).tar.gz -C $(OUTPUTDIR)/rootfs
 	## ramdisk/other use /linuxrc , ramfs use /init
 	if [ "$(rootfs$(FSTYPE))" = "ramfs" ]; then \
@@ -88,6 +88,7 @@ root:
 	chmod 755 $(RELEASE_ROOT)/bin/debug/*
 	cp -rvf $(RELEASE_ROOT)/bin/debug/riu_*  $(miservice$(RESOUCE))
 
+	
 	#----------------------------------------------------------------------#
 	#----------------the rule is first into ramdisk------------------------#
 	#----------------the second is into partition of config or customer----#
@@ -185,11 +186,12 @@ root:
 	#cp -rf $(PROJ_ROOT)/../sdk/verify/application/customer_zk/etc/* $(OUTPUTDIR)/rootfs/etc/
 	echo -e $(foreach block, $(USR_MOUNT_BLOCKS), "mount -t $($(block)$(FSTYPE)) $($(block)$(MOUNTPT)) $($(block)$(MOUNTTG))\n") >> $(OUTPUTDIR)/rootfs/etc/profile
 
-	echo export LD_LIBRARY_PATH=\$$LD_LIBRARY_PATH:/customer\/lib:\/config\/lib >> $(OUTPUTDIR)/rootfs/etc/profile;
+	echo export LD_LIBRARY_PATH=/customer\/lib:/customer\/usr\/lib:\/config\/lib:/lib:/usr/lib >> $(OUTPUTDIR)/rootfs/etc/profile;
+	echo export PATH=/customer\/bin:/customer\/usr\/sbin:/bin:/sbin >> $(OUTPUTDIR)/rootfs/etc/profile
 
 	echo "busybox telnetd&" >> $(OUTPUTDIR)/rootfs/etc/profile
 	#echo \/customer\/bin\/zkgui \& >> $(OUTPUTDIR)/rootfs/etc/profile;
-	echo sleep 8 >> $(OUTPUTDIR)/rootfs/etc/profile;
+	#echo sleep 8 >> $(OUTPUTDIR)/rootfs/etc/profile;
 	echo /customer/demo.sh >> $(OUTPUTDIR)/rootfs/etc/profile;
 	
 	if [ $(interface_wlan) = "enable" ]; then \
@@ -223,3 +225,6 @@ root:
 	mkdir -p $(OUTPUTDIR)/customer
 	mkdir -p $(OUTPUTDIR)/rootfs/vendor
 	mkdir -p $(OUTPUTDIR)/rootfs/customer
+	
+	cp $(PROJ_ROOT)/image/fastboot_customer/* $(OUTPUTDIR)/customer/ -rf; \
+        	
