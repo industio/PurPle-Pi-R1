@@ -149,7 +149,7 @@ root:
 
 	#---------------dynamic so start.-------------------#
 	cp -rvf $(RELEASE_ROOT)/mi_libs/dynamic/* $(OUTPUTDIR)/rootfs/lib;
-	find $(OUTPUTDIR)/rootfs/lib/ -name "*.so*" | xargs $(TOOLCHAIN_REL)strip  --strip-unneeded;\
+	find $(OUTPUTDIR)/rootfs/lib/ -name "*.so*" -a -name "*[!p][!y]" | xargs $(TOOLCHAIN_REL)strip  --strip-unneeded;\
 
 	cp -rvf $(RELEASE_ROOT)/ex_libs/dynamic/*  $(miservice$(RESOUCE))/lib;
 	find  $(miservice$(RESOUCE))/lib/ -name "*.so*" | xargs $(TOOLCHAIN_REL)strip  --strip-unneeded;\
