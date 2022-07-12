@@ -99,7 +99,7 @@ customer$(OTABLK)    = /dev/ubi0_0
 
 appconfigs$(RESOUCE)   = $(OUTPUTDIR)/appconfigs
 appconfigs$(FSTYPE)    = ubifs
-appconfigs$(PATSIZE)   = 0x300000
+appconfigs$(PATSIZE)   = 0x600000
 appconfigs$(MOUNTTG)  = /appconfigs
 appconfigs$(MOUNTPT)  = ubi0:appconfigs
 appconfigs$(OPTIONS)   = rw
