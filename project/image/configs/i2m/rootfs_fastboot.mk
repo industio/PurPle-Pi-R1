@@ -10,7 +10,7 @@ LIB_DIR_PATH:=$(PROJ_ROOT)/release/$(PRODUCT)/$(CHIP)/common/$(TOOLCHAIN)/$(TOOL
 rootfs:root app
 root:
 	cd rootfs; tar xf rootfs_fastboot.tar.gz -C $(OUTPUTDIR)
-	tar xf busybox/$(BUSYBOX).tar.gz -C $(OUTPUTDIR)/rootfs
+	#tar xf busybox/$(BUSYBOX).tar.gz -C $(OUTPUTDIR)/rootfs
 	## ramdisk/other use /linuxrc , ramfs use /init
 	if [ "$(rootfs$(FSTYPE))" = "ramfs" ]; then \
 		mv $(OUTPUTDIR)/rootfs/linuxrc $(OUTPUTDIR)/rootfs/init ; \
@@ -187,9 +187,14 @@ root:
 	echo -e $(foreach block, $(USR_MOUNT_BLOCKS), "mount -t $($(block)$(FSTYPE)) $($(block)$(MOUNTPT)) $($(block)$(MOUNTTG))\n") >> $(OUTPUTDIR)/rootfs/etc/profile
 
 	echo export LD_LIBRARY_PATH=/customer\/lib:/customer\/usr\/lib:\/config\/lib:/lib:/usr/lib >> $(OUTPUTDIR)/rootfs/etc/profile;
-	echo export PATH=/customer\/bin:/customer\/usr\/sbin:/bin:/sbin >> $(OUTPUTDIR)/rootfs/etc/profile
+	echo export PATH=/customer/bin:/customer/usr\/bin:/customer/usr\/sbin:/customer/sbin:/bin:/sbin >> $(OUTPUTDIR)/rootfs/etc/profile
+	echo "export TSLIB_TSDEVICE=/dev/input/event0" >> $(OUTPUTDIR)/rootfs/etc/profile
+	echo "export TSLIB_FBDEVICE=/dev/fb0" >> $(OUTPUTDIR)/rootfs/etc/profile;
+	echo "export TSLIB_PLUGINDIR=/customer/usr/lib/ts" >> $(OUTPUTDIR)/rootfs/etc/profile
+	echo "export TSLIB_CONFFILE=/customer/etc/ts.conf" >> $(OUTPUTDIR)/rootfs/etc/profile
+	echo "export TSLIB_CALIBFILE=/customer/etc/pointercal" >> $(OUTPUTDIR)/rootfs/etc/profile
 
-	echo "busybox telnetd&" >> $(OUTPUTDIR)/rootfs/etc/profile
+	#echo "busybox telnetd&" >> $(OUTPUTDIR)/rootfs/etc/profile
 	#echo \/customer\/bin\/zkgui \& >> $(OUTPUTDIR)/rootfs/etc/profile;
 	#echo sleep 8 >> $(OUTPUTDIR)/rootfs/etc/profile;
 	echo /customer/demo.sh >> $(OUTPUTDIR)/rootfs/etc/profile;
@@ -227,4 +232,3 @@ root:
 	mkdir -p $(OUTPUTDIR)/rootfs/customer
 	
 	cp $(PROJ_ROOT)/image/fastboot_customer/* $(OUTPUTDIR)/customer/ -rf; \
-        	

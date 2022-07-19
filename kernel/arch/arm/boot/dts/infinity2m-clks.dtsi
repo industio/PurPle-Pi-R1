@@ -1223,6 +1223,7 @@ CLK_sc_pixel: CLK_sc_pixel {
     mux-shift = <2>;  //2+REG_CKG_SC_PIXEL_OFFSET
     mux-width = <4>;
     gate-shift = <0>;  //0+REG_CKG_SC_PIXEL_OFFSET
+    auto-enable = <1>;
 };
 
 CLK_sata_pm: CLK_sata_pm {
