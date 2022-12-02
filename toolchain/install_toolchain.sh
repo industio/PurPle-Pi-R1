@@ -10,7 +10,7 @@ chmod a+x gcc-arm-8.2-2018.08-x86_64-arm-linux-gnueabihf/libexec/gcc/arm-linux-g
 chmod a+x gcc-arm-8.2-2018.08-x86_64-arm-linux-gnueabihf/libexec/gcc/arm-linux-gnueabihf/8.2.1/lto1
 chmod a+x gcc-arm-8.2-2018.08-x86_64-arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gdb
 PWD=`pwd`
-echo "export PATH=$PATH:${PWD}/gcc-arm-8.2-2018.08-x86_64-arm-linux-gnueabihf/bin" >> ~/.bashrc
+echo "export PATH=\$PATH:${PWD}/gcc-arm-8.2-2018.08-x86_64-arm-linux-gnueabihf/bin" >> ~/.bashrc
 source ~/.bashrc
 check_ok=`which arm-linux-gnueabihf-gcc`
 if [ "${check_ok}" == "" ]; then
