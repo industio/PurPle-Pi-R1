@@ -1,3 +1,8 @@
 if [ -e "/dev/$MDEV" ]  ; then
+	if [ ! -d "/udisk/" ];then
+		mkdir /udisk
+		chmod a+x /udisk
+		sync
+	fi
 	mount -t vfat /dev/$MDEV /udisk -o iocharset=utf8
 fi

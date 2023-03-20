@@ -1,3 +1,8 @@
 if [ -e "/dev/$MDEV" ]  ; then
+	if [ ! -d "/sdcard/" ];then
+		mkdir /sdcard
+		chmod a+x /sdcard
+		sync 
+	fi
 	mount -t vfat /dev/$MDEV /sdcard/ -o iocharset=utf8
 fi
