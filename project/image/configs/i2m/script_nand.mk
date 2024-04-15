@@ -152,7 +152,7 @@ endif
 	@echo setenv dispout $(DISP_OUT_NAME) >> $(SCRIPTDIR)/set_config
 	@echo setenv sdautoupgrade 1 >> $(SCRIPTDIR)/set_config
 	@echo setenv usbautoupgrade 1 >> $(SCRIPTDIR)/set_config
-	@echo setenv upgradePort 1 >> $(SCRIPTDIR)/set_config
+	@echo setenv UpgradePort 1 >> $(SCRIPTDIR)/set_config
 	@echo setenv MacReadDev mmc >> $(SCRIPTDIR)/set_config
 	@echo setenv MacIndexFile MAC_INDEX >> $(SCRIPTDIR)/set_config
 	@echo saveenv >> $(SCRIPTDIR)/set_config
